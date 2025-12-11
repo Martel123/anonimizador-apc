@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin - Plataforma Legal SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-indigo-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-shield-alt text-2xl"></i>
+                    <span class="text-xl font-bold">Super Admin</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm">{{ current_user.email }}</span>
+                    <a href="{{ url_for('index') }}" class="bg-indigo-700 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-home mr-2"></i>Inicio
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Salir
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Estudios</p>
+                        <p class="text-3xl font-bold text-indigo-600">{{ total_tenants }}</p>
+                    </div>
+                    <div class="bg-indigo-100 p-4 rounded-full">
+                        <i class="fas fa-building text-indigo-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Usuarios</p>
+                        <p class="text-3xl font-bold text-green-600">{{ total_users }}</p>
+                    </div>
+                    <div class="bg-green-100 p-4 rounded-full">
+                        <i class="fas fa-users text-green-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Documentos</p>
+                        <p class="text-3xl font-bold text-purple-600">{{ total_docs }}</p>
+                    </div>
+                    <div class="bg-purple-100 p-4 rounded-full">
+                        <i class="fas fa-file-alt text-purple-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-building mr-2"></i>Estudios Jurídicos Registrados
+                </h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estudio</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuarios</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Documentos</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Última Actividad</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for item in stats %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-gavel text-indigo-600"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900">{{ item.tenant.nombre }}</div>
+                                        <div class="text-sm text-gray-500">{{ item.tenant.slug }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                                    {{ item.users }} usuarios
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                                    {{ item.docs }} docs
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {% if item.last_activity %}
+                                    {{ item.last_activity.strftime('%d/%m/%Y %H:%M') }}
+                                {% else %}
+                                    Sin actividad
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if item.tenant.activo %}
+                                    <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">Activo</span>
+                                {% else %}
+                                    <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                <a href="{{ url_for('impersonate_tenant', tenant_id=item.tenant.id) }}" 
+                                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm inline-flex items-center">
+                                    <i class="fas fa-eye mr-2"></i>Ver como
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

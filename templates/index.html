@@ -26,7 +26,18 @@
 <body class="bg-gray-50 min-h-screen">
     <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
         <div class="max-w-4xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-medium text-gray-800">Estudio Jurídico</h1>
+            <div class="flex items-center space-x-3">
+                <h1 class="text-xl font-medium text-gray-800">
+                    {% if current_tenant %}
+                        {{ current_tenant.nombre }}
+                    {% else %}
+                        Plataforma Legal SaaS
+                    {% endif %}
+                </h1>
+                {% if is_impersonating %}
+                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">Vista previa</span>
+                {% endif %}
+            </div>
             <nav class="flex items-center space-x-4">
                 {% if current_user.is_authenticated %}
                     <span class="text-sm text-gray-500 hidden md:inline">{{ current_user.username }}</span>
@@ -38,6 +49,16 @@
                         Admin
                     </a>
                     {% endif %}
+                    {% if current_user.is_super_admin() %}
+                    <a href="{{ url_for('super_admin') }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-all duration-200">
+                        Super Admin
+                    </a>
+                    {% endif %}
+                    {% if is_impersonating %}
+                    <a href="{{ url_for('stop_impersonate') }}" class="text-yellow-600 hover:text-yellow-800 text-sm font-medium transition-all duration-200">
+                        Salir Vista
+                    </a>
+                    {% endif %}
                     <a href="{{ url_for('logout') }}" class="text-red-600 hover:text-red-800 text-sm font-medium transition-all duration-200">
                         Salir
                     </a>
@@ -45,8 +66,8 @@
                     <a href="{{ url_for('login') }}" class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-all duration-200">
                         Iniciar Sesión
                     </a>
-                    <a href="{{ url_for('registro') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
-                        Registrarse
+                    <a href="{{ url_for('registro_estudio') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
+                        Registrar Estudio
                     </a>
                 {% endif %}
             </nav>
@@ -72,13 +93,13 @@
 
             {% if not current_user.is_authenticated %}
             <div class="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                <p class="text-blue-800 mb-4">Para generar documentos, necesitas iniciar sesión o crear una cuenta.</p>
+                <p class="text-blue-800 mb-4">Para generar documentos, necesitas iniciar sesión o registrar tu estudio jurídico.</p>
                 <div class="flex justify-center gap-4">
                     <a href="{{ url_for('login') }}" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all duration-200">
                         Iniciar Sesión
                     </a>
-                    <a href="{{ url_for('registro') }}" class="px-6 py-2 bg-white hover:bg-gray-100 text-blue-600 border border-blue-600 font-medium rounded-lg transition-all duration-200">
-                        Crear Cuenta
+                    <a href="{{ url_for('registro_estudio') }}" class="px-6 py-2 bg-white hover:bg-gray-100 text-blue-600 border border-blue-600 font-medium rounded-lg transition-all duration-200">
+                        Registrar Mi Estudio
                     </a>
                 </div>
             </div>

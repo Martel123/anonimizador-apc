@@ -2,8 +2,9 @@ import os
 import csv
 import json
 import logging
+from functools import wraps
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify, session, g
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -13,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla
+from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla, Tenant
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -39,6 +40,7 @@ login_manager.login_message_category = 'info'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+
 MODELOS = {
     "aumento_alimentos": {
         "nombre": "Aumento de alimentos",
@@ -55,12 +57,60 @@ MODELOS = {
 CARPETA_MODELOS = "modelos_legales"
 CARPETA_ESTILOS = "estilos_estudio"
 CARPETA_RESULTADOS = "Resultados"
-ARCHIVO_HISTORIAL = "historial.csv"
 
 
-def cargar_plantilla(nombre_archivo):
-    """Lee el archivo .txt de la plantilla o desde la base de datos."""
-    plantilla_db = Plantilla.query.filter_by(key=nombre_archivo.replace('.txt', ''), activa=True).first()
+def super_admin_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_super_admin():
+            flash("Acceso restringido a super administradores.", "error")
+            return redirect(url_for("index"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_estudio_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            flash("Acceso restringido a administradores.", "error")
+            return redirect(url_for("index"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def get_current_tenant():
+    if not current_user.is_authenticated:
+        return None
+    if current_user.is_super_admin() and 'impersonate_tenant_id' in session:
+        return Tenant.query.get(session['impersonate_tenant_id'])
+    return current_user.tenant
+
+
+def get_tenant_id():
+    tenant = get_current_tenant()
+    return tenant.id if tenant else None
+
+
+def get_resultados_folder(tenant=None):
+    if tenant:
+        folder = os.path.join(CARPETA_RESULTADOS, f"tenant_{tenant.id}")
+    else:
+        folder = CARPETA_RESULTADOS
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def cargar_plantilla(nombre_archivo, tenant_id=None):
+    key = nombre_archivo.replace('.txt', '')
+    if tenant_id:
+        plantilla_db = Plantilla.query.filter_by(key=key, tenant_id=tenant_id, activa=True).first()
+        if plantilla_db:
+            return plantilla_db.contenido
+    
+    plantilla_db = Plantilla.query.filter_by(key=key, activa=True).first()
     if plantilla_db:
         return plantilla_db.contenido
     
@@ -71,8 +121,12 @@ def cargar_plantilla(nombre_archivo):
     return ""
 
 
-def cargar_estilos(carpeta_estilos):
-    """Lee archivos de texto de la carpeta del modelo en /estilos_estudio o base de datos."""
+def cargar_estilos(carpeta_estilos, tenant_id=None):
+    if tenant_id:
+        estilos_db = Estilo.query.filter_by(plantilla_key=carpeta_estilos, tenant_id=tenant_id, activo=True).all()
+        if estilos_db:
+            return "\n\n---\n\n".join([e.contenido for e in estilos_db])
+    
     estilos_db = Estilo.query.filter_by(plantilla_key=carpeta_estilos, activo=True).all()
     if estilos_db:
         return "\n\n---\n\n".join([e.contenido for e in estilos_db])
@@ -89,7 +143,6 @@ def cargar_estilos(carpeta_estilos):
 
 
 def construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos=None):
-    """Crea el prompt jurídico para OpenAI."""
     datos_str = ""
     if campos_dinamicos and len(campos_dinamicos) > 0:
         for campo in campos_dinamicos:
@@ -136,7 +189,6 @@ INSTRUCCIONES:
 
 
 def generar_con_ia(prompt):
-    """Función que usa el modelo OpenAI para generar el documento."""
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         response = client.chat.completions.create(
@@ -154,13 +206,20 @@ def generar_con_ia(prompt):
         return None
 
 
-LOGO_ESTUDIO = os.path.join(os.path.dirname(__file__), "static", "logo_estudio.png")
+def get_tenant_logo_path(tenant):
+    if tenant and tenant.logo_path:
+        logo_path = os.path.join("static", "tenants", tenant.slug, tenant.logo_path)
+        if os.path.exists(logo_path):
+            return logo_path
+    default_logo = os.path.join("static", "logo_estudio.png")
+    if os.path.exists(default_logo):
+        return default_logo
+    return None
 
-def guardar_docx(texto, nombre_archivo):
-    """Convierte texto a .docx con formato jurídico profesional."""
+
+def guardar_docx(texto, nombre_archivo, tenant=None):
     doc = Document()
     
-    # Configurar márgenes del documento
     sections = doc.sections
     for section in sections:
         section.top_margin = Cm(3.5)
@@ -168,21 +227,24 @@ def guardar_docx(texto, nombre_archivo):
         section.left_margin = Cm(3)
         section.right_margin = Cm(2.5)
         
-        # Agregar logo en el encabezado
-        if os.path.exists(LOGO_ESTUDIO):
+        logo_path = get_tenant_logo_path(tenant)
+        if logo_path and os.path.exists(logo_path):
             header = section.header
             header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
             header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = header_para.add_run()
-            run.add_picture(LOGO_ESTUDIO, width=Cm(4))
+            run.add_picture(logo_path, width=Cm(4))
             
-            # Agregar información del estudio debajo del logo
-            info_lines = [
-                "Autorizado su funcionamiento por Resolución Directoral N.º 3562-2022-JUS/DGDPAJ-DCMA",
-                "Dirección: Av. Javier Prado Este 255, oficina 701. Distrito de San Isidro, Lima-Perú",
-                "Teléfono (01) – 6757575 / 994647890",
-                "Página web: www.abogadasperu.com"
-            ]
+            if tenant:
+                info_lines = tenant.get_header_info()
+            else:
+                info_lines = [
+                    "Autorizado su funcionamiento por Resolución Directoral N.º 3562-2022-JUS/DGDPAJ-DCMA",
+                    "Dirección: Av. Javier Prado Este 255, oficina 701. Distrito de San Isidro, Lima-Perú",
+                    "Teléfono (01) – 6757575 / 994647890",
+                    "Página web: www.abogadasperu.com"
+                ]
+            
             for linea in info_lines:
                 info_para = header.add_paragraph()
                 info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -192,7 +254,6 @@ def guardar_docx(texto, nombre_archivo):
                 info_para.paragraph_format.space_after = Pt(0)
                 info_para.paragraph_format.space_before = Pt(0)
     
-    # Palabras clave para detectar títulos y secciones
     titulos_principales = ['SUMILLA:', 'PETITORIO:', 'HECHOS:', 'FUNDAMENTOS', 'ANEXOS:', 
                           'POR TANTO:', 'VÍA PROCEDIMENTAL:', 'CONTRACAUTELA:',
                           'FUNDAMENTACION JURÍDICA:', 'FUNDAMENTACIÓN JURÍDICA:']
@@ -210,12 +271,9 @@ def guardar_docx(texto, nombre_archivo):
         
         p = doc.add_paragraph()
         run = p.add_run(linea)
-        
-        # Configurar fuente Times New Roman para todo
         run.font.name = 'Times New Roman'
         run.font.size = Pt(12)
         
-        # Detectar y formatear títulos principales (negrita, centrado o alineado)
         es_titulo_principal = any(linea.upper().startswith(t.upper()) for t in titulos_principales)
         es_titulo_secundario = any(linea.upper().startswith(t.upper()) for t in titulos_secundarios)
         es_encabezado = any(linea.upper().startswith(t.upper()) for t in encabezados)
@@ -234,38 +292,48 @@ def guardar_docx(texto, nombre_archivo):
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(6)
         elif linea.startswith('_____'):
-            # Línea de firma
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(24)
         elif linea.upper().startswith('D.N.I'):
-            # DNI debajo de firma
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_after = Pt(12)
         else:
-            # Párrafo normal con justificación
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             p.paragraph_format.first_line_indent = Cm(1.25)
         
-        # Espaciado de línea
         p.paragraph_format.line_spacing = 1.5
     
-    ruta = os.path.join(CARPETA_RESULTADOS, nombre_archivo)
+    folder = get_resultados_folder(tenant)
+    ruta = os.path.join(folder, nombre_archivo)
     doc.save(ruta)
     return ruta
 
 
 def validar_dato(valor):
-    """Si un campo llega vacío, reemplazarlo con {{FALTA_DATO}}."""
     if not valor or valor.strip() == "":
         return "{{FALTA_DATO}}"
     return valor.strip()
 
 
+@app.context_processor
+def inject_tenant():
+    return {
+        'current_tenant': get_current_tenant() if current_user.is_authenticated else None,
+        'is_impersonating': 'impersonate_tenant_id' in session and current_user.is_authenticated and current_user.is_super_admin()
+    }
+
+
 @app.route("/")
 def index():
-    """Página principal con el formulario."""
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    
     modelos_completos = dict(MODELOS)
-    plantillas_db = Plantilla.query.filter_by(activa=True).all()
+    if tenant_id:
+        plantillas_db = Plantilla.query.filter_by(tenant_id=tenant_id, activa=True).all()
+    else:
+        plantillas_db = Plantilla.query.filter_by(activa=True).all()
+    
     for p in plantillas_db:
         if p.key not in modelos_completos:
             modelos_completos[p.key] = {
@@ -273,12 +341,11 @@ def index():
                 "plantilla": f"{p.key}.txt",
                 "carpeta_estilos": p.carpeta_estilos or p.key
             }
-    return render_template("index.html", modelos=modelos_completos)
+    return render_template("index.html", modelos=modelos_completos, tenant=tenant)
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Página de inicio de sesión."""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     
@@ -286,8 +353,10 @@ def login():
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
         
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(email=email, activo=True).first()
         if user and user.check_password(password):
+            user.last_login = datetime.utcnow()
+            db.session.commit()
             login_user(user)
             flash("Sesión iniciada correctamente.", "success")
             next_page = request.args.get('next')
@@ -300,56 +369,79 @@ def login():
 
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
-    """Página de registro de usuario."""
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        email = request.form.get("email", "").strip()
-        password = request.form.get("password", "")
-        password_confirm = request.form.get("password_confirm", "")
-        
-        if not username or not email or not password:
-            flash("Todos los campos son obligatorios.", "error")
-            return render_template("registro.html")
-        
-        if password != password_confirm:
-            flash("Las contraseñas no coinciden.", "error")
-            return render_template("registro.html")
-        
-        if len(password) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "error")
-            return render_template("registro.html")
-        
-        if User.query.filter_by(email=email).first():
-            flash("Ya existe una cuenta con este email.", "error")
-            return render_template("registro.html")
-        
-        if User.query.filter_by(username=username).first():
-            flash("Este nombre de usuario ya está en uso.", "error")
-            return render_template("registro.html")
-        
-        user = User(username=username, email=email)
-        user.set_password(password)
-        
-        if User.query.count() == 0:
-            user.is_admin = True
-        
-        db.session.add(user)
-        db.session.commit()
-        
-        login_user(user)
-        flash("Cuenta creada exitosamente.", "success")
         return redirect(url_for('index'))
     
     return render_template("registro.html")
 
 
+@app.route("/registro_estudio", methods=["GET", "POST"])
+def registro_estudio():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == "POST":
+        nombre_estudio = request.form.get("nombre_estudio", "").strip()
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        password_confirm = request.form.get("password_confirm", "")
+        
+        if not nombre_estudio or not username or not email or not password:
+            flash("Todos los campos son obligatorios.", "error")
+            return render_template("registro_estudio.html")
+        
+        if password != password_confirm:
+            flash("Las contraseñas no coinciden.", "error")
+            return render_template("registro_estudio.html")
+        
+        if len(password) < 6:
+            flash("La contraseña debe tener al menos 6 caracteres.", "error")
+            return render_template("registro_estudio.html")
+        
+        if User.query.filter_by(email=email).first():
+            flash("Ya existe una cuenta con este email.", "error")
+            return render_template("registro_estudio.html")
+        
+        slug = nombre_estudio.lower().replace(" ", "-").replace(".", "")[:50]
+        base_slug = slug
+        counter = 1
+        while Tenant.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+        
+        tenant = Tenant(
+            nombre=nombre_estudio,
+            slug=slug,
+            activo=True
+        )
+        db.session.add(tenant)
+        db.session.flush()
+        
+        is_first_user = User.query.count() == 0
+        user = User(
+            username=username,
+            email=email,
+            tenant_id=tenant.id,
+            role='super_admin' if is_first_user else 'admin_estudio',
+            activo=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        
+        login_user(user)
+        flash(f"Estudio '{nombre_estudio}' creado exitosamente. Eres el administrador.", "success")
+        return redirect(url_for('configurar_estudio'))
+    
+    return render_template("registro_estudio.html")
+
+
 @app.route("/logout")
 @login_required
 def logout():
-    """Cerrar sesión."""
+    if 'impersonate_tenant_id' in session:
+        del session['impersonate_tenant_id']
     logout_user()
     flash("Sesión cerrada correctamente.", "success")
     return redirect(url_for('index'))
@@ -358,7 +450,8 @@ def logout():
 @app.route("/procesar_ia", methods=["POST"])
 @login_required
 def procesar_ia():
-    """Procesa el formulario y genera el documento."""
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
     tipo_documento = request.form.get("tipo_documento")
     
     plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
@@ -391,8 +484,8 @@ def procesar_ia():
             "conclusion": validar_dato(request.form.get("conclusion", ""))
         }
     
-    plantilla = cargar_plantilla(modelo["plantilla"])
-    estilos = cargar_estilos(modelo["carpeta_estilos"])
+    plantilla = cargar_plantilla(modelo["plantilla"], tenant_id)
+    estilos = cargar_estilos(modelo["carpeta_estilos"], tenant_id)
     prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None)
     
     texto_generado = generar_con_ia(prompt)
@@ -404,7 +497,7 @@ def procesar_ia():
     fecha_actual = datetime.now()
     nombre_archivo = f"{tipo_documento}_{fecha_actual.strftime('%Y%m%d_%H%M%S')}.docx"
     
-    guardar_docx(texto_generado, nombre_archivo)
+    guardar_docx(texto_generado, nombre_archivo, tenant)
     
     demandante_campo = datos_caso.get("demandante1") or datos_caso.get("nombre_demandante") or datos_caso.get("demandante") or "Sin nombre"
     if demandante_campo == "{{FALTA_DATO}}":
@@ -412,6 +505,7 @@ def procesar_ia():
     
     record = DocumentRecord(
         user_id=current_user.id,
+        tenant_id=tenant_id,
         fecha=fecha_actual,
         tipo_documento=modelo["nombre"],
         tipo_documento_key=tipo_documento,
@@ -430,7 +524,8 @@ def procesar_ia():
 @app.route("/preview", methods=["POST"])
 @login_required
 def preview():
-    """Genera un preview del documento sin guardarlo."""
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
     tipo_documento = request.form.get("tipo_documento")
     
     plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
@@ -463,8 +558,8 @@ def preview():
             "conclusion": validar_dato(request.form.get("conclusion", ""))
         }
     
-    plantilla = cargar_plantilla(modelo["plantilla"])
-    estilos = cargar_estilos(modelo["carpeta_estilos"])
+    plantilla = cargar_plantilla(modelo["plantilla"], tenant_id)
+    estilos = cargar_estilos(modelo["carpeta_estilos"], tenant_id)
     prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None)
     
     texto_generado = generar_con_ia(prompt)
@@ -483,7 +578,8 @@ def preview():
 @app.route("/guardar_desde_preview", methods=["POST"])
 @login_required
 def guardar_desde_preview():
-    """Guarda el documento después del preview."""
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
     tipo_documento = request.form.get("tipo_documento")
     texto_editado = request.form.get("texto_editado")
     
@@ -509,7 +605,7 @@ def guardar_desde_preview():
     fecha_actual = datetime.now()
     nombre_archivo = f"{tipo_documento}_{fecha_actual.strftime('%Y%m%d_%H%M%S')}.docx"
     
-    guardar_docx(texto_editado, nombre_archivo)
+    guardar_docx(texto_editado, nombre_archivo, tenant)
     
     demandante_campo = datos_caso.get("demandante1") or datos_caso.get("nombre_demandante") or datos_caso.get("demandante") or "Sin nombre"
     if demandante_campo == "{{FALTA_DATO}}":
@@ -517,6 +613,7 @@ def guardar_desde_preview():
     
     record = DocumentRecord(
         user_id=current_user.id,
+        tenant_id=tenant_id,
         fecha=fecha_actual,
         tipo_documento=modelo["nombre"],
         tipo_documento_key=tipo_documento,
@@ -535,17 +632,25 @@ def guardar_desde_preview():
 @app.route("/editar/<int:doc_id>", methods=["GET", "POST"])
 @login_required
 def editar_documento(doc_id):
-    """Edita un documento existente."""
     record = DocumentRecord.query.get_or_404(doc_id)
+    tenant = get_current_tenant()
     
-    if record.user_id != current_user.id and not current_user.is_admin:
+    if not current_user.can_access_tenant(record.tenant_id):
         flash("No tienes permiso para editar este documento.", "error")
         return redirect(url_for("historial"))
     
     if request.method == "POST":
         texto_editado = request.form.get("texto_editado")
         
-        guardar_docx(texto_editado, record.archivo)
+        folder = get_resultados_folder(tenant)
+        ruta = os.path.join(folder, record.archivo)
+        
+        doc = Document()
+        for parrafo in texto_editado.split("\n"):
+            if parrafo.strip():
+                doc.add_paragraph(parrafo)
+        doc.save(ruta)
+        
         record.texto_generado = texto_editado
         record.fecha = datetime.now()
         db.session.commit()
@@ -559,7 +664,6 @@ def editar_documento(doc_id):
 @app.route("/descargar/<nombre_archivo>")
 @login_required
 def descargar(nombre_archivo):
-    """Descarga el documento generado de forma segura."""
     safe_filename = secure_filename(nombre_archivo)
     if not safe_filename or safe_filename != nombre_archivo:
         flash("Nombre de archivo no válido.", "error")
@@ -569,8 +673,13 @@ def descargar(nombre_archivo):
         flash("Tipo de archivo no permitido.", "error")
         return redirect(url_for("index"))
     
-    if current_user.is_admin:
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    
+    if current_user.is_super_admin():
         record = DocumentRecord.query.filter_by(archivo=safe_filename).first()
+    elif current_user.is_admin:
+        record = DocumentRecord.query.filter_by(archivo=safe_filename, tenant_id=tenant_id).first()
     else:
         record = DocumentRecord.query.filter_by(archivo=safe_filename, user_id=current_user.id).first()
     
@@ -578,17 +687,21 @@ def descargar(nombre_archivo):
         flash("Documento no encontrado o no tienes permiso para accederlo.", "error")
         return redirect(url_for("historial"))
     
-    ruta_completa = os.path.join(os.path.abspath(CARPETA_RESULTADOS), safe_filename)
-    if not ruta_completa.startswith(os.path.abspath(CARPETA_RESULTADOS)):
-        flash("Acceso no permitido.", "error")
-        return redirect(url_for("index"))
+    doc_tenant = Tenant.query.get(record.tenant_id) if record.tenant_id else None
+    folder = get_resultados_folder(doc_tenant)
+    ruta_completa = os.path.join(os.path.abspath(folder), safe_filename)
     
     if not os.path.exists(ruta_completa):
-        flash("Archivo no encontrado.", "error")
-        return redirect(url_for("index"))
+        old_path = os.path.join(os.path.abspath(CARPETA_RESULTADOS), safe_filename)
+        if os.path.exists(old_path):
+            ruta_completa = old_path
+            folder = CARPETA_RESULTADOS
+        else:
+            flash("Archivo no encontrado.", "error")
+            return redirect(url_for("index"))
     
     return send_from_directory(
-        os.path.abspath(CARPETA_RESULTADOS), 
+        os.path.abspath(folder), 
         safe_filename, 
         as_attachment=True
     )
@@ -597,13 +710,20 @@ def descargar(nombre_archivo):
 @app.route("/historial")
 @login_required
 def historial():
-    """Muestra el historial de documentos generados."""
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    
     search = request.args.get('search', '').strip()
     tipo_filter = request.args.get('tipo', '').strip()
     fecha_desde = request.args.get('fecha_desde', '').strip()
     fecha_hasta = request.args.get('fecha_hasta', '').strip()
     
-    query = DocumentRecord.query.filter_by(user_id=current_user.id)
+    if current_user.is_super_admin() and not tenant_id:
+        query = DocumentRecord.query
+    elif current_user.is_admin and tenant_id:
+        query = DocumentRecord.query.filter_by(tenant_id=tenant_id)
+    else:
+        query = DocumentRecord.query.filter_by(user_id=current_user.id)
     
     if search:
         query = query.filter(
@@ -642,37 +762,182 @@ def historial():
                           fecha_hasta=fecha_hasta)
 
 
+@app.route("/super_admin")
+@super_admin_required
+def super_admin():
+    tenants = Tenant.query.order_by(Tenant.created_at.desc()).all()
+    
+    stats = []
+    for t in tenants:
+        doc_count = DocumentRecord.query.filter_by(tenant_id=t.id).count()
+        user_count = User.query.filter_by(tenant_id=t.id).count()
+        last_doc = DocumentRecord.query.filter_by(tenant_id=t.id).order_by(DocumentRecord.fecha.desc()).first()
+        stats.append({
+            'tenant': t,
+            'docs': doc_count,
+            'users': user_count,
+            'last_activity': last_doc.fecha if last_doc else None
+        })
+    
+    total_docs = DocumentRecord.query.count()
+    total_users = User.query.count()
+    total_tenants = Tenant.query.count()
+    
+    return render_template("super_admin.html",
+                          stats=stats,
+                          total_docs=total_docs,
+                          total_users=total_users,
+                          total_tenants=total_tenants)
+
+
+@app.route("/super_admin/impersonate/<int:tenant_id>")
+@super_admin_required
+def impersonate_tenant(tenant_id):
+    tenant = Tenant.query.get_or_404(tenant_id)
+    session['impersonate_tenant_id'] = tenant_id
+    flash(f"Ahora estás viendo como: {tenant.nombre}", "info")
+    return redirect(url_for('index'))
+
+
+@app.route("/super_admin/stop_impersonate")
+@super_admin_required
+def stop_impersonate():
+    if 'impersonate_tenant_id' in session:
+        del session['impersonate_tenant_id']
+    flash("Volviste a tu vista de super administrador.", "info")
+    return redirect(url_for('super_admin'))
+
+
 @app.route("/admin")
-@login_required
+@admin_estudio_required
 def admin():
-    """Panel de administración."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("index"))
     
-    plantillas = Plantilla.query.all()
-    estilos = Estilo.query.all()
-    usuarios = User.query.all()
-    total_docs = DocumentRecord.query.count()
+    plantillas = Plantilla.query.filter_by(tenant_id=tenant.id).all()
+    estilos = Estilo.query.filter_by(tenant_id=tenant.id).all()
+    usuarios = User.query.filter_by(tenant_id=tenant.id).all()
+    total_docs = DocumentRecord.query.filter_by(tenant_id=tenant.id).count()
     
     return render_template("admin.html", 
                           plantillas=plantillas, 
                           estilos=estilos,
                           usuarios=usuarios,
                           total_docs=total_docs,
-                          modelos=MODELOS)
+                          modelos=MODELOS,
+                          tenant=tenant)
+
+
+@app.route("/configurar_estudio", methods=["GET", "POST"])
+@admin_estudio_required
+def configurar_estudio():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    if request.method == "POST":
+        tenant.nombre = request.form.get("nombre", "").strip() or tenant.nombre
+        tenant.resolucion_directoral = request.form.get("resolucion_directoral", "").strip()
+        tenant.direccion = request.form.get("direccion", "").strip()
+        tenant.telefono = request.form.get("telefono", "").strip()
+        tenant.pagina_web = request.form.get("pagina_web", "").strip()
+        tenant.pais = request.form.get("pais", "").strip()
+        tenant.ciudad = request.form.get("ciudad", "").strip()
+        tenant.areas_practica = request.form.get("areas_practica", "").strip()
+        
+        if 'logo' in request.files:
+            file = request.files['logo']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                tenant_folder = os.path.join("static", "tenants", tenant.slug)
+                os.makedirs(tenant_folder, exist_ok=True)
+                filepath = os.path.join(tenant_folder, filename)
+                file.save(filepath)
+                tenant.logo_path = filename
+        
+        db.session.commit()
+        flash("Configuración del estudio actualizada.", "success")
+        return redirect(url_for("admin"))
+    
+    return render_template("configurar_estudio.html", tenant=tenant)
+
+
+@app.route("/admin/usuarios", methods=["GET", "POST"])
+@admin_estudio_required
+def admin_usuarios():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        role = request.form.get("role", "usuario_estudio")
+        
+        if not username or not email or not password:
+            flash("Todos los campos son obligatorios.", "error")
+        elif User.query.filter_by(email=email).first():
+            flash("Ya existe un usuario con ese email.", "error")
+        else:
+            if role not in ['admin_estudio', 'usuario_estudio']:
+                role = 'usuario_estudio'
+            
+            user = User(
+                username=username,
+                email=email,
+                tenant_id=tenant.id,
+                role=role,
+                activo=True
+            )
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            flash(f"Usuario {username} creado exitosamente.", "success")
+    
+    usuarios = User.query.filter_by(tenant_id=tenant.id).all()
+    return render_template("admin_usuarios.html", usuarios=usuarios, tenant=tenant)
+
+
+@app.route("/admin/usuario/toggle/<int:user_id>", methods=["POST"])
+@admin_estudio_required
+def toggle_usuario(user_id):
+    tenant = get_current_tenant()
+    user = User.query.get_or_404(user_id)
+    
+    if user.tenant_id != tenant.id:
+        flash("No tienes permiso para modificar este usuario.", "error")
+        return redirect(url_for("admin_usuarios"))
+    
+    if user.id == current_user.id:
+        flash("No puedes desactivar tu propia cuenta.", "error")
+        return redirect(url_for("admin_usuarios"))
+    
+    user.activo = not user.activo
+    db.session.commit()
+    status = "activado" if user.activo else "desactivado"
+    flash(f"Usuario {user.username} {status}.", "success")
+    return redirect(url_for("admin_usuarios"))
 
 
 @app.route("/admin/plantilla", methods=["GET", "POST"])
-@login_required
+@admin_estudio_required
 def admin_plantilla():
-    """Crear o editar plantilla."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("index"))
     
     plantilla_id = request.args.get('id', type=int)
     plantilla = Plantilla.query.get(plantilla_id) if plantilla_id else None
+    
+    if plantilla and plantilla.tenant_id != tenant.id:
+        flash("No tienes permiso para editar esta plantilla.", "error")
+        return redirect(url_for("admin"))
     
     if request.method == "POST":
         key = request.form.get("key", "").strip()
@@ -689,11 +954,18 @@ def admin_plantilla():
             plantilla.contenido = contenido
             flash("Plantilla actualizada exitosamente.", "success")
         else:
-            if Plantilla.query.filter_by(key=key).first():
+            existing = Plantilla.query.filter_by(key=key, tenant_id=tenant.id).first()
+            if existing:
                 flash("Ya existe una plantilla con esta clave.", "error")
                 return render_template("admin_plantilla.html", plantilla=plantilla)
             
-            plantilla = Plantilla(key=key, nombre=nombre, contenido=contenido, carpeta_estilos=key)
+            plantilla = Plantilla(
+                key=key, 
+                nombre=nombre, 
+                contenido=contenido, 
+                carpeta_estilos=key,
+                tenant_id=tenant.id
+            )
             db.session.add(plantilla)
             flash("Plantilla creada exitosamente.", "success")
         
@@ -704,14 +976,15 @@ def admin_plantilla():
 
 
 @app.route("/admin/plantilla/eliminar/<int:plantilla_id>", methods=["POST"])
-@login_required
+@admin_estudio_required
 def eliminar_plantilla(plantilla_id):
-    """Eliminar plantilla."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
-        return redirect(url_for("index"))
-    
+    tenant = get_current_tenant()
     plantilla = Plantilla.query.get_or_404(plantilla_id)
+    
+    if plantilla.tenant_id != tenant.id:
+        flash("No tienes permiso para eliminar esta plantilla.", "error")
+        return redirect(url_for("admin"))
+    
     db.session.delete(plantilla)
     db.session.commit()
     flash("Plantilla eliminada exitosamente.", "success")
@@ -719,17 +992,21 @@ def eliminar_plantilla(plantilla_id):
 
 
 @app.route("/admin/estilo", methods=["GET", "POST"])
-@login_required
+@admin_estudio_required
 def admin_estilo():
-    """Crear o editar estilo."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("index"))
     
     estilo_id = request.args.get('id', type=int)
     estilo = Estilo.query.get(estilo_id) if estilo_id else None
     
-    plantillas_db = Plantilla.query.all()
+    if estilo and estilo.tenant_id != tenant.id:
+        flash("No tienes permiso para editar este estilo.", "error")
+        return redirect(url_for("admin"))
+    
+    plantillas_db = Plantilla.query.filter_by(tenant_id=tenant.id).all()
     plantillas_keys = list(MODELOS.keys()) + [p.key for p in plantillas_db]
     plantillas_keys = list(set(plantillas_keys))
     
@@ -748,7 +1025,12 @@ def admin_estilo():
             estilo.contenido = contenido
             flash("Estilo actualizado exitosamente.", "success")
         else:
-            estilo = Estilo(plantilla_key=plantilla_key, nombre=nombre, contenido=contenido)
+            estilo = Estilo(
+                plantilla_key=plantilla_key, 
+                nombre=nombre, 
+                contenido=contenido,
+                tenant_id=tenant.id
+            )
             db.session.add(estilo)
             flash("Estilo creado exitosamente.", "success")
         
@@ -759,14 +1041,15 @@ def admin_estilo():
 
 
 @app.route("/admin/estilo/eliminar/<int:estilo_id>", methods=["POST"])
-@login_required
+@admin_estudio_required
 def eliminar_estilo(estilo_id):
-    """Eliminar estilo."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
-        return redirect(url_for("index"))
-    
+    tenant = get_current_tenant()
     estilo = Estilo.query.get_or_404(estilo_id)
+    
+    if estilo.tenant_id != tenant.id:
+        flash("No tienes permiso para eliminar este estilo.", "error")
+        return redirect(url_for("admin"))
+    
     db.session.delete(estilo)
     db.session.commit()
     flash("Estilo eliminado exitosamente.", "success")
@@ -774,14 +1057,14 @@ def eliminar_estilo(estilo_id):
 
 
 @app.route("/admin/campos/<plantilla_key>", methods=["GET", "POST"])
-@login_required
+@admin_estudio_required
 def admin_campos(plantilla_key):
-    """Gestionar campos de una plantilla."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("index"))
     
-    plantilla = Plantilla.query.filter_by(key=plantilla_key).first()
+    plantilla = Plantilla.query.filter_by(key=plantilla_key, tenant_id=tenant.id).first()
     nombre_plantilla = plantilla.nombre if plantilla else MODELOS.get(plantilla_key, {}).get("nombre", plantilla_key)
     
     if request.method == "POST":
@@ -799,7 +1082,7 @@ def admin_campos(plantilla_key):
         else:
             if campo_id:
                 campo = CampoPlantilla.query.get(campo_id)
-                if campo:
+                if campo and campo.tenant_id == tenant.id:
                     campo.nombre_campo = nombre_campo
                     campo.etiqueta = etiqueta
                     campo.tipo = tipo
@@ -817,13 +1100,14 @@ def admin_campos(plantilla_key):
                     requerido=requerido,
                     orden=orden,
                     placeholder=placeholder,
-                    opciones=opciones
+                    opciones=opciones,
+                    tenant_id=tenant.id
                 )
                 db.session.add(campo)
                 flash("Campo agregado.", "success")
             db.session.commit()
     
-    campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key).order_by(CampoPlantilla.orden).all()
+    campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key, tenant_id=tenant.id).order_by(CampoPlantilla.orden).all()
     return render_template("admin_campos.html", 
                           plantilla_key=plantilla_key, 
                           nombre_plantilla=nombre_plantilla,
@@ -831,14 +1115,15 @@ def admin_campos(plantilla_key):
 
 
 @app.route("/admin/campo/eliminar/<int:campo_id>", methods=["POST"])
-@login_required
+@admin_estudio_required
 def eliminar_campo(campo_id):
-    """Eliminar campo de plantilla."""
-    if not current_user.is_admin:
-        flash("No tienes permisos de administrador.", "error")
-        return redirect(url_for("index"))
-    
+    tenant = get_current_tenant()
     campo = CampoPlantilla.query.get_or_404(campo_id)
+    
+    if campo.tenant_id != tenant.id:
+        flash("No tienes permiso para eliminar este campo.", "error")
+        return redirect(url_for("admin"))
+    
     plantilla_key = campo.plantilla_key
     db.session.delete(campo)
     db.session.commit()
@@ -848,8 +1133,16 @@ def eliminar_campo(campo_id):
 
 @app.route("/api/campos/<plantilla_key>")
 def get_campos_plantilla(plantilla_key):
-    """Devuelve los campos de una plantilla en formato JSON."""
-    campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key).order_by(CampoPlantilla.orden).all()
+    tenant_id = None
+    if current_user.is_authenticated:
+        tenant = get_current_tenant()
+        tenant_id = tenant.id if tenant else None
+    
+    if tenant_id:
+        campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key, tenant_id=tenant_id).order_by(CampoPlantilla.orden).all()
+    else:
+        campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key).order_by(CampoPlantilla.orden).all()
+    
     return jsonify([{
         'id': c.id,
         'nombre_campo': c.nombre_campo,

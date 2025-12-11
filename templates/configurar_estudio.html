@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurar Estudio - {{ tenant.nombre }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-indigo-800 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-cog text-2xl"></i>
+                    <span class="text-xl font-bold">Configurar Estudio</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('admin') }}" class="bg-indigo-700 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-arrow-left mr-2"></i>Volver al Panel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h2 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-building mr-2"></i>Información del Estudio
+                </h2>
+                <p class="text-gray-500 text-sm mt-1">Esta información aparecerá en el encabezado de los documentos generados</p>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Nombre del Estudio</label>
+                        <input type="text" name="nombre" value="{{ tenant.nombre }}"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Logo del Estudio</label>
+                        <input type="file" name="logo" accept="image/*"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        {% if tenant.logo_path %}
+                            <p class="text-sm text-gray-500 mt-1">Logo actual: {{ tenant.logo_path }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Resolución Directoral</label>
+                    <input type="text" name="resolucion_directoral" value="{{ tenant.resolucion_directoral or '' }}"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="Ej: Autorizado por Resolución Directoral N.º 3562-2022-JUS/DGDPAJ-DCMA">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Dirección</label>
+                    <input type="text" name="direccion" value="{{ tenant.direccion or '' }}"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="Ej: Av. Javier Prado Este 255, oficina 701. San Isidro, Lima">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Teléfono</label>
+                        <input type="text" name="telefono" value="{{ tenant.telefono or '' }}"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="Ej: (01) 6757575 / 994647890">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Página Web</label>
+                        <input type="text" name="pagina_web" value="{{ tenant.pagina_web or '' }}"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="Ej: www.miestudio.com">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">País</label>
+                        <input type="text" name="pais" value="{{ tenant.pais or '' }}"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="Ej: Perú">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Ciudad</label>
+                        <input type="text" name="ciudad" value="{{ tenant.ciudad or '' }}"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="Ej: Lima">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Áreas de Práctica</label>
+                    <textarea name="areas_practica" rows="3"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Ej: Derecho de Familia, Alimentos, Conciliación">{{ tenant.areas_practica or '' }}</textarea>
+                </div>
+
+                <div class="flex justify-end space-x-4">
+                    <a href="{{ url_for('admin') }}" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">
+                        <i class="fas fa-save mr-2"></i>Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

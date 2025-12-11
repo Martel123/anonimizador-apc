@@ -1,0 +1,254 @@
+Prompt para el agente de Replit (SaaS legal)
+
+Quiero que transformes este proyecto en una plataforma SaaS multi-tenant para estudios jurídicos, basada en la app que ya está funcionando en este Repl.
+
+Contexto del proyecto actual
+
+La app se llama algo como “Generador de Documentos Jurídicos”.
+
+Está hecha en Python + Flask y usa:
+
+Formularios web para que el usuario ingrese datos del caso.
+
+Carpetas como modelos_legales (plantillas base) y estilos_estudio (ejemplos de estilo).
+
+Una ruta tipo /procesar_ia que:
+
+Toma los datos del formulario.
+
+Carga la plantilla seleccionada.
+
+Construye un prompt.
+
+Llama a la API de OpenAI (usando una OPENAI_API_KEY en variables de entorno).
+
+Devuelve un documento .docx generado.
+
+La app ya funciona para un solo estudio jurídico (el mío), en modo “monousuario”.
+
+Ahora quiero convertir esto en un SaaS donde muchos estudios jurídicos diferentes puedan registrarse y usar su propio agente, plantillas y estilos, todo en una misma aplicación.
+
+Objetivo general
+
+Convertir la app en una plataforma SaaS multi-tenant con:
+
+Tenants / Organizaciones
+Cada “estudio jurídico” es una organización/tenant con:
+
+Nombre del estudio, logo, país/ciudad, áreas de práctica.
+
+Sus propias plantillas legales (modelos).
+
+Sus propios ejemplos de estilo de redacción (para entrenar el prompt).
+
+Su propio historial de documentos generados.
+
+Roles y usuarios
+
+Super-admin (yo):
+
+Ver listado de estudios registrados.
+
+Ver estadísticas de uso por estudio (nº de documentos generados, últimos accesos).
+
+Poder entrar como un estudio (modo “impersonate” o vista previa) para depuración.
+
+Admin del estudio:
+
+Configura los datos del estudio.
+
+Gestiona las plantillas y ejemplos de estilo de su estudio.
+
+Gestiona usuarios internos (abogados / asistentes).
+
+Ve historial de documentos del estudio.
+
+Usuario del estudio (abogado/colaborador):
+
+Inicia sesión.
+
+Usa el formulario para generar documentos.
+
+Ve solo el historial del estudio (no configuraciones avanzadas).
+
+Flujo principal para generar un documento (por estudio)
+
+El usuario inicia sesión y selecciona su estudio (si pertenece a uno).
+
+Selecciona tipo de documento (ej.: “Pensión de alimentos – mutuo acuerdo”, “Aumento de alimentos”, “4 materias”, “Exoneración”, etc.).
+
+Se abre un formulario dinámico (ya existe uno básico) con campos como:
+
+Invitado / Cliente
+
+Demandante(s)
+
+DNI del demandante
+
+Demandado
+
+Datos del menor
+
+Argumento 1, 2, 3
+
+Hechos relevantes, conclusiones, otrosíes, etc.
+
+Back-end:
+
+Carga la plantilla de ese tipo de documento asociada al estudio.
+
+Carga ejemplos de estilo de ese estudio (si existen).
+
+Construye el prompt combinando:
+
+Instrucciones fijas (estructura legal, no inventar datos, etc.).
+
+Estilo del estudio (ejemplos).
+
+Datos del formulario.
+
+Llama a la API de OpenAI y genera el texto final del documento.
+
+Rellena la plantilla y genera un .docx (usando python-docx u otra lib).
+
+Guarda en base de datos un registro del documento generado (tipo, fecha, usuario, estudio, etc.).
+
+Front-end:
+
+Devuelve el .docx como descarga.
+
+Muestra un registro en el historial (“Documento generado con éxito”).
+
+Configuración de plantillas y estilos por estudio
+
+Crear sección de configuración del estudio (solo para admin del estudio) para:
+
+Plantillas:
+
+Subir / gestionar plantillas .docx por tipo de documento.
+
+Definir campos/variables que la plantilla espera (ej.: {{nombre_demandante}}, {{dni_demandante}}, etc.).
+
+Asociar cada plantilla a un “tipo de documento” visible en el formulario.
+
+Estilos de redacción:
+
+Subir textos de ejemplo (varios párrafos o documentos) que representen el estilo del estudio.
+
+Guardarlos en BD o en archivos por estudio.
+
+El prompt debe usar estos textos como referencia de estilo (pero sin copiarlos literalmente).
+
+Historial y base de datos
+
+Necesito que implementes una BD relacional (puede ser SQLite en desarrollo; idealmente PostgreSQL-ready para producción) con, al menos, estas entidades:
+
+tenants / estudios_juridicos
+
+users
+
+user_roles (o campo de rol + relación con tenant)
+
+document_types
+
+templates (por tenant + tipo)
+
+style_examples (por tenant)
+
+generated_documents (tenant, usuario, tipo, timestamp, ruta del archivo, metadatos)
+
+Importante: asegurar multi-tenant correcto:
+
+Un usuario solo ve datos de su estudio.
+
+El super-admin puede verlo todo.
+
+Autenticación y seguridad
+
+Autenticación con email + password (puede ser Flask-Login o similar).
+
+Sistema de roles (super-admin, admin_estudio, usuario_estudio).
+
+Protección de rutas:
+
+Panel admin estudio: solo admins de ese estudio.
+
+Panel super-admin: solo super-admin.
+
+Configurar variables de entorno para:
+
+OPENAI_API_KEY
+
+SECRET_KEY
+
+Otros que necesites.
+
+Frontend / UI
+
+Mantener el estilo actual que ya hizo el agente (la página se llama “Generador de Documentos Jurídicos” con secciones “Tipo de documento”, “Información personal”, etc.).
+
+Añadir navegación básica:
+
+Home
+
+Generar documento
+
+Historial
+
+Configuración (solo admin estudio)
+
+Admin global (solo super-admin)
+
+No necesito un diseño perfecto, solo algo ordenado y usable.
+
+Arquitectura y código
+
+Mantener Flask como framework.
+
+Estructurar el proyecto de forma limpia, por ejemplo:
+
+app.py o main.py
+
+models/ (modelos de BD)
+
+routes/ o views/ (blueprints para auth, tenant, documentos, admin)
+
+templates/ (HTML)
+
+static/ (CSS/JS)
+
+Crear un archivo requirements.txt actualizado y listo para desplegar luego en plataformas como Render.
+
+Usar gunicorn como entrypoint para producción (puede quedar documentado, no hace falta deploy ahora mismo).
+
+Documentación interna
+
+Comentar el código clave.
+
+Agregar un README o sección en replit.md explicando:
+
+Cómo crear un nuevo tipo de documento.
+
+Cómo subir una plantilla para un estudio.
+
+Cómo añadir nuevos campos al formulario y mapearlos a la plantilla.
+
+Cómo se gestiona el multi-tenant (qué tablas y claves se usan).
+
+Resumen de lo que espero
+
+Que revises el código actual del Repl, mantengas lo que sirve y lo adaptes a la arquitectura SaaS descrita.
+
+Que la aplicación final permita:
+
+Registro / login / multi-estudio / roles.
+
+Que cada estudio tenga sus propias plantillas y ejemplos de estilo.
+
+Que los usuarios generen documentos desde formularios web y descarguen .docx.
+
+Que yo como super-admin pueda monitorear todo desde un panel.
+
+Que dejes lista la app para luego poder desplegarla en Render u otra plataforma (config clara de puertos, requirements, etc.).
+
+Si algo no está claro, puedes hacer pequeños supuestos razonables y dejar un comentario en el código explicando tu decisión.
