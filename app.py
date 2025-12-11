@@ -8,6 +8,9 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 from docx import Document
+from docx.shared import Pt, Inches, Cm
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
 from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla
@@ -140,12 +143,85 @@ def generar_con_ia(prompt):
         return None
 
 
+LOGO_ESTUDIO = os.path.join(os.path.dirname(__file__), "static", "logo_estudio.png")
+
 def guardar_docx(texto, nombre_archivo):
-    """Convierte texto a .docx y lo guarda."""
+    """Convierte texto a .docx con formato jurídico profesional."""
     doc = Document()
+    
+    # Configurar márgenes del documento
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Cm(3.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(3)
+        section.right_margin = Cm(2.5)
+        
+        # Agregar logo en el encabezado
+        if os.path.exists(LOGO_ESTUDIO):
+            header = section.header
+            header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = header_para.add_run()
+            run.add_picture(LOGO_ESTUDIO, width=Cm(4))
+    
+    # Palabras clave para detectar títulos y secciones
+    titulos_principales = ['SUMILLA:', 'PETITORIO:', 'HECHOS:', 'FUNDAMENTOS', 'ANEXOS:', 
+                          'POR TANTO:', 'VÍA PROCEDIMENTAL:', 'CONTRACAUTELA:',
+                          'FUNDAMENTACION JURÍDICA:', 'FUNDAMENTACIÓN JURÍDICA:']
+    titulos_secundarios = ['PRIMERO:', 'SEGUNDO:', 'TERCERO:', 'CUARTO:', 'QUINTO:',
+                          'SEXTO:', 'SÉPTIMO:', 'OCTAVO:', 'NOVENO:', 'DÉCIMO:',
+                          'DATOS DEL SOLICITANTE:', 'DATOS DE LOS SOLICITANTES:',
+                          'NOMBRE Y DIRECCIÓN DEL DEMANDADO:', 'NOMBRE DEL INVITADO',
+                          'OTRAS PERSONAS CON DERECHO ALIMENTARIO']
+    encabezados = ['SEÑOR JUEZ', 'SEÑORA JUEZ', 'SEÑOR:', 'SEÑORA:', 'PRESENTE']
+    
     for parrafo in texto.split("\n"):
-        if parrafo.strip():
-            doc.add_paragraph(parrafo)
+        linea = parrafo.strip()
+        if not linea:
+            continue
+        
+        p = doc.add_paragraph()
+        run = p.add_run(linea)
+        
+        # Configurar fuente Times New Roman para todo
+        run.font.name = 'Times New Roman'
+        run.font.size = Pt(12)
+        
+        # Detectar y formatear títulos principales (negrita, centrado o alineado)
+        es_titulo_principal = any(linea.upper().startswith(t.upper()) for t in titulos_principales)
+        es_titulo_secundario = any(linea.upper().startswith(t.upper()) for t in titulos_secundarios)
+        es_encabezado = any(linea.upper().startswith(t.upper()) for t in encabezados)
+        
+        if es_titulo_principal:
+            run.bold = True
+            run.font.size = Pt(12)
+            p.paragraph_format.space_before = Pt(18)
+            p.paragraph_format.space_after = Pt(6)
+        elif es_titulo_secundario:
+            run.bold = True
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(6)
+        elif es_encabezado:
+            run.bold = True
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(6)
+        elif linea.startswith('_____'):
+            # Línea de firma
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(24)
+        elif linea.upper().startswith('D.N.I'):
+            # DNI debajo de firma
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(12)
+        else:
+            # Párrafo normal con justificación
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            p.paragraph_format.first_line_indent = Cm(1.25)
+        
+        # Espaciado de línea
+        p.paragraph_format.line_spacing = 1.5
+    
     ruta = os.path.join(CARPETA_RESULTADOS, nombre_archivo)
     doc.save(ruta)
     return ruta
