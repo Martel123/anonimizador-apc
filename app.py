@@ -104,23 +104,35 @@ def construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos=None):
 - Argumento 3: {datos_caso.get('argumento3', '{{FALTA_DATO}}')}
 - Conclusión: {datos_caso.get('conclusion', '{{FALTA_DATO}}')}"""
     
-    prompt = f"""Eres un abogado del estudio jurídico.
+    prompt = f"""Eres un abogado experto del estudio jurídico especializado en derecho de familia.
 
-ESTILO:
+══════════════════════════════════════════════════════════════
+VOCABULARIO Y FRASES FORMALES OBLIGATORIAS:
+══════════════════════════════════════════════════════════════
 {estilos if estilos else "(No hay ejemplos de estilo disponibles)"}
 
+══════════════════════════════════════════════════════════════
 PLANTILLA BASE:
+══════════════════════════════════════════════════════════════
 {plantilla if plantilla else "(No hay plantilla disponible)"}
 
+══════════════════════════════════════════════════════════════
 DATOS DEL CASO:
+══════════════════════════════════════════════════════════════
 {datos_str}
 
-INSTRUCCIONES:
-- Respeta la estructura de la plantilla.
-- Adopta el estilo de los ejemplos.
-- Si falta un dato, conserva {{{{FALTA_DATO}}}}.
-- Redacta el documento final completo.
-- No incluyas explicaciones."""
+══════════════════════════════════════════════════════════════
+INSTRUCCIONES CRÍTICAS:
+══════════════════════════════════════════════════════════════
+1. USA OBLIGATORIAMENTE las frases formales del vocabulario proporcionado.
+2. Incluye SIEMPRE la fundamentación jurídica con citas de artículos del Código Civil y Código de los Niños y Adolescentes.
+3. Respeta la estructura de la plantilla con secciones numeradas (PRIMERO, SEGUNDO, TERCERO...).
+4. Mantén el tono formal y respetuoso hacia el juez/director del centro de conciliación.
+5. Si falta un dato, conserva {{{{FALTA_DATO}}}}.
+6. Los montos deben escribirse en números Y en letras: S/1,000.00 (MIL CON 00/100 SOLES).
+7. Usa mayúsculas para énfasis en términos legales importantes.
+8. Redacta el documento final completo y profesional.
+9. NO incluyas explicaciones ni comentarios, solo el documento legal."""
     return prompt
 
 
