@@ -2,7 +2,8 @@ import os
 import csv
 import logging
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash
+from werkzeug.utils import secure_filename
 from docx import Document
 from openai import OpenAI
 
@@ -179,12 +180,30 @@ def procesar_ia():
 
 @app.route("/descargar/<nombre_archivo>")
 def descargar(nombre_archivo):
-    """Descarga el documento generado."""
-    ruta = os.path.join(CARPETA_RESULTADOS, nombre_archivo)
-    if os.path.exists(ruta):
-        return send_file(ruta, as_attachment=True)
-    flash("Archivo no encontrado.", "error")
-    return redirect(url_for("index"))
+    """Descarga el documento generado de forma segura."""
+    safe_filename = secure_filename(nombre_archivo)
+    if not safe_filename or safe_filename != nombre_archivo:
+        flash("Nombre de archivo no válido.", "error")
+        return redirect(url_for("index"))
+    
+    if not safe_filename.endswith(".docx"):
+        flash("Tipo de archivo no permitido.", "error")
+        return redirect(url_for("index"))
+    
+    ruta_completa = os.path.join(os.path.abspath(CARPETA_RESULTADOS), safe_filename)
+    if not ruta_completa.startswith(os.path.abspath(CARPETA_RESULTADOS)):
+        flash("Acceso no permitido.", "error")
+        return redirect(url_for("index"))
+    
+    if not os.path.exists(ruta_completa):
+        flash("Archivo no encontrado.", "error")
+        return redirect(url_for("index"))
+    
+    return send_from_directory(
+        os.path.abspath(CARPETA_RESULTADOS), 
+        safe_filename, 
+        as_attachment=True
+    )
 
 
 @app.route("/historial")
