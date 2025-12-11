@@ -122,17 +122,16 @@ DATOS DEL CASO:
 {datos_str}
 
 ══════════════════════════════════════════════════════════════
-INSTRUCCIONES CRÍTICAS:
+INSTRUCCIONES:
 ══════════════════════════════════════════════════════════════
-1. USA OBLIGATORIAMENTE las frases formales del vocabulario proporcionado.
-2. Incluye SIEMPRE la fundamentación jurídica con citas de artículos del Código Civil y Código de los Niños y Adolescentes.
-3. Respeta la estructura de la plantilla con secciones numeradas (PRIMERO, SEGUNDO, TERCERO...).
-4. Mantén el tono formal y respetuoso hacia el juez/director del centro de conciliación.
+1. Usa las frases formales del vocabulario cuando corresponda a cada sección.
+2. Si el vocabulario incluye citas legales, incorpóralas en la fundamentación jurídica.
+3. Estructura el documento con secciones numeradas si corresponde (PRIMERO, SEGUNDO...).
+4. Mantén tono formal y respetuoso.
 5. Si falta un dato, conserva {{{{FALTA_DATO}}}}.
-6. Los montos deben escribirse en números Y en letras: S/1,000.00 (MIL CON 00/100 SOLES).
-7. Usa mayúsculas para énfasis en términos legales importantes.
-8. Redacta el documento final completo y profesional.
-9. NO incluyas explicaciones ni comentarios, solo el documento legal."""
+6. Montos en números y letras: S/1,000.00 (MIL CON 00/100 SOLES).
+7. Usa mayúsculas para énfasis en términos legales.
+8. Redacta el documento completo sin explicaciones adicionales."""
     return prompt
 
 
