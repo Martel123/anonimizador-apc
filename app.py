@@ -74,7 +74,7 @@ def admin_estudio_required(f):
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
-        if not current_user.is_admin:
+        if not current_user.is_super_admin() and not current_user.is_admin_estudio():
             flash("Acceso restringido a administradores.", "error")
             return redirect(url_for("index"))
         return f(*args, **kwargs)
@@ -105,14 +105,11 @@ def get_resultados_folder(tenant=None):
 
 def cargar_plantilla(nombre_archivo, tenant_id=None):
     key = nombre_archivo.replace('.txt', '')
+    
     if tenant_id:
         plantilla_db = Plantilla.query.filter_by(key=key, tenant_id=tenant_id, activa=True).first()
         if plantilla_db:
             return plantilla_db.contenido
-    
-    plantilla_db = Plantilla.query.filter_by(key=key, activa=True).first()
-    if plantilla_db:
-        return plantilla_db.contenido
     
     ruta = os.path.join(CARPETA_MODELOS, nombre_archivo)
     if os.path.exists(ruta):
@@ -126,10 +123,6 @@ def cargar_estilos(carpeta_estilos, tenant_id=None):
         estilos_db = Estilo.query.filter_by(plantilla_key=carpeta_estilos, tenant_id=tenant_id, activo=True).all()
         if estilos_db:
             return "\n\n---\n\n".join([e.contenido for e in estilos_db])
-    
-    estilos_db = Estilo.query.filter_by(plantilla_key=carpeta_estilos, activo=True).all()
-    if estilos_db:
-        return "\n\n---\n\n".join([e.contenido for e in estilos_db])
     
     ruta_carpeta = os.path.join(CARPETA_ESTILOS, carpeta_estilos)
     estilos = []
@@ -331,16 +324,14 @@ def index():
     modelos_completos = dict(MODELOS)
     if tenant_id:
         plantillas_db = Plantilla.query.filter_by(tenant_id=tenant_id, activa=True).all()
-    else:
-        plantillas_db = Plantilla.query.filter_by(activa=True).all()
+        for p in plantillas_db:
+            if p.key not in modelos_completos:
+                modelos_completos[p.key] = {
+                    "nombre": p.nombre,
+                    "plantilla": f"{p.key}.txt",
+                    "carpeta_estilos": p.carpeta_estilos or p.key
+                }
     
-    for p in plantillas_db:
-        if p.key not in modelos_completos:
-            modelos_completos[p.key] = {
-                "nombre": p.nombre,
-                "plantilla": f"{p.key}.txt",
-                "carpeta_estilos": p.carpeta_estilos or p.key
-            }
     return render_template("index.html", modelos=modelos_completos, tenant=tenant)
 
 
@@ -454,7 +445,10 @@ def procesar_ia():
     tenant_id = tenant.id if tenant else None
     tipo_documento = request.form.get("tipo_documento")
     
-    plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
+    plantilla_db = None
+    if tenant_id:
+        plantilla_db = Plantilla.query.filter_by(key=tipo_documento, tenant_id=tenant_id, activa=True).first()
+    
     if tipo_documento in MODELOS:
         modelo = MODELOS[tipo_documento]
     elif plantilla_db:
@@ -467,7 +461,10 @@ def procesar_ia():
         flash("Tipo de documento no válido.", "error")
         return redirect(url_for("index"))
     
-    campos_dinamicos = CampoPlantilla.query.filter_by(plantilla_key=tipo_documento).order_by(CampoPlantilla.orden).all()
+    if tenant_id:
+        campos_dinamicos = CampoPlantilla.query.filter_by(plantilla_key=tipo_documento, tenant_id=tenant_id).order_by(CampoPlantilla.orden).all()
+    else:
+        campos_dinamicos = []
     
     if campos_dinamicos:
         datos_caso = {}
@@ -528,7 +525,10 @@ def preview():
     tenant_id = tenant.id if tenant else None
     tipo_documento = request.form.get("tipo_documento")
     
-    plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
+    plantilla_db = None
+    if tenant_id:
+        plantilla_db = Plantilla.query.filter_by(key=tipo_documento, tenant_id=tenant_id, activa=True).first()
+    
     if tipo_documento in MODELOS:
         modelo = MODELOS[tipo_documento]
     elif plantilla_db:
@@ -541,7 +541,10 @@ def preview():
         flash("Tipo de documento no válido.", "error")
         return redirect(url_for("index"))
     
-    campos_dinamicos = CampoPlantilla.query.filter_by(plantilla_key=tipo_documento).order_by(CampoPlantilla.orden).all()
+    if tenant_id:
+        campos_dinamicos = CampoPlantilla.query.filter_by(plantilla_key=tipo_documento, tenant_id=tenant_id).order_by(CampoPlantilla.orden).all()
+    else:
+        campos_dinamicos = []
     
     if campos_dinamicos:
         datos_caso = {}
@@ -583,7 +586,10 @@ def guardar_desde_preview():
     tipo_documento = request.form.get("tipo_documento")
     texto_editado = request.form.get("texto_editado")
     
-    plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
+    plantilla_db = None
+    if tenant_id:
+        plantilla_db = Plantilla.query.filter_by(key=tipo_documento, tenant_id=tenant_id, activa=True).first()
+    
     if tipo_documento in MODELOS:
         modelo = MODELOS[tipo_documento]
     elif plantilla_db:
@@ -634,8 +640,13 @@ def guardar_desde_preview():
 def editar_documento(doc_id):
     record = DocumentRecord.query.get_or_404(doc_id)
     tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
     
-    if not current_user.can_access_tenant(record.tenant_id):
+    if not tenant_id:
+        flash("Necesitas un contexto de estudio para editar documentos.", "error")
+        return redirect(url_for("historial"))
+    
+    if record.tenant_id != tenant_id:
         flash("No tienes permiso para editar este documento.", "error")
         return redirect(url_for("historial"))
     
@@ -676,12 +687,14 @@ def descargar(nombre_archivo):
     tenant = get_current_tenant()
     tenant_id = tenant.id if tenant else None
     
-    if current_user.is_super_admin():
-        record = DocumentRecord.query.filter_by(archivo=safe_filename).first()
-    elif current_user.is_admin:
+    if current_user.is_super_admin() and tenant_id:
+        record = DocumentRecord.query.filter_by(archivo=safe_filename, tenant_id=tenant_id).first()
+    elif current_user.is_super_admin() and not tenant_id:
+        record = None
+    elif current_user.is_admin and tenant_id:
         record = DocumentRecord.query.filter_by(archivo=safe_filename, tenant_id=tenant_id).first()
     else:
-        record = DocumentRecord.query.filter_by(archivo=safe_filename, user_id=current_user.id).first()
+        record = DocumentRecord.query.filter_by(archivo=safe_filename, user_id=current_user.id, tenant_id=tenant_id).first()
     
     if not record:
         flash("Documento no encontrado o no tienes permiso para accederlo.", "error")
@@ -718,12 +731,14 @@ def historial():
     fecha_desde = request.args.get('fecha_desde', '').strip()
     fecha_hasta = request.args.get('fecha_hasta', '').strip()
     
-    if current_user.is_super_admin() and not tenant_id:
-        query = DocumentRecord.query
+    if current_user.is_super_admin() and tenant_id:
+        query = DocumentRecord.query.filter_by(tenant_id=tenant_id)
+    elif current_user.is_super_admin() and not tenant_id:
+        query = DocumentRecord.query.filter(DocumentRecord.id < 0)
     elif current_user.is_admin and tenant_id:
         query = DocumentRecord.query.filter_by(tenant_id=tenant_id)
     else:
-        query = DocumentRecord.query.filter_by(user_id=current_user.id)
+        query = DocumentRecord.query.filter_by(user_id=current_user.id, tenant_id=tenant_id)
     
     if search:
         query = query.filter(
@@ -1141,7 +1156,7 @@ def get_campos_plantilla(plantilla_key):
     if tenant_id:
         campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key, tenant_id=tenant_id).order_by(CampoPlantilla.orden).all()
     else:
-        campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key).order_by(CampoPlantilla.orden).all()
+        campos = []
     
     return jsonify([{
         'id': c.id,

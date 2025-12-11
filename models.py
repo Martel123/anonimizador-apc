@@ -87,14 +87,14 @@ class User(UserMixin, db.Model):
     def is_usuario_estudio(self):
         return self.role == 'usuario_estudio'
     
-    def can_access_tenant(self, tenant_id):
+    def can_access_tenant(self, tenant_id, current_tenant_id=None):
         if self.is_super_admin():
-            return True
+            return current_tenant_id is not None and current_tenant_id == tenant_id
         return self.tenant_id == tenant_id
     
-    def can_manage_tenant(self, tenant_id):
+    def can_manage_tenant(self, tenant_id, current_tenant_id=None):
         if self.is_super_admin():
-            return True
+            return current_tenant_id is not None and current_tenant_id == tenant_id
         return self.tenant_id == tenant_id and self.is_admin_estudio()
     
     @property
