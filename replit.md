@@ -1,162 +1,198 @@
-# Plataforma de Generación de Documentos Jurídicos
+# Plataforma de Generación de Documentos Jurídicos - Multi-Tenant SaaS
 
 ## Overview
 
-Sistema web Flask para generar documentos jurídicos utilizando plantillas internas del estudio y OpenAI. El usuario selecciona un tipo de documento, completa un formulario con los datos del caso, y el sistema genera un documento Word (.docx) personalizado.
+Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múltiples estudios jurídicos pueden registrarse, cada uno con datos aislados (plantillas, usuarios, documentos, estilos). Cada tenant tiene branding personalizable (logo, información de contacto) y el sistema soporta tres roles de usuario.
+
+## Arquitectura Multi-Tenant
+
+### Modelo de Aislamiento
+- Cada estudio jurídico (tenant) tiene datos completamente aislados
+- Todas las tablas principales incluyen `tenant_id` para filtrado automático
+- Los documentos se almacenan en carpetas separadas por tenant
+
+### Roles de Usuario
+- **super_admin**: Propietario de la plataforma, acceso a todos los estudios, puede impersonar tenants
+- **admin_estudio**: Administrador del estudio, gestiona plantillas/estilos/usuarios de su estudio
+- **usuario_estudio**: Abogado/colaborador, puede generar documentos y ver su historial
 
 ## Estructura del Proyecto
 
 ```
 /
-├── app.py                    # Aplicación Flask principal
+├── app.py                    # Aplicación Flask principal con rutas multi-tenant
 ├── main.py                   # Entry point para gunicorn
-├── models.py                 # Modelos SQLAlchemy (User, DocumentRecord, Plantilla, Estilo)
+├── models.py                 # Modelos SQLAlchemy (Tenant, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla)
+├── migrate_to_multitenant.py # Script de migración a multi-tenant
 ├── templates/
-│   ├── index.html           # Formulario principal
+│   ├── index.html           # Formulario principal (tenant-aware)
 │   ├── login.html           # Página de inicio de sesión
-│   ├── registro.html        # Página de registro
-│   ├── historial.html       # Historial de documentos con filtros
+│   ├── registro.html        # Página de selección de registro
+│   ├── registro_estudio.html # Registro de nuevo estudio jurídico
+│   ├── historial.html       # Historial de documentos con filtros (por tenant)
 │   ├── preview.html         # Preview de documento antes de guardar
 │   ├── editar.html          # Edición post-generación
-│   ├── admin.html           # Panel de administración
+│   ├── admin.html           # Panel de administración del estudio
+│   ├── admin_usuarios.html  # Gestión de usuarios del estudio
+│   ├── configurar_estudio.html # Configuración del estudio (logo, datos)
+│   ├── super_admin.html     # Panel de super administrador
 │   ├── admin_plantilla.html # CRUD de plantillas
 │   └── admin_estilo.html    # CRUD de estilos
 ├── modelos_legales/         # Plantillas de documentos (subir .txt)
-│   └── (aumento_alimentos.txt, pension_mutuo.txt, etc.)
 ├── estilos_estudio/         # Ejemplos de estilo por tipo de documento
-│   ├── aumento_alimentos/   # Subcarpeta con archivos .txt de estilo
-│   └── pension_mutuo/       # Subcarpeta con archivos .txt de estilo
-├── Resultados/              # Documentos .docx generados
-├── historial.csv            # Registro legacy (migrado a PostgreSQL)
+├── Resultados/              # Documentos .docx generados (subcarpetas por tenant)
+│   └── tenant_<id>/         # Carpeta específica por estudio
+├── logos/                   # Logos de estudios
 └── design_guidelines.md     # Guías de diseño frontend
 ```
-
-## Sistema de Usuarios
-
-### Autenticación
-- Registro de usuarios con validación de email único
-- Login con email y contraseña
-- El primer usuario registrado es automáticamente administrador
-- Protección de rutas con @login_required
-
-### Roles
-- **Usuario**: Puede generar documentos, ver su historial, editar sus documentos
-- **Admin**: Todo lo anterior + acceso al panel de administración
-
-## Funcionalidades
-
-### Generación de Documentos
-1. Usuario accede a la página principal (/)
-2. Selecciona tipo de documento del dropdown
-3. Completa el formulario (invitado, demandante, DNI, argumentos, conclusión)
-4. Opción 1: "Ver Preview" - genera preview editable antes de guardar
-5. Opción 2: "Generar y Descargar" - genera y descarga directamente
-6. El documento se guarda en /Resultados y se registra en la base de datos
-
-### Preview y Edición
-- Preview muestra el documento generado antes de guardar
-- Permite editar el texto antes de crear el archivo final
-- Edición post-generación desde el historial
-
-### Historial con Filtros
-- Búsqueda por demandante o tipo de documento
-- Filtro por tipo de documento
-- Filtro por rango de fechas
-- Cada usuario solo ve sus propios documentos
-
-### Panel de Administración
-- Gestión de plantillas en base de datos
-- Gestión de estilos de redacción
-- Vista de usuarios registrados
-- Estadísticas de documentos generados
 
 ## Base de Datos PostgreSQL
 
 ### Tablas
-- **users**: Usuarios del sistema (id, username, email, password_hash, is_admin, created_at)
-- **document_records**: Historial de documentos (id, user_id, fecha, tipo_documento, demandante, archivo, texto_generado, datos_caso)
-- **plantillas**: Plantillas adicionales (id, key, nombre, contenido, carpeta_estilos, activa)
-- **estilos**: Estilos de redacción (id, plantilla_key, nombre, contenido, activo)
-- **campo_plantilla**: Campos dinámicos por plantilla (id, plantilla_key, nombre_campo, etiqueta, tipo, requerido, orden, placeholder, opciones)
 
-## Diccionario MODELOS
+#### tenants (Estudios Jurídicos)
+- `id`: ID único
+- `nombre`: Nombre del estudio
+- `slug`: Identificador URL único
+- `logo_path`: Ruta al logo
+- `resolucion_directoral`: Número de autorización
+- `direccion`: Dirección física
+- `telefono`: Número de teléfono
+- `pagina_web`: Sitio web
+- `pais`, `ciudad`: Ubicación
+- `areas_practica`: Áreas de especialización
+- `activo`: Estado del tenant
+- `created_at`, `updated_at`: Timestamps
 
-El sistema usa un diccionario para configurar tipos de documentos base:
+#### users (Usuarios)
+- `id`, `username`, `email`, `password_hash`
+- `role`: 'super_admin', 'admin_estudio', 'usuario_estudio'
+- `tenant_id`: FK a tenants (null para super_admin)
+- `activo`: Estado del usuario
+- `created_at`, `last_login`
 
-```python
-MODELOS = {
-    "aumento_alimentos": {
-        "nombre": "Aumento de alimentos",
-        "plantilla": "aumento_alimentos.txt",
-        "carpeta_estilos": "aumento_alimentos"
-    },
-    "pension_mutuo": {
-        "nombre": "Pensión de alimentos – mutuo acuerdo",
-        "plantilla": "pension_mutuo.txt",
-        "carpeta_estilos": "pension_mutuo"
-    }
-}
-```
+#### document_records (Documentos)
+- `id`, `user_id`, `tenant_id`
+- `fecha`, `tipo_documento`, `demandante`
+- `archivo`, `texto_generado`, `datos_caso`
 
-Las plantillas en base de datos tienen prioridad sobre las de archivos.
+#### plantillas, estilos, campos_plantilla
+- Todas incluyen `tenant_id` para aislamiento
 
-## Variables de Entorno Requeridas
+## Sistema de Roles y Permisos
 
-- `OPENAI_API_KEY`: API key de OpenAI para generación de documentos
-- `SESSION_SECRET`: Clave secreta para sesiones Flask
+### Decoradores de Acceso
+- `@require_super_admin`: Solo super admins
+- `@require_admin`: Super admin o admin_estudio del tenant
+- `@require_tenant_user`: Cualquier usuario autenticado del tenant
+
+### Funciones de Tenant
+- `get_current_tenant()`: Obtiene el tenant del usuario actual
+- `get_tenant_query(model)`: Filtra queries por tenant_id automáticamente
+
+## Rutas
+
+### Públicas
+- `/` - Formulario principal
+- `/login` - Inicio de sesión
+- `/registro` - Selección de tipo de registro
+- `/registro_estudio` - Registro de nuevo estudio jurídico
+
+### Protegidas (requieren login)
+- `/procesar_ia` - POST para generar documento
+- `/preview` - POST para ver preview
+- `/historial` - Ver historial (filtrado por tenant)
+- `/editar/<doc_id>` - Editar documento
+- `/descargar/<nombre_archivo>` - Descargar documento
+- `/logout` - Cerrar sesión
+
+### Admin Estudio (requieren admin_estudio o super_admin)
+- `/admin` - Panel de administración del estudio
+- `/admin/configurar` - Configurar datos del estudio
+- `/admin/usuarios` - Gestionar usuarios del estudio
+- `/admin/plantilla` - Crear/editar plantilla
+- `/admin/estilo` - Crear/editar estilo
+- `/admin/campos/<plantilla_key>` - Gestionar campos dinámicos
+
+### Super Admin (solo super_admin)
+- `/super-admin` - Panel de super administración
+- `/super-admin/impersonate/<tenant_id>` - Ver como otro estudio
+- `/super-admin/stop-impersonate` - Salir del modo impersonar
+
+## Flujos Principales
+
+### Registro de Nuevo Estudio
+1. Usuario accede a `/registro_estudio`
+2. Completa nombre del estudio, email, contraseña
+3. Sistema crea nuevo tenant y usuario como `admin_estudio`
+4. Usuario puede configurar logo y datos en `/admin/configurar`
+
+### Agregar Usuario al Estudio
+1. Admin del estudio accede a `/admin/usuarios`
+2. Completa formulario con nombre, email, contraseña, rol
+3. Nuevo usuario puede generar documentos del estudio
+
+### Generación de Documento
+1. Usuario selecciona plantilla (filtrada por tenant)
+2. Completa campos dinámicos
+3. Sistema genera documento con encabezado del estudio (logo, datos)
+4. Documento se guarda en `/Resultados/tenant_<id>/`
+
+### Impersonar Estudio (Super Admin)
+1. Super admin accede a `/super-admin`
+2. Hace clic en "Ver como" en un estudio
+3. Navega la plataforma como si fuera ese estudio
+4. Puede salir con "Salir Vista" en la navegación
+
+## Generación de Documentos
+
+### Encabezado del Documento
+Cada documento incluye encabezado con:
+- Logo del estudio (si está configurado)
+- Resolución directoral
+- Dirección
+- Teléfono
+- Página web
+
+### Formato
+- Archivo .docx con formato profesional
+- Fuente Times New Roman, 12pt
+- Márgenes estándar legales
+- Nomenclatura: `TIPO_DEMANDANTE_FECHA.docx`
+
+## Variables de Entorno
+
+- `OPENAI_API_KEY`: API key de OpenAI
+- `SESSION_SECRET`: Clave secreta para sesiones
 - `DATABASE_URL`: URL de conexión a PostgreSQL
 
 ## Tecnologías
 
 - **Backend**: Flask, Python 3.11, Flask-Login, Flask-SQLAlchemy
-- **Base de datos**: PostgreSQL
+- **Base de datos**: PostgreSQL (Neon)
 - **Frontend**: HTML5, Tailwind CSS, Roboto font
 - **Generación de documentos**: python-docx
 - **IA**: OpenAI API (modelo gpt-4o)
 - **Servidor**: Gunicorn
 
-## Rutas
+## Migración a Multi-Tenant
 
-### Públicas
-- `/` - Formulario principal (requiere login para generar)
-- `/login` - Inicio de sesión
-- `/registro` - Registro de usuarios
-- `/descargar/<nombre_archivo>` - Descargar documento
+Para migrar una instalación existente:
+```bash
+python migrate_to_multitenant.py
+```
 
-### Protegidas (requieren login)
-- `/procesar_ia` - POST para generar documento
-- `/preview` - POST para ver preview
-- `/guardar_desde_preview` - POST para guardar desde preview
-- `/historial` - Ver historial con filtros
-- `/editar/<doc_id>` - Editar documento existente
-- `/logout` - Cerrar sesión
-
-### Admin (requieren login + is_admin)
-- `/admin` - Panel de administración
-- `/admin/plantilla` - Crear/editar plantilla
-- `/admin/plantilla/eliminar/<id>` - Eliminar plantilla
-- `/admin/estilo` - Crear/editar estilo
-- `/admin/estilo/eliminar/<id>` - Eliminar estilo
-- `/admin/campos/<plantilla_key>` - Gestionar campos dinámicos de una plantilla
-- `/admin/campo` - Crear/editar campo dinámico
-- `/admin/campo/eliminar/<id>` - Eliminar campo dinámico
-
-### API (requieren login)
-- `/api/campos/<plantilla_key>` - GET JSON con campos dinámicos de una plantilla
-
-## Notas para el Administrador
-
-- **Plantillas**: Se pueden subir archivos .txt a /modelos_legales O crear desde el panel admin
-- **Estilos**: Se pueden subir archivos .txt a subcarpetas en /estilos_estudio O crear desde el panel admin
-- Las plantillas/estilos en base de datos tienen prioridad sobre archivos
-- Los campos vacíos se reemplazan con `{{FALTA_DATO}}` en el documento generado
-- El primer usuario registrado se convierte automáticamente en administrador
+Esto:
+1. Crea un tenant por defecto
+2. Migra usuarios existentes al tenant
+3. Asigna el primer usuario como `super_admin`
+4. Migra documentos, plantillas, estilos y campos
 
 ## Sistema de Campos Dinámicos
 
-Las plantillas pueden tener campos personalizados definidos desde el panel de administración:
+Las plantillas pueden tener campos personalizados por tenant:
 
-### Tipos de campo soportados
+### Tipos de campo
 - **text**: Campo de texto simple
 - **textarea**: Área de texto multilínea
 - **date**: Selector de fecha
@@ -166,7 +202,6 @@ Las plantillas pueden tener campos personalizados definidos desde el panel de ad
 
 ### Flujo
 1. Admin crea plantilla en `/admin/plantilla`
-2. Admin define campos personalizados en `/admin/campos/<plantilla_key>`
-3. Usuario selecciona plantilla en formulario principal
-4. El formulario carga dinámicamente los campos definidos vía JavaScript
-5. Los datos se envían a OpenAI con etiquetas descriptivas para cada campo
+2. Admin define campos en `/admin/campos/<plantilla_key>`
+3. Usuario ve campos personalizados en formulario
+4. Los datos se envían a OpenAI para generación
