@@ -77,6 +77,7 @@ Sistema web Flask para generar documentos jurídicos utilizando plantillas inter
 - **document_records**: Historial de documentos (id, user_id, fecha, tipo_documento, demandante, archivo, texto_generado, datos_caso)
 - **plantillas**: Plantillas adicionales (id, key, nombre, contenido, carpeta_estilos, activa)
 - **estilos**: Estilos de redacción (id, plantilla_key, nombre, contenido, activo)
+- **campo_plantilla**: Campos dinámicos por plantilla (id, plantilla_key, nombre_campo, etiqueta, tipo, requerido, orden, placeholder, opciones)
 
 ## Diccionario MODELOS
 
@@ -136,6 +137,12 @@ Las plantillas en base de datos tienen prioridad sobre las de archivos.
 - `/admin/plantilla/eliminar/<id>` - Eliminar plantilla
 - `/admin/estilo` - Crear/editar estilo
 - `/admin/estilo/eliminar/<id>` - Eliminar estilo
+- `/admin/campos/<plantilla_key>` - Gestionar campos dinámicos de una plantilla
+- `/admin/campo` - Crear/editar campo dinámico
+- `/admin/campo/eliminar/<id>` - Eliminar campo dinámico
+
+### API (requieren login)
+- `/api/campos/<plantilla_key>` - GET JSON con campos dinámicos de una plantilla
 
 ## Notas para el Administrador
 
@@ -144,3 +151,22 @@ Las plantillas en base de datos tienen prioridad sobre las de archivos.
 - Las plantillas/estilos en base de datos tienen prioridad sobre archivos
 - Los campos vacíos se reemplazan con `{{FALTA_DATO}}` en el documento generado
 - El primer usuario registrado se convierte automáticamente en administrador
+
+## Sistema de Campos Dinámicos
+
+Las plantillas pueden tener campos personalizados definidos desde el panel de administración:
+
+### Tipos de campo soportados
+- **text**: Campo de texto simple
+- **textarea**: Área de texto multilínea
+- **date**: Selector de fecha
+- **number**: Campo numérico
+- **email**: Campo de email con validación
+- **select**: Menú desplegable (opciones separadas por coma)
+
+### Flujo
+1. Admin crea plantilla en `/admin/plantilla`
+2. Admin define campos personalizados en `/admin/campos/<plantilla_key>`
+3. Usuario selecciona plantilla en formulario principal
+4. El formulario carga dinámicamente los campos definidos vía JavaScript
+5. Los datos se envían a OpenAI con etiquetas descriptivas para cada campo
