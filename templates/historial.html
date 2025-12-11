@@ -27,9 +27,17 @@
     <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
         <div class="max-w-6xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
             <h1 class="text-xl font-medium text-gray-800">Estudio Jurídico</h1>
-            <nav>
+            <nav class="flex items-center space-x-4">
                 <a href="{{ url_for('index') }}" class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-all duration-200">
-                    Volver al Inicio
+                    Nuevo Documento
+                </a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('admin') }}" class="text-purple-600 hover:text-purple-800 text-sm font-medium transition-all duration-200">
+                    Admin
+                </a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="text-red-600 hover:text-red-800 text-sm font-medium transition-all duration-200">
+                    Salir
                 </a>
             </nav>
         </div>
@@ -52,6 +60,47 @@
                 {% endif %}
             {% endwith %}
 
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <form action="{{ url_for('historial') }}" method="GET" class="grid md:grid-cols-5 gap-4">
+                    <div>
+                        <label for="search" class="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
+                        <input type="text" name="search" id="search" value="{{ search }}"
+                            placeholder="Demandante o tipo..."
+                            class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    </div>
+                    <div>
+                        <label for="tipo" class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+                        <select name="tipo" id="tipo"
+                            class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Todos</option>
+                            {% for key, modelo in modelos.items() %}
+                                <option value="{{ key }}" {% if tipo_filter == key %}selected{% endif %}>{{ modelo.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="fecha_desde" class="block text-sm font-medium text-gray-700 mb-2">Desde</label>
+                        <input type="date" name="fecha_desde" id="fecha_desde" value="{{ fecha_desde }}"
+                            class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    </div>
+                    <div>
+                        <label for="fecha_hasta" class="block text-sm font-medium text-gray-700 mb-2">Hasta</label>
+                        <input type="date" name="fecha_hasta" id="fecha_hasta" value="{{ fecha_hasta }}"
+                            class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <button type="submit"
+                            class="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
+                            Filtrar
+                        </button>
+                        <a href="{{ url_for('historial') }}"
+                            class="h-10 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+                            Limpiar
+                        </a>
+                    </div>
+                </form>
+            </div>
+
             {% if documentos %}
                 <div class="hidden md:block bg-white rounded-lg shadow-md overflow-hidden">
                     <table class="w-full">
@@ -66,13 +115,20 @@
                         <tbody class="divide-y divide-gray-100">
                             {% for doc in documentos %}
                                 <tr class="hover:bg-gray-50 transition-colors duration-150">
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ doc.fecha }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">{{ doc.fecha.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-900 font-medium">{{ doc.tipo_documento }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ doc.demandante }}</td>
                                     <td class="px-6 py-4 text-right">
+                                        <a href="{{ url_for('editar_documento', doc_id=doc.id) }}" 
+                                           class="inline-flex items-center px-3 py-1 text-sm font-medium text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200 mr-2">
+                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                            Editar
+                                        </a>
                                         <a href="{{ url_for('descargar', nombre_archivo=doc.archivo) }}" 
-                                           class="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200">
-                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                           class="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200">
+                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                             </svg>
                                             Descargar
@@ -94,17 +150,24 @@
                                 </div>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-sm text-gray-500">{{ doc.fecha }}</span>
-                                <a href="{{ url_for('descargar', nombre_archivo=doc.archivo) }}" 
-                                   class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-200">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                    </svg>
-                                    Descargar
-                                </a>
+                                <span class="text-sm text-gray-500">{{ doc.fecha.strftime('%Y-%m-%d %H:%M') }}</span>
+                                <div class="flex gap-2">
+                                    <a href="{{ url_for('editar_documento', doc_id=doc.id) }}" 
+                                       class="inline-flex items-center px-3 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-all duration-200">
+                                        Editar
+                                    </a>
+                                    <a href="{{ url_for('descargar', nombre_archivo=doc.archivo) }}" 
+                                       class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-200">
+                                        Descargar
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     {% endfor %}
+                </div>
+
+                <div class="mt-6 text-center text-sm text-gray-500">
+                    Mostrando {{ documentos|length }} documento(s)
                 </div>
             {% else %}
                 <div class="bg-white rounded-lg shadow-md p-12 text-center">
@@ -112,7 +175,13 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
                     <h3 class="text-xl font-medium text-gray-900 mb-2">No hay documentos</h3>
-                    <p class="text-gray-500 mb-6">Aún no se han generado documentos. Comience creando uno nuevo.</p>
+                    <p class="text-gray-500 mb-6">
+                        {% if search or tipo_filter or fecha_desde or fecha_hasta %}
+                            No se encontraron documentos con los filtros aplicados.
+                        {% else %}
+                            Aún no has generado documentos. Comienza creando uno nuevo.
+                        {% endif %}
+                    </p>
                     <a href="{{ url_for('index') }}" 
                        class="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-200">
                         Crear Documento

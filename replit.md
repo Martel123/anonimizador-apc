@@ -10,38 +10,77 @@ Sistema web Flask para generar documentos jurídicos utilizando plantillas inter
 /
 ├── app.py                    # Aplicación Flask principal
 ├── main.py                   # Entry point para gunicorn
+├── models.py                 # Modelos SQLAlchemy (User, DocumentRecord, Plantilla, Estilo)
 ├── templates/
 │   ├── index.html           # Formulario principal
-│   └── historial.html       # Historial de documentos
+│   ├── login.html           # Página de inicio de sesión
+│   ├── registro.html        # Página de registro
+│   ├── historial.html       # Historial de documentos con filtros
+│   ├── preview.html         # Preview de documento antes de guardar
+│   ├── editar.html          # Edición post-generación
+│   ├── admin.html           # Panel de administración
+│   ├── admin_plantilla.html # CRUD de plantillas
+│   └── admin_estilo.html    # CRUD de estilos
 ├── modelos_legales/         # Plantillas de documentos (subir .txt)
 │   └── (aumento_alimentos.txt, pension_mutuo.txt, etc.)
 ├── estilos_estudio/         # Ejemplos de estilo por tipo de documento
 │   ├── aumento_alimentos/   # Subcarpeta con archivos .txt de estilo
 │   └── pension_mutuo/       # Subcarpeta con archivos .txt de estilo
 ├── Resultados/              # Documentos .docx generados
-├── historial.csv            # Registro de documentos generados
+├── historial.csv            # Registro legacy (migrado a PostgreSQL)
 └── design_guidelines.md     # Guías de diseño frontend
 ```
 
-## Flujo del Sistema
+## Sistema de Usuarios
 
+### Autenticación
+- Registro de usuarios con validación de email único
+- Login con email y contraseña
+- El primer usuario registrado es automáticamente administrador
+- Protección de rutas con @login_required
+
+### Roles
+- **Usuario**: Puede generar documentos, ver su historial, editar sus documentos
+- **Admin**: Todo lo anterior + acceso al panel de administración
+
+## Funcionalidades
+
+### Generación de Documentos
 1. Usuario accede a la página principal (/)
 2. Selecciona tipo de documento del dropdown
 3. Completa el formulario (invitado, demandante, DNI, argumentos, conclusión)
-4. Presiona "Generar Documento"
-5. Backend:
-   - Carga plantilla desde /modelos_legales
-   - Carga estilos desde /estilos_estudio
-   - Construye prompt jurídico
-   - Llama a OpenAI API
-   - Convierte respuesta a .docx
-   - Guarda en /Resultados
-   - Registra en historial.csv
-6. Usuario descarga el documento Word
+4. Opción 1: "Ver Preview" - genera preview editable antes de guardar
+5. Opción 2: "Generar y Descargar" - genera y descarga directamente
+6. El documento se guarda en /Resultados y se registra en la base de datos
+
+### Preview y Edición
+- Preview muestra el documento generado antes de guardar
+- Permite editar el texto antes de crear el archivo final
+- Edición post-generación desde el historial
+
+### Historial con Filtros
+- Búsqueda por demandante o tipo de documento
+- Filtro por tipo de documento
+- Filtro por rango de fechas
+- Cada usuario solo ve sus propios documentos
+
+### Panel de Administración
+- Gestión de plantillas en base de datos
+- Gestión de estilos de redacción
+- Vista de usuarios registrados
+- Estadísticas de documentos generados
+
+## Base de Datos PostgreSQL
+
+### Tablas
+- **users**: Usuarios del sistema (id, username, email, password_hash, is_admin, created_at)
+- **document_records**: Historial de documentos (id, user_id, fecha, tipo_documento, demandante, archivo, texto_generado, datos_caso)
+- **plantillas**: Plantillas adicionales (id, key, nombre, contenido, carpeta_estilos, activa)
+- **estilos**: Estilos de redacción (id, plantilla_key, nombre, contenido, activo)
 
 ## Diccionario MODELOS
 
-El sistema usa un diccionario para configurar tipos de documentos:
+El sistema usa un diccionario para configurar tipos de documentos base:
 
 ```python
 MODELOS = {
@@ -58,19 +97,18 @@ MODELOS = {
 }
 ```
 
-Para agregar nuevos tipos de documentos:
-1. Añadir entrada al diccionario MODELOS en app.py
-2. Crear archivo .txt de plantilla en /modelos_legales
-3. Crear carpeta con ejemplos de estilo en /estilos_estudio
+Las plantillas en base de datos tienen prioridad sobre las de archivos.
 
 ## Variables de Entorno Requeridas
 
 - `OPENAI_API_KEY`: API key de OpenAI para generación de documentos
 - `SESSION_SECRET`: Clave secreta para sesiones Flask
+- `DATABASE_URL`: URL de conexión a PostgreSQL
 
 ## Tecnologías
 
-- **Backend**: Flask, Python 3.11
+- **Backend**: Flask, Python 3.11, Flask-Login, Flask-SQLAlchemy
+- **Base de datos**: PostgreSQL
 - **Frontend**: HTML5, Tailwind CSS, Roboto font
 - **Generación de documentos**: python-docx
 - **IA**: OpenAI API (modelo gpt-4o)
@@ -78,13 +116,31 @@ Para agregar nuevos tipos de documentos:
 
 ## Rutas
 
-- `/` - Formulario principal
-- `/procesar_ia` - POST para procesar formulario y generar documento
-- `/historial` - Ver historial de documentos generados
-- `/descargar/<nombre_archivo>` - Descargar documento específico
+### Públicas
+- `/` - Formulario principal (requiere login para generar)
+- `/login` - Inicio de sesión
+- `/registro` - Registro de usuarios
+- `/descargar/<nombre_archivo>` - Descargar documento
+
+### Protegidas (requieren login)
+- `/procesar_ia` - POST para generar documento
+- `/preview` - POST para ver preview
+- `/guardar_desde_preview` - POST para guardar desde preview
+- `/historial` - Ver historial con filtros
+- `/editar/<doc_id>` - Editar documento existente
+- `/logout` - Cerrar sesión
+
+### Admin (requieren login + is_admin)
+- `/admin` - Panel de administración
+- `/admin/plantilla` - Crear/editar plantilla
+- `/admin/plantilla/eliminar/<id>` - Eliminar plantilla
+- `/admin/estilo` - Crear/editar estilo
+- `/admin/estilo/eliminar/<id>` - Eliminar estilo
 
 ## Notas para el Administrador
 
-- **Plantillas**: Subir archivos .txt a /modelos_legales con la estructura deseada
-- **Estilos**: Subir archivos .txt de ejemplo a subcarpetas en /estilos_estudio
+- **Plantillas**: Se pueden subir archivos .txt a /modelos_legales O crear desde el panel admin
+- **Estilos**: Se pueden subir archivos .txt a subcarpetas en /estilos_estudio O crear desde el panel admin
+- Las plantillas/estilos en base de datos tienen prioridad sobre archivos
 - Los campos vacíos se reemplazan con `{{FALTA_DATO}}` en el documento generado
+- El primer usuario registrado se convierte automáticamente en administrador
