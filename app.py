@@ -175,6 +175,22 @@ def guardar_docx(texto, nombre_archivo):
             header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = header_para.add_run()
             run.add_picture(LOGO_ESTUDIO, width=Cm(4))
+            
+            # Agregar información del estudio debajo del logo
+            info_lines = [
+                "Autorizado su funcionamiento por Resolución Directoral N.º 3562-2022-JUS/DGDPAJ-DCMA",
+                "Dirección: Av. Javier Prado Este 255, oficina 701. Distrito de San Isidro, Lima-Perú",
+                "Teléfono (01) – 6757575 / 994647890",
+                "Página web: www.abogadasperu.com"
+            ]
+            for linea in info_lines:
+                info_para = header.add_paragraph()
+                info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                info_run = info_para.add_run(linea)
+                info_run.font.name = 'Times New Roman'
+                info_run.font.size = Pt(9)
+                info_para.paragraph_format.space_after = Pt(0)
+                info_para.paragraph_format.space_before = Pt(0)
     
     # Palabras clave para detectar títulos y secciones
     titulos_principales = ['SUMILLA:', 'PETITORIO:', 'HECHOS:', 'FUNDAMENTOS', 'ANEXOS:', 
