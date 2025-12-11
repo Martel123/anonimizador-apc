@@ -1,0 +1,216 @@
+🧠 Contexto del Proyecto
+
+Quiero crear una plataforma web en Python + Flask que genere documentos jurídicos utilizando plantillas internas del estudio y un formulario web donde el usuario ingresa sus datos.
+El sistema usa también ejemplos de estilo del estudio para que la IA redacte documentos con el tono característico de los abogados del estudio.
+
+El flujo no debe depender de archivos que el cliente suba.
+Los únicos archivos que existen son los que YO (administrador) cargo al proyecto: plantillas, estilos y modelos.
+
+Necesito que configures el Repl LIMPIO, organizado y funcionando correctamente.
+
+🎯 Objetivo del Sistema
+
+Construir una aplicación web con el siguiente flujo completo:
+
+El usuario entra a una página web.
+
+Selecciona un tipo de documento legal (ejemplo: pensión de alimentos, aumento de alimentos, exoneración, etc.).
+
+Completa un formulario web con campos como:
+
+invitado
+
+demandante1
+
+dni_demandante1
+
+argumento1
+
+argumento2
+
+argumento3
+
+conclusion
+
+Presiona “Generar documento”.
+
+El backend:
+
+Carga la plantilla correspondiente al tipo de documento.
+
+Carga ejemplos de estilo del estudio (carpeta de textos).
+
+Construye un prompt jurídico.
+
+Llama a OpenAI para generar el texto final siguiendo:
+
+estructura de la plantilla
+
+datos del caso
+
+estilo del estudio
+
+Convierte la salida a .docx.
+
+Guarda el documento en /Resultados.
+
+Lo registra en un archivo historial.csv.
+
+El usuario descarga el documento Word generado.
+
+📂 Estructura necesaria del Repl
+
+El agente debe crear y organizar:
+
+/app.py
+/templates/
+    index.html
+    historial.html
+/modelos_legales/
+    (yo subiré archivos aquí)
+        ejemplo: aumento_alimentos.txt
+        ejemplo: pension_mutuo.txt
+/estilos_estudio/
+    (yo subiré las carpetas de estilos)
+        ejemplo: aumento_alimentos/
+        ejemplo: pension_mutuo/
+/Resultados/
+    (guardar .docx generados)
+/historial.csv
+
+🧱 Requisitos técnicos para el Agente
+1. Configuración del servidor Flask
+
+El archivo .replit debe contener:
+
+entrypoint = "app.py"
+
+[deployment]
+run = ["python3", "app.py"]
+
+[ports]
+localPort = 5000
+externalPort = 80
+
+
+En app.py el servidor debe correrse en:
+
+app.run(host="0.0.0.0", port=5000, debug=True)
+
+2. Formulario en index.html
+
+El agente debe generar un formulario HTML con:
+
+select tipo_documento (valores dinámicos según MODELOS)
+
+campos:
+
+invitado
+
+demandante1
+
+dni_demandante1
+
+argumento1
+
+argumento2
+
+argumento3
+
+conclusion
+
+botón Generar documento
+
+El formulario debe enviar a /procesar_ia vía POST.
+
+3. Diccionario MODELOS
+
+El agente debe preparar en app.py una estructura similar:
+
+MODELOS = {
+    "aumento_alimentos": {
+        "nombre": "Aumento de alimentos",
+        "plantilla": "aumento_alimentos.txt",
+        "carpeta_estilos": "aumento_alimentos"
+    },
+    "pension_mutuo": {
+        "nombre": "Pensión de alimentos – mutuo acuerdo",
+        "plantilla": "pension_mutuo.txt",
+        "carpeta_estilos": "pension_mutuo"
+    }
+}
+
+
+(yo luego subiré los archivos reales)
+
+4. Flujo del backend
+
+El agente debe programar las funciones:
+
+✔ cargar_plantilla
+
+Lee el archivo .txt de la plantilla.
+
+✔ cargar_estilos
+
+Lee archivos de texto de la carpeta del modelo en /estilos_estudio.
+
+✔ construir_prompt
+
+Crea un prompt como:
+
+Eres un abogado del estudio jurídico.
+
+ESTILO:
+(Ejemplos de estilo)
+
+PLANTILLA BASE:
+(Contenido de la plantilla)
+
+DATOS DEL CASO:
+(dicc con campos del formulario)
+
+INSTRUCCIONES:
+- Respeta la estructura de la plantilla.
+- Adopta el estilo de los ejemplos.
+- Si falta un dato, conserva {{FALTA_DATO}}.
+- Redacta el documento final completo.
+- No incluyas explicaciones.
+
+✔ generar_con_ia
+
+Función que usa el modelo OpenAI (yo luego pondré mi API key).
+
+✔ guardar_docx
+
+Convierte texto a .docx.
+
+✔ registrar_historial
+
+Agrega una fila al archivo historial.csv.
+
+5. Validación de datos
+
+Si un campo llega vacío, reemplazarlo con:
+
+{{FALTA_DATO}}
+
+6. Historial
+
+El agente debe crear una página /historial que muestre:
+
+fecha
+
+tipo de documento
+
+demandante
+
+link para descargar el documento generado
+
+🏁 Acción solicitada al Agente
+
+Configura este Repl completamente desde cero, con la estructura, archivos y lógica descrita arriba.
+La aplicación debe correr sin errores y mostrar la página principal con el formulario.
+
+No generes estilos ni plantillas: YO los subiré.
+Tu tarea es preparar la estructura limpia y funcional del sistema.
