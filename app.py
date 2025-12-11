@@ -1,5 +1,6 @@
 import os
 import csv
+import json
 import logging
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify
@@ -9,7 +10,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from docx import Document
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Estilo
+from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -84,8 +85,22 @@ def cargar_estilos(carpeta_estilos):
     return "\n\n---\n\n".join(estilos)
 
 
-def construir_prompt(plantilla, estilos, datos_caso):
+def construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos=None):
     """Crea el prompt jurídico para OpenAI."""
+    datos_str = ""
+    if campos_dinamicos and len(campos_dinamicos) > 0:
+        for campo in campos_dinamicos:
+            valor = datos_caso.get(campo.nombre_campo, '{{FALTA_DATO}}')
+            datos_str += f"- {campo.etiqueta}: {valor}\n"
+    else:
+        datos_str = f"""- Invitado: {datos_caso.get('invitado', '{{FALTA_DATO}}')}
+- Demandante: {datos_caso.get('demandante1', '{{FALTA_DATO}}')}
+- DNI Demandante: {datos_caso.get('dni_demandante1', '{{FALTA_DATO}}')}
+- Argumento 1: {datos_caso.get('argumento1', '{{FALTA_DATO}}')}
+- Argumento 2: {datos_caso.get('argumento2', '{{FALTA_DATO}}')}
+- Argumento 3: {datos_caso.get('argumento3', '{{FALTA_DATO}}')}
+- Conclusión: {datos_caso.get('conclusion', '{{FALTA_DATO}}')}"""
+    
     prompt = f"""Eres un abogado del estudio jurídico.
 
 ESTILO:
@@ -95,13 +110,7 @@ PLANTILLA BASE:
 {plantilla if plantilla else "(No hay plantilla disponible)"}
 
 DATOS DEL CASO:
-- Invitado: {datos_caso.get('invitado', '{{FALTA_DATO}}')}
-- Demandante: {datos_caso.get('demandante1', '{{FALTA_DATO}}')}
-- DNI Demandante: {datos_caso.get('dni_demandante1', '{{FALTA_DATO}}')}
-- Argumento 1: {datos_caso.get('argumento1', '{{FALTA_DATO}}')}
-- Argumento 2: {datos_caso.get('argumento2', '{{FALTA_DATO}}')}
-- Argumento 3: {datos_caso.get('argumento3', '{{FALTA_DATO}}')}
-- Conclusión: {datos_caso.get('conclusion', '{{FALTA_DATO}}')}
+{datos_str}
 
 INSTRUCCIONES:
 - Respeta la estructura de la plantilla.
@@ -152,7 +161,16 @@ def validar_dato(valor):
 @app.route("/")
 def index():
     """Página principal con el formulario."""
-    return render_template("index.html", modelos=MODELOS)
+    modelos_completos = dict(MODELOS)
+    plantillas_db = Plantilla.query.filter_by(activa=True).all()
+    for p in plantillas_db:
+        if p.key not in modelos_completos:
+            modelos_completos[p.key] = {
+                "nombre": p.nombre,
+                "plantilla": f"{p.key}.txt",
+                "carpeta_estilos": p.carpeta_estilos or p.key
+            }
+    return render_template("index.html", modelos=modelos_completos)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -240,25 +258,39 @@ def procesar_ia():
     """Procesa el formulario y genera el documento."""
     tipo_documento = request.form.get("tipo_documento")
     
-    if tipo_documento not in MODELOS:
+    plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
+    if tipo_documento in MODELOS:
+        modelo = MODELOS[tipo_documento]
+    elif plantilla_db:
+        modelo = {
+            "nombre": plantilla_db.nombre,
+            "plantilla": f"{tipo_documento}.txt",
+            "carpeta_estilos": plantilla_db.carpeta_estilos or tipo_documento
+        }
+    else:
         flash("Tipo de documento no válido.", "error")
         return redirect(url_for("index"))
     
-    modelo = MODELOS[tipo_documento]
+    campos_dinamicos = CampoPlantilla.query.filter_by(plantilla_key=tipo_documento).order_by(CampoPlantilla.orden).all()
     
-    datos_caso = {
-        "invitado": validar_dato(request.form.get("invitado", "")),
-        "demandante1": validar_dato(request.form.get("demandante1", "")),
-        "dni_demandante1": validar_dato(request.form.get("dni_demandante1", "")),
-        "argumento1": validar_dato(request.form.get("argumento1", "")),
-        "argumento2": validar_dato(request.form.get("argumento2", "")),
-        "argumento3": validar_dato(request.form.get("argumento3", "")),
-        "conclusion": validar_dato(request.form.get("conclusion", ""))
-    }
+    if campos_dinamicos:
+        datos_caso = {}
+        for campo in campos_dinamicos:
+            datos_caso[campo.nombre_campo] = validar_dato(request.form.get(campo.nombre_campo, ""))
+    else:
+        datos_caso = {
+            "invitado": validar_dato(request.form.get("invitado", "")),
+            "demandante1": validar_dato(request.form.get("demandante1", "")),
+            "dni_demandante1": validar_dato(request.form.get("dni_demandante1", "")),
+            "argumento1": validar_dato(request.form.get("argumento1", "")),
+            "argumento2": validar_dato(request.form.get("argumento2", "")),
+            "argumento3": validar_dato(request.form.get("argumento3", "")),
+            "conclusion": validar_dato(request.form.get("conclusion", ""))
+        }
     
     plantilla = cargar_plantilla(modelo["plantilla"])
     estilos = cargar_estilos(modelo["carpeta_estilos"])
-    prompt = construir_prompt(plantilla, estilos, datos_caso)
+    prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None)
     
     texto_generado = generar_con_ia(prompt)
     
@@ -271,14 +303,16 @@ def procesar_ia():
     
     guardar_docx(texto_generado, nombre_archivo)
     
-    demandante = datos_caso["demandante1"] if datos_caso["demandante1"] != "{{FALTA_DATO}}" else "Sin nombre"
+    demandante_campo = datos_caso.get("demandante1") or datos_caso.get("nombre_demandante") or datos_caso.get("demandante") or "Sin nombre"
+    if demandante_campo == "{{FALTA_DATO}}":
+        demandante_campo = "Sin nombre"
     
     record = DocumentRecord(
         user_id=current_user.id,
         fecha=fecha_actual,
         tipo_documento=modelo["nombre"],
         tipo_documento_key=tipo_documento,
-        demandante=demandante,
+        demandante=demandante_campo,
         archivo=nombre_archivo,
         texto_generado=texto_generado,
         datos_caso=datos_caso
@@ -296,25 +330,39 @@ def preview():
     """Genera un preview del documento sin guardarlo."""
     tipo_documento = request.form.get("tipo_documento")
     
-    if tipo_documento not in MODELOS:
+    plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
+    if tipo_documento in MODELOS:
+        modelo = MODELOS[tipo_documento]
+    elif plantilla_db:
+        modelo = {
+            "nombre": plantilla_db.nombre,
+            "plantilla": f"{tipo_documento}.txt",
+            "carpeta_estilos": plantilla_db.carpeta_estilos or tipo_documento
+        }
+    else:
         flash("Tipo de documento no válido.", "error")
         return redirect(url_for("index"))
     
-    modelo = MODELOS[tipo_documento]
+    campos_dinamicos = CampoPlantilla.query.filter_by(plantilla_key=tipo_documento).order_by(CampoPlantilla.orden).all()
     
-    datos_caso = {
-        "invitado": validar_dato(request.form.get("invitado", "")),
-        "demandante1": validar_dato(request.form.get("demandante1", "")),
-        "dni_demandante1": validar_dato(request.form.get("dni_demandante1", "")),
-        "argumento1": validar_dato(request.form.get("argumento1", "")),
-        "argumento2": validar_dato(request.form.get("argumento2", "")),
-        "argumento3": validar_dato(request.form.get("argumento3", "")),
-        "conclusion": validar_dato(request.form.get("conclusion", ""))
-    }
+    if campos_dinamicos:
+        datos_caso = {}
+        for campo in campos_dinamicos:
+            datos_caso[campo.nombre_campo] = validar_dato(request.form.get(campo.nombre_campo, ""))
+    else:
+        datos_caso = {
+            "invitado": validar_dato(request.form.get("invitado", "")),
+            "demandante1": validar_dato(request.form.get("demandante1", "")),
+            "dni_demandante1": validar_dato(request.form.get("dni_demandante1", "")),
+            "argumento1": validar_dato(request.form.get("argumento1", "")),
+            "argumento2": validar_dato(request.form.get("argumento2", "")),
+            "argumento3": validar_dato(request.form.get("argumento3", "")),
+            "conclusion": validar_dato(request.form.get("conclusion", ""))
+        }
     
     plantilla = cargar_plantilla(modelo["plantilla"])
     estilos = cargar_estilos(modelo["carpeta_estilos"])
-    prompt = construir_prompt(plantilla, estilos, datos_caso)
+    prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None)
     
     texto_generado = generar_con_ia(prompt)
     
@@ -336,35 +384,40 @@ def guardar_desde_preview():
     tipo_documento = request.form.get("tipo_documento")
     texto_editado = request.form.get("texto_editado")
     
-    if tipo_documento not in MODELOS:
+    plantilla_db = Plantilla.query.filter_by(key=tipo_documento, activa=True).first()
+    if tipo_documento in MODELOS:
+        modelo = MODELOS[tipo_documento]
+    elif plantilla_db:
+        modelo = {
+            "nombre": plantilla_db.nombre,
+            "plantilla": f"{tipo_documento}.txt",
+            "carpeta_estilos": plantilla_db.carpeta_estilos or tipo_documento
+        }
+    else:
         flash("Tipo de documento no válido.", "error")
         return redirect(url_for("index"))
     
-    modelo = MODELOS[tipo_documento]
-    
-    datos_caso = {
-        "invitado": request.form.get("invitado", "{{FALTA_DATO}}"),
-        "demandante1": request.form.get("demandante1", "{{FALTA_DATO}}"),
-        "dni_demandante1": request.form.get("dni_demandante1", "{{FALTA_DATO}}"),
-        "argumento1": request.form.get("argumento1", "{{FALTA_DATO}}"),
-        "argumento2": request.form.get("argumento2", "{{FALTA_DATO}}"),
-        "argumento3": request.form.get("argumento3", "{{FALTA_DATO}}"),
-        "conclusion": request.form.get("conclusion", "{{FALTA_DATO}}")
-    }
+    datos_caso_str = request.form.get("datos_caso", "{}")
+    try:
+        datos_caso = json.loads(datos_caso_str)
+    except:
+        datos_caso = {}
     
     fecha_actual = datetime.now()
     nombre_archivo = f"{tipo_documento}_{fecha_actual.strftime('%Y%m%d_%H%M%S')}.docx"
     
     guardar_docx(texto_editado, nombre_archivo)
     
-    demandante = datos_caso["demandante1"] if datos_caso["demandante1"] != "{{FALTA_DATO}}" else "Sin nombre"
+    demandante_campo = datos_caso.get("demandante1") or datos_caso.get("nombre_demandante") or datos_caso.get("demandante") or "Sin nombre"
+    if demandante_campo == "{{FALTA_DATO}}":
+        demandante_campo = "Sin nombre"
     
     record = DocumentRecord(
         user_id=current_user.id,
         fecha=fecha_actual,
         tipo_documento=modelo["nombre"],
         tipo_documento_key=tipo_documento,
-        demandante=demandante,
+        demandante=demandante_campo,
         archivo=nombre_archivo,
         texto_generado=texto_editado,
         datos_caso=datos_caso
@@ -615,6 +668,94 @@ def eliminar_estilo(estilo_id):
     db.session.commit()
     flash("Estilo eliminado exitosamente.", "success")
     return redirect(url_for("admin"))
+
+
+@app.route("/admin/campos/<plantilla_key>", methods=["GET", "POST"])
+@login_required
+def admin_campos(plantilla_key):
+    """Gestionar campos de una plantilla."""
+    if not current_user.is_admin:
+        flash("No tienes permisos de administrador.", "error")
+        return redirect(url_for("index"))
+    
+    plantilla = Plantilla.query.filter_by(key=plantilla_key).first()
+    nombre_plantilla = plantilla.nombre if plantilla else MODELOS.get(plantilla_key, {}).get("nombre", plantilla_key)
+    
+    if request.method == "POST":
+        campo_id = request.form.get("campo_id", type=int)
+        nombre_campo = request.form.get("nombre_campo", "").strip()
+        etiqueta = request.form.get("etiqueta", "").strip()
+        tipo = request.form.get("tipo", "text").strip()
+        requerido = request.form.get("requerido") == "on"
+        orden = request.form.get("orden", 0, type=int)
+        placeholder = request.form.get("placeholder", "").strip()
+        opciones = request.form.get("opciones", "").strip()
+        
+        if not nombre_campo or not etiqueta:
+            flash("Nombre del campo y etiqueta son obligatorios.", "error")
+        else:
+            if campo_id:
+                campo = CampoPlantilla.query.get(campo_id)
+                if campo:
+                    campo.nombre_campo = nombre_campo
+                    campo.etiqueta = etiqueta
+                    campo.tipo = tipo
+                    campo.requerido = requerido
+                    campo.orden = orden
+                    campo.placeholder = placeholder
+                    campo.opciones = opciones
+                    flash("Campo actualizado.", "success")
+            else:
+                campo = CampoPlantilla(
+                    plantilla_key=plantilla_key,
+                    nombre_campo=nombre_campo,
+                    etiqueta=etiqueta,
+                    tipo=tipo,
+                    requerido=requerido,
+                    orden=orden,
+                    placeholder=placeholder,
+                    opciones=opciones
+                )
+                db.session.add(campo)
+                flash("Campo agregado.", "success")
+            db.session.commit()
+    
+    campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key).order_by(CampoPlantilla.orden).all()
+    return render_template("admin_campos.html", 
+                          plantilla_key=plantilla_key, 
+                          nombre_plantilla=nombre_plantilla,
+                          campos=campos)
+
+
+@app.route("/admin/campo/eliminar/<int:campo_id>", methods=["POST"])
+@login_required
+def eliminar_campo(campo_id):
+    """Eliminar campo de plantilla."""
+    if not current_user.is_admin:
+        flash("No tienes permisos de administrador.", "error")
+        return redirect(url_for("index"))
+    
+    campo = CampoPlantilla.query.get_or_404(campo_id)
+    plantilla_key = campo.plantilla_key
+    db.session.delete(campo)
+    db.session.commit()
+    flash("Campo eliminado.", "success")
+    return redirect(url_for("admin_campos", plantilla_key=plantilla_key))
+
+
+@app.route("/api/campos/<plantilla_key>")
+def get_campos_plantilla(plantilla_key):
+    """Devuelve los campos de una plantilla en formato JSON."""
+    campos = CampoPlantilla.query.filter_by(plantilla_key=plantilla_key).order_by(CampoPlantilla.orden).all()
+    return jsonify([{
+        'id': c.id,
+        'nombre_campo': c.nombre_campo,
+        'etiqueta': c.etiqueta,
+        'tipo': c.tipo,
+        'requerido': c.requerido,
+        'placeholder': c.placeholder or '',
+        'opciones': c.opciones.split(',') if c.opciones else []
+    } for c in campos])
 
 
 with app.app_context():

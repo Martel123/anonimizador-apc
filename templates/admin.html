@@ -81,6 +81,7 @@
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Clave</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Archivo</th>
+                                    <th class="px-4 py-3 text-right text-sm font-medium text-gray-700">Campos</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -89,6 +90,12 @@
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ key }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-600">{{ modelo.nombre }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-500">{{ modelo.plantilla }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <a href="{{ url_for('admin_campos', plantilla_key=key) }}"
+                                            class="px-3 py-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded text-sm">
+                                            Configurar Campos
+                                        </a>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -122,6 +129,8 @@
                                         {% endif %}
                                     </td>
                                     <td class="px-4 py-3 text-right">
+                                        <a href="{{ url_for('admin_campos', plantilla_key=plantilla.key) }}"
+                                            class="text-indigo-600 hover:text-indigo-800 text-sm mr-3">Campos</a>
                                         <a href="{{ url_for('admin_plantilla', id=plantilla.id) }}"
                                             class="text-blue-600 hover:text-blue-800 text-sm mr-3">Editar</a>
                                         <form action="{{ url_for('eliminar_plantilla', plantilla_id=plantilla.id) }}" method="POST" class="inline">

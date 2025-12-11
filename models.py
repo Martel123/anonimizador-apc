@@ -80,3 +80,18 @@ class Estilo(db.Model):
     activo = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CampoPlantilla(db.Model):
+    __tablename__ = 'campos_plantilla'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    plantilla_key = db.Column(db.String(50), nullable=False)
+    nombre_campo = db.Column(db.String(100), nullable=False)
+    etiqueta = db.Column(db.String(200), nullable=False)
+    tipo = db.Column(db.String(50), default='text')
+    requerido = db.Column(db.Boolean, default=False)
+    orden = db.Column(db.Integer, default=0)
+    placeholder = db.Column(db.String(200))
+    opciones = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

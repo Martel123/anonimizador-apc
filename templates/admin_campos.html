@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campos de {{ nombre_plantilla }} - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-indigo-700 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <a href="{{ url_for('admin') }}" class="flex items-center space-x-2">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Volver al Panel</span>
+                </a>
+                <h1 class="text-xl font-bold">Campos de Formulario</h1>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">{{ nombre_plantilla }}</h2>
+            <p class="text-gray-600 mb-6">Define los campos que aparecerán en el formulario para este tipo de documento.</p>
+
+            <form method="POST" class="space-y-4 border-b pb-6 mb-6">
+                <input type="hidden" name="campo_id" id="campo_id" value="">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Campo (interno)</label>
+                        <input type="text" name="nombre_campo" id="nombre_campo" 
+                               placeholder="ej: nombre_demandante" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <p class="text-xs text-gray-500 mt-1">Sin espacios, usar guiones bajos</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Etiqueta (visible)</label>
+                        <input type="text" name="etiqueta" id="etiqueta" 
+                               placeholder="ej: Nombre del Demandante" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Campo</label>
+                        <select name="tipo" id="tipo" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="text">Texto corto</option>
+                            <option value="textarea">Texto largo</option>
+                            <option value="number">Número</option>
+                            <option value="date">Fecha</option>
+                            <option value="email">Email</option>
+                            <option value="select">Lista desplegable</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Orden</label>
+                        <input type="number" name="orden" id="orden" value="0" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div class="flex items-end">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" name="requerido" id="requerido" class="w-5 h-5 text-indigo-600 rounded">
+                            <span class="text-sm font-medium text-gray-700">Campo requerido</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Placeholder (texto de ayuda)</label>
+                    <input type="text" name="placeholder" id="placeholder" 
+                           placeholder="ej: Ingrese el nombre completo" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Opciones (solo para lista desplegable)</label>
+                    <input type="text" name="opciones" id="opciones" 
+                           placeholder="Opción 1, Opción 2, Opción 3" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="text-xs text-gray-500 mt-1">Separar opciones con comas</p>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+                        <i class="fas fa-plus mr-2"></i>
+                        <span id="btn-text">Agregar Campo</span>
+                    </button>
+                    <button type="button" onclick="limpiarFormulario()" class="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition">
+                        Limpiar
+                    </button>
+                </div>
+            </form>
+
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Campos Configurados</h3>
+            
+            {% if campos %}
+                <div class="space-y-3">
+                    {% for campo in campos %}
+                        <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg border">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-3">
+                                    <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">{{ campo.orden }}</span>
+                                    <span class="font-medium text-gray-800">{{ campo.etiqueta }}</span>
+                                    <span class="text-gray-500 text-sm">({{ campo.nombre_campo }})</span>
+                                    <span class="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded">{{ campo.tipo }}</span>
+                                    {% if campo.requerido %}
+                                        <span class="bg-red-100 text-red-600 text-xs px-2 py-1 rounded">Requerido</span>
+                                    {% endif %}
+                                </div>
+                                {% if campo.placeholder %}
+                                    <p class="text-sm text-gray-500 mt-1">Placeholder: {{ campo.placeholder }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="editarCampo({{ campo.id }}, '{{ campo.nombre_campo }}', '{{ campo.etiqueta }}', '{{ campo.tipo }}', {{ 'true' if campo.requerido else 'false' }}, {{ campo.orden }}, '{{ campo.placeholder or '' }}', '{{ campo.opciones or '' }}')" 
+                                        class="text-indigo-600 hover:text-indigo-800 p-2">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('eliminar_campo', campo_id=campo.id) }}" class="inline" onsubmit="return confirm('¿Eliminar este campo?')">
+                                    <button type="submit" class="text-red-600 hover:text-red-800 p-2">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-gray-500 text-center py-8">No hay campos configurados. Agrega campos usando el formulario de arriba.</p>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+        function editarCampo(id, nombre, etiqueta, tipo, requerido, orden, placeholder, opciones) {
+            document.getElementById('campo_id').value = id;
+            document.getElementById('nombre_campo').value = nombre;
+            document.getElementById('etiqueta').value = etiqueta;
+            document.getElementById('tipo').value = tipo;
+            document.getElementById('requerido').checked = requerido;
+            document.getElementById('orden').value = orden;
+            document.getElementById('placeholder').value = placeholder;
+            document.getElementById('opciones').value = opciones;
+            document.getElementById('btn-text').textContent = 'Actualizar Campo';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function limpiarFormulario() {
+            document.getElementById('campo_id').value = '';
+            document.getElementById('nombre_campo').value = '';
+            document.getElementById('etiqueta').value = '';
+            document.getElementById('tipo').value = 'text';
+            document.getElementById('requerido').checked = false;
+            document.getElementById('orden').value = '0';
+            document.getElementById('placeholder').value = '';
+            document.getElementById('opciones').value = '';
+            document.getElementById('btn-text').textContent = 'Agregar Campo';
+        }
+    </script>
+</body>
+</html>

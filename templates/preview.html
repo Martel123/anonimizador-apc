@@ -41,13 +41,7 @@
 
             <form action="{{ url_for('guardar_desde_preview') }}" method="POST">
                 <input type="hidden" name="tipo_documento" value="{{ tipo_documento }}">
-                <input type="hidden" name="invitado" value="{{ datos_caso.invitado }}">
-                <input type="hidden" name="demandante1" value="{{ datos_caso.demandante1 }}">
-                <input type="hidden" name="dni_demandante1" value="{{ datos_caso.dni_demandante1 }}">
-                <input type="hidden" name="argumento1" value="{{ datos_caso.argumento1 }}">
-                <input type="hidden" name="argumento2" value="{{ datos_caso.argumento2 }}">
-                <input type="hidden" name="argumento3" value="{{ datos_caso.argumento3 }}">
-                <input type="hidden" name="conclusion" value="{{ datos_caso.conclusion }}">
+                <input type="hidden" name="datos_caso" value="{{ datos_caso | tojson | e }}">
 
                 <div class="bg-white rounded-lg shadow-md p-6 md:p-8 mb-6">
                     <div class="flex justify-between items-center mb-4">
