@@ -107,10 +107,16 @@
             <div class="bg-white rounded-lg shadow-md p-6 mb-8">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-xl font-medium text-gray-900">Plantillas de Documentos</h3>
-                    <a href="{{ url_for('admin_plantilla') }}"
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
-                        Nueva Plantilla
-                    </a>
+                    <div class="flex space-x-3">
+                        <a href="{{ url_for('convertir_documento') }}"
+                            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
+                            <i class="fas fa-magic mr-1"></i> Convertir Documento
+                        </a>
+                        <a href="{{ url_for('admin_plantilla') }}"
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
+                            Nueva Plantilla
+                        </a>
+                    </div>
                 </div>
 
                 <div class="mb-4">

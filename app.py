@@ -1040,6 +1040,112 @@ def toggle_usuario(user_id):
     return redirect(url_for("admin_usuarios"))
 
 
+@app.route("/admin/convertir", methods=["GET", "POST"])
+@admin_estudio_required
+def convertir_documento():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    documento_convertido = None
+    campos_detectados = 0
+    
+    if request.method == "POST":
+        archivo = request.files.get('archivo')
+        
+        if not archivo or not archivo.filename or not archivo.filename.endswith('.docx'):
+            flash("Debes subir un archivo Word (.docx).", "error")
+            return render_template("convertir_documento.html")
+        
+        try:
+            from docx import Document
+            from docx.shared import Pt
+            
+            doc = Document(archivo)
+            campo_num = 0
+            
+            dot_pattern = re.compile(r'[\.…]{4,}|_{4,}')
+            
+            for para in doc.paragraphs:
+                text = para.text
+                if dot_pattern.search(text):
+                    new_text = text
+                    for match in dot_pattern.finditer(text):
+                        campo_num += 1
+                        new_text = new_text.replace(match.group(), f'{{{{campo_{campo_num}}}}}', 1)
+                    
+                    for run in para.runs:
+                        run.text = ""
+                    if para.runs:
+                        para.runs[0].text = new_text
+                    else:
+                        para.text = new_text
+            
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        for para in cell.paragraphs:
+                            text = para.text
+                            if dot_pattern.search(text):
+                                new_text = text
+                                for match in dot_pattern.finditer(text):
+                                    campo_num += 1
+                                    new_text = new_text.replace(match.group(), f'{{{{campo_{campo_num}}}}}', 1)
+                                
+                                for run in para.runs:
+                                    run.text = ""
+                                if para.runs:
+                                    para.runs[0].text = new_text
+                                else:
+                                    para.text = new_text
+            
+            if campo_num == 0:
+                flash("No se encontraron espacios con puntos o guiones para convertir.", "error")
+                return render_template("convertir_documento.html")
+            
+            convertidos_folder = os.path.join("documentos_convertidos", f"tenant_{tenant.id}")
+            os.makedirs(convertidos_folder, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            original_name = secure_filename(archivo.filename)
+            output_name = f"convertido_{timestamp}_{original_name}"
+            output_path = os.path.join(convertidos_folder, output_name)
+            
+            doc.save(output_path)
+            
+            campos_detectados = campo_num
+            documento_convertido = output_name
+            
+            flash(f"Documento convertido exitosamente. Se reemplazaron {campo_num} campos.", "success")
+            
+        except Exception as e:
+            logging.error(f"Error al convertir documento: {e}")
+            flash("Error al procesar el documento. Verifica que sea un archivo Word válido.", "error")
+    
+    return render_template("convertir_documento.html", 
+                         documento_convertido=documento_convertido,
+                         campos_detectados=campos_detectados)
+
+
+@app.route("/admin/convertir/descargar/<nombre_archivo>")
+@admin_estudio_required
+def descargar_convertido(nombre_archivo):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    convertidos_folder = os.path.join("documentos_convertidos", f"tenant_{tenant.id}")
+    file_path = os.path.join(convertidos_folder, secure_filename(nombre_archivo))
+    
+    if not os.path.exists(file_path):
+        flash("El archivo no existe.", "error")
+        return redirect(url_for("convertir_documento"))
+    
+    return send_file(file_path, as_attachment=True, download_name=nombre_archivo)
+
+
 @app.route("/admin/plantilla", methods=["GET", "POST"])
 @admin_estudio_required
 def admin_plantilla():

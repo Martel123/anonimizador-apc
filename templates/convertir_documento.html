@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertir Documento - Plataforma Legal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-blue-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('admin') }}" class="text-xl font-bold">
+                        <i class="fas fa-balance-scale mr-2"></i>Panel de Administración
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('admin') }}" class="hover:text-blue-200">
+                        <i class="fas fa-arrow-left mr-1"></i> Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                    <i class="fas fa-magic text-blue-600 text-2xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">Convertir Documento</h1>
+                <p class="text-gray-600 mt-2">
+                    Sube un documento Word con espacios en blanco (puntos o guiones) y el sistema los convertirá 
+                    automáticamente al formato <code class="bg-gray-100 px-2 py-1 rounded">{{campo}}</code>
+                </p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-6 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700{% elif category == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %} mr-2"></i>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+                <h3 class="font-semibold text-blue-800 mb-3">
+                    <i class="fas fa-info-circle mr-2"></i>¿Cómo funciona?
+                </h3>
+                <ol class="list-decimal list-inside space-y-2 text-blue-700">
+                    <li>Sube tu documento Word con espacios en blanco</li>
+                    <li>El sistema detectará patrones como: <code class="bg-white px-1 rounded">.......</code>, <code class="bg-white px-1 rounded">_______</code>, <code class="bg-white px-1 rounded">N°...</code></li>
+                    <li>Cada espacio se reemplazará con un campo numerado: <code class="bg-white px-1 rounded">{{campo_1}}</code>, <code class="bg-white px-1 rounded">{{campo_2}}</code>, etc.</li>
+                    <li>Descarga el documento convertido</li>
+                    <li>Usa ese documento para crear tu plantilla</li>
+                </ol>
+            </div>
+
+            <form action="{{ url_for('convertir_documento') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-file-word text-blue-500 mr-2"></i>Documento Word Original
+                    </label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+                        <input type="file" name="archivo" accept=".docx" required 
+                               class="hidden" id="archivo-input"
+                               onchange="updateFileName(this)">
+                        <label for="archivo-input" class="cursor-pointer">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+                            <p class="text-gray-600" id="file-name">Haz clic para seleccionar un archivo .docx</p>
+                            <p class="text-sm text-gray-400 mt-1">Solo archivos Word (.docx)</p>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-center">
+                    <button type="submit" 
+                            class="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md">
+                        <i class="fas fa-magic mr-2"></i>Convertir Documento
+                    </button>
+                </div>
+            </form>
+
+            {% if documento_convertido %}
+            <div class="mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
+                <h3 class="font-semibold text-green-800 mb-4">
+                    <i class="fas fa-check-circle mr-2"></i>Documento Convertido
+                </h3>
+                <p class="text-green-700 mb-4">
+                    Se detectaron y reemplazaron <strong>{{ campos_detectados }}</strong> campos en el documento.
+                </p>
+                <div class="flex space-x-4">
+                    <a href="{{ url_for('descargar_convertido', nombre_archivo=documento_convertido) }}" 
+                       class="inline-flex items-center px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                        <i class="fas fa-download mr-2"></i>Descargar Documento Convertido
+                    </a>
+                    <a href="{{ url_for('admin_plantilla') }}" 
+                       class="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-plus mr-2"></i>Crear Plantilla con este Documento
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="mt-8 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <h3 class="font-semibold text-yellow-800 mb-3">
+                    <i class="fas fa-lightbulb mr-2"></i>Consejo
+                </h3>
+                <p class="text-yellow-700">
+                    Después de descargar el documento convertido, puedes abrirlo en Word y renombrar los campos 
+                    para que tengan nombres más descriptivos. Por ejemplo, cambiar <code class="bg-white px-1 rounded">{{campo_1}}</code> 
+                    por <code class="bg-white px-1 rounded">{{nombre_demandante}}</code>.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function updateFileName(input) {
+            const fileName = input.files[0]?.name || 'Haz clic para seleccionar un archivo .docx';
+            document.getElementById('file-name').textContent = fileName;
+        }
+    </script>
+</body>
+</html>
