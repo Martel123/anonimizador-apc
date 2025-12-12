@@ -73,50 +73,76 @@ def extract_text_from_docx(file_path):
 def detect_placeholders_from_text(text):
     """
     Detect placeholders in text that represent fields to fill.
-    Patterns detected:
-    - {{campo}}, {campo}, [campo], [[campo]]
-    - _____ (5+ underscores) 
-    - ..... (5+ dots)
-    - [CAMPO EN MAYUSCULAS]
-    - Líneas con ":" seguido de espacio en blanco o puntos
+    Detects each occurrence of dots or underscores as a separate field.
     """
     campos = []
+    campo_counter = {}
     
     pattern_curly_double = re.findall(r'\{\{([^}]+)\}\}', text)
     pattern_curly_single = re.findall(r'\{([^{}]+)\}', text)
     pattern_brackets_double = re.findall(r'\[\[([^\]]+)\]\]', text)
     pattern_brackets_single = re.findall(r'\[([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s_]+)\]', text)
     
-    lines = text.split('\n')
-    for line in lines:
-        if re.search(r'_{5,}', line) or re.search(r'\.{5,}', line):
-            match = re.match(r'^([^:_\.]+)[:\s]*[_\.]+', line.strip())
-            if match:
-                campo_name = match.group(1).strip()
-                if campo_name and len(campo_name) > 2:
-                    campos.append(campo_name)
-        
-        if ':' in line and re.search(r':\s*$', line.strip()):
-            parts = line.split(':')
-            if parts[0].strip():
-                campos.append(parts[0].strip())
-    
     all_patterns = pattern_curly_double + pattern_curly_single + pattern_brackets_double + pattern_brackets_single
-    
     for p in all_patterns:
         cleaned = p.strip().replace('_', ' ')
         if cleaned and len(cleaned) > 1:
             campos.append(cleaned)
     
-    seen = set()
-    unique_campos = []
-    for c in campos:
-        normalized = c.lower().strip()
-        if normalized not in seen and len(normalized) > 1:
-            seen.add(normalized)
-            unique_campos.append(c)
+    dot_pattern = r'([A-Za-zÁÉÍÓÚáéíóúÑñ\s\.\,\-°]+?)(?:N[°º]?\s*)?[\.…]{3,}|_{3,}'
     
-    return unique_campos
+    matches = list(re.finditer(dot_pattern, text))
+    
+    for match in matches:
+        full_match = match.group(0)
+        context = match.group(1) if match.group(1) else ""
+        
+        context = context.strip()
+        context = re.sub(r'^[,\.\s]+', '', context)
+        context = re.sub(r'[,\.\s]+$', '', context)
+        
+        if len(context) < 3:
+            start = max(0, match.start() - 50)
+            before_text = text[start:match.start()]
+            words = re.findall(r'[A-Za-zÁÉÍÓÚáéíóúÑñ]+(?:\s+[A-Za-zÁÉÍÓÚáéíóúÑñ]+)*', before_text)
+            if words:
+                context = words[-1] if len(words[-1]) > 2 else ' '.join(words[-2:]) if len(words) > 1 else words[-1]
+        
+        if 'N°' in full_match or 'N.' in context or 'Nº' in full_match:
+            if 'D.N.I' in context or 'DNI' in context:
+                context = 'Número de DNI'
+            elif 'celular' in context.lower() or 'teléfono' in context.lower():
+                context = 'Número de celular'
+            elif 'expediente' in context.lower():
+                context = 'Número de expediente'
+            else:
+                context = 'Número'
+        
+        if context and len(context) >= 2:
+            base_name = context[:100]
+            if base_name.lower() in campo_counter:
+                campo_counter[base_name.lower()] += 1
+                campos.append(f"{base_name} {campo_counter[base_name.lower()]}")
+            else:
+                campo_counter[base_name.lower()] = 1
+                campos.append(base_name)
+    
+    lines = text.split('\n')
+    for line in lines:
+        if ':' in line and re.search(r':\s*$', line.strip()):
+            parts = line.split(':')
+            if parts[0].strip() and len(parts[0].strip()) > 2:
+                campo_name = parts[0].strip()
+                if campo_name.lower() not in campo_counter:
+                    campos.append(campo_name)
+                    campo_counter[campo_name.lower()] = 1
+    
+    final_campos = []
+    for c in campos:
+        if c and len(c.strip()) > 1:
+            final_campos.append(c.strip())
+    
+    return final_campos
 
 
 def campo_to_key(campo_name):
