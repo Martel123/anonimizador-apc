@@ -46,17 +46,92 @@ MODELOS = {
         "nombre": "Aumento de alimentos",
         "plantilla": "aumento_alimentos.txt",
         "carpeta_estilos": "aumento_alimentos"
-    },
-    "pension_mutuo": {
-        "nombre": "Pensión de alimentos – mutuo acuerdo",
-        "plantilla": "pension_mutuo.txt",
-        "carpeta_estilos": "pension_mutuo"
     }
 }
 
 CARPETA_MODELOS = "modelos_legales"
 CARPETA_ESTILOS = "estilos_estudio"
 CARPETA_RESULTADOS = "Resultados"
+CARPETA_PLANTILLAS_SUBIDAS = "plantillas_subidas"
+CARPETA_ESTILOS_SUBIDOS = "estilos_subidos"
+
+import re
+
+def extract_text_from_docx(file_path):
+    """Extract all text from a Word document."""
+    doc = Document(file_path)
+    full_text = []
+    for para in doc.paragraphs:
+        full_text.append(para.text)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                full_text.append(cell.text)
+    return '\n'.join(full_text)
+
+
+def detect_placeholders_from_text(text):
+    """
+    Detect placeholders in text that represent fields to fill.
+    Patterns detected:
+    - {{campo}}, {campo}, [campo], [[campo]]
+    - _____ (5+ underscores) 
+    - ..... (5+ dots)
+    - [CAMPO EN MAYUSCULAS]
+    - Líneas con ":" seguido de espacio en blanco o puntos
+    """
+    campos = []
+    
+    pattern_curly_double = re.findall(r'\{\{([^}]+)\}\}', text)
+    pattern_curly_single = re.findall(r'\{([^{}]+)\}', text)
+    pattern_brackets_double = re.findall(r'\[\[([^\]]+)\]\]', text)
+    pattern_brackets_single = re.findall(r'\[([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s_]+)\]', text)
+    
+    lines = text.split('\n')
+    for line in lines:
+        if re.search(r'_{5,}', line) or re.search(r'\.{5,}', line):
+            match = re.match(r'^([^:_\.]+)[:\s]*[_\.]+', line.strip())
+            if match:
+                campo_name = match.group(1).strip()
+                if campo_name and len(campo_name) > 2:
+                    campos.append(campo_name)
+        
+        if ':' in line and re.search(r':\s*$', line.strip()):
+            parts = line.split(':')
+            if parts[0].strip():
+                campos.append(parts[0].strip())
+    
+    all_patterns = pattern_curly_double + pattern_curly_single + pattern_brackets_double + pattern_brackets_single
+    
+    for p in all_patterns:
+        cleaned = p.strip().replace('_', ' ')
+        if cleaned and len(cleaned) > 1:
+            campos.append(cleaned)
+    
+    seen = set()
+    unique_campos = []
+    for c in campos:
+        normalized = c.lower().strip()
+        if normalized not in seen and len(normalized) > 1:
+            seen.add(normalized)
+            unique_campos.append(c)
+    
+    return unique_campos
+
+
+def campo_to_key(campo_name):
+    """Convert a campo name to a valid key."""
+    key = campo_name.lower().strip()
+    key = re.sub(r'[áàäâ]', 'a', key)
+    key = re.sub(r'[éèëê]', 'e', key)
+    key = re.sub(r'[íìïî]', 'i', key)
+    key = re.sub(r'[óòöô]', 'o', key)
+    key = re.sub(r'[úùüû]', 'u', key)
+    key = re.sub(r'[ñ]', 'n', key)
+    key = re.sub(r'[^a-z0-9]+', '_', key)
+    key = re.sub(r'_+', '_', key)
+    key = key.strip('_')
+    return key[:50] if key else 'campo'
 
 
 def super_admin_required(f):
@@ -948,55 +1023,142 @@ def admin_plantilla():
         return redirect(url_for("index"))
     
     plantilla_id = request.args.get('id', type=int)
-    plantilla = Plantilla.query.get(plantilla_id) if plantilla_id else None
+    plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id).first() if plantilla_id else None
+    campos_detectados = []
     
-    if plantilla and plantilla.tenant_id != tenant.id:
+    if plantilla_id and not plantilla:
         flash("No tienes permiso para editar esta plantilla.", "error")
         return redirect(url_for("admin"))
     
     if request.method == "POST":
         key = request.form.get("key", "").strip()
         nombre = request.form.get("nombre", "").strip()
-        contenido = request.form.get("contenido", "").strip()
         
-        if not key or not nombre or not contenido:
-            flash("Todos los campos son obligatorios.", "error")
-            return render_template("admin_plantilla.html", plantilla=plantilla)
+        archivo = request.files.get('archivo_word')
+        contenido = ""
+        archivo_path = None
+        
+        if archivo and archivo.filename and archivo.filename.endswith('.docx'):
+            tenant_folder = os.path.join(CARPETA_PLANTILLAS_SUBIDAS, f"tenant_{tenant.id}")
+            os.makedirs(tenant_folder, exist_ok=True)
+            
+            safe_name = secure_filename(archivo.filename)
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            archivo_name = f"{timestamp}_{safe_name}"
+            archivo_path = os.path.join(tenant_folder, archivo_name)
+            archivo.save(archivo_path)
+            
+            contenido = extract_text_from_docx(archivo_path)
+            campos_detectados = detect_placeholders_from_text(contenido)
+        elif plantilla:
+            contenido = plantilla.contenido
+        
+        if not key or not nombre:
+            flash("La clave y el nombre son obligatorios.", "error")
+            return render_template("admin_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+        
+        if not contenido and not plantilla:
+            flash("Debes subir un archivo Word con la plantilla.", "error")
+            return render_template("admin_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+        
+        if archivo_path and contenido and len(contenido.strip()) < 50:
+            flash("El documento Word parece estar vacío o tiene muy poco contenido.", "error")
+            if archivo_path and os.path.exists(archivo_path):
+                os.remove(archivo_path)
+            return render_template("admin_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
         
         if plantilla:
             plantilla.key = key
             plantilla.nombre = nombre
-            plantilla.contenido = contenido
-            flash("Plantilla actualizada exitosamente.", "success")
+            if contenido:
+                plantilla.contenido = contenido
+            if archivo_path:
+                plantilla.archivo_original = archivo_path
+                nuevos_campos = 0
+                if campos_detectados:
+                    for i, campo_name in enumerate(campos_detectados):
+                        campo_key = campo_to_key(campo_name)
+                        existing_campo = CampoPlantilla.query.filter_by(
+                            plantilla_key=key, 
+                            nombre_campo=campo_key, 
+                            tenant_id=tenant.id
+                        ).first()
+                        if not existing_campo:
+                            max_orden = db.session.query(db.func.max(CampoPlantilla.orden)).filter_by(
+                                plantilla_key=key, tenant_id=tenant.id
+                            ).scalar() or 0
+                            campo = CampoPlantilla(
+                                plantilla_key=key,
+                                nombre_campo=campo_key,
+                                etiqueta=campo_name,
+                                tipo='text',
+                                requerido=True,
+                                orden=max_orden + i + 1,
+                                tenant_id=tenant.id
+                            )
+                            db.session.add(campo)
+                            nuevos_campos += 1
+                if nuevos_campos > 0:
+                    flash(f"Plantilla actualizada. Se detectaron {nuevos_campos} campos nuevos.", "success")
+                else:
+                    flash("Plantilla actualizada exitosamente.", "success")
+            else:
+                flash("Plantilla actualizada exitosamente.", "success")
         else:
             existing = Plantilla.query.filter_by(key=key, tenant_id=tenant.id).first()
             if existing:
                 flash("Ya existe una plantilla con esta clave.", "error")
-                return render_template("admin_plantilla.html", plantilla=plantilla)
+                return render_template("admin_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
             
             plantilla = Plantilla(
                 key=key, 
                 nombre=nombre, 
                 contenido=contenido, 
+                archivo_original=archivo_path,
                 carpeta_estilos=key,
                 tenant_id=tenant.id
             )
             db.session.add(plantilla)
-            flash("Plantilla creada exitosamente.", "success")
+            db.session.flush()
+            
+            if campos_detectados:
+                for i, campo_name in enumerate(campos_detectados):
+                    campo_key = campo_to_key(campo_name)
+                    existing_campo = CampoPlantilla.query.filter_by(
+                        plantilla_key=key, 
+                        nombre_campo=campo_key, 
+                        tenant_id=tenant.id
+                    ).first()
+                    if not existing_campo:
+                        campo = CampoPlantilla(
+                            plantilla_key=key,
+                            nombre_campo=campo_key,
+                            etiqueta=campo_name,
+                            tipo='text',
+                            requerido=True,
+                            orden=i,
+                            tenant_id=tenant.id
+                        )
+                        db.session.add(campo)
+            
+            flash(f"Plantilla creada exitosamente. Se detectaron {len(campos_detectados)} campos.", "success")
         
         db.session.commit()
+        
+        if campos_detectados and not plantilla_id:
+            return redirect(url_for("admin_campos", plantilla_key=key))
         return redirect(url_for("admin"))
     
-    return render_template("admin_plantilla.html", plantilla=plantilla)
+    return render_template("admin_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
 
 
 @app.route("/admin/plantilla/eliminar/<int:plantilla_id>", methods=["POST"])
 @admin_estudio_required
 def eliminar_plantilla(plantilla_id):
     tenant = get_current_tenant()
-    plantilla = Plantilla.query.get_or_404(plantilla_id)
+    plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id).first()
     
-    if plantilla.tenant_id != tenant.id:
+    if not plantilla:
         flash("No tienes permiso para eliminar esta plantilla.", "error")
         return redirect(url_for("admin"))
     
@@ -1015,9 +1177,9 @@ def admin_estilo():
         return redirect(url_for("index"))
     
     estilo_id = request.args.get('id', type=int)
-    estilo = Estilo.query.get(estilo_id) if estilo_id else None
+    estilo = Estilo.query.filter_by(id=estilo_id, tenant_id=tenant.id).first() if estilo_id else None
     
-    if estilo and estilo.tenant_id != tenant.id:
+    if estilo_id and not estilo:
         flash("No tienes permiso para editar este estilo.", "error")
         return redirect(url_for("admin"))
     
@@ -1028,22 +1190,53 @@ def admin_estilo():
     if request.method == "POST":
         plantilla_key = request.form.get("plantilla_key", "").strip()
         nombre = request.form.get("nombre", "").strip()
-        contenido = request.form.get("contenido", "").strip()
         
-        if not plantilla_key or not nombre or not contenido:
-            flash("Todos los campos son obligatorios.", "error")
+        archivo = request.files.get('archivo_word')
+        contenido = ""
+        archivo_path = None
+        
+        if archivo and archivo.filename and archivo.filename.endswith('.docx'):
+            tenant_folder = os.path.join(CARPETA_ESTILOS_SUBIDOS, f"tenant_{tenant.id}")
+            os.makedirs(tenant_folder, exist_ok=True)
+            
+            safe_name = secure_filename(archivo.filename)
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            archivo_name = f"{timestamp}_{safe_name}"
+            archivo_path = os.path.join(tenant_folder, archivo_name)
+            archivo.save(archivo_path)
+            
+            contenido = extract_text_from_docx(archivo_path)
+        elif estilo:
+            contenido = estilo.contenido
+        
+        if not plantilla_key or not nombre:
+            flash("La plantilla asociada y el nombre son obligatorios.", "error")
+            return render_template("admin_estilo.html", estilo=estilo, plantillas_keys=plantillas_keys)
+        
+        if not contenido and not estilo:
+            flash("Debes subir un archivo Word con el ejemplo de estilo.", "error")
+            return render_template("admin_estilo.html", estilo=estilo, plantillas_keys=plantillas_keys)
+        
+        if archivo_path and contenido and len(contenido.strip()) < 50:
+            flash("El documento Word parece estar vacío o tiene muy poco contenido.", "error")
+            if archivo_path and os.path.exists(archivo_path):
+                os.remove(archivo_path)
             return render_template("admin_estilo.html", estilo=estilo, plantillas_keys=plantillas_keys)
         
         if estilo:
             estilo.plantilla_key = plantilla_key
             estilo.nombre = nombre
-            estilo.contenido = contenido
+            if contenido:
+                estilo.contenido = contenido
+            if archivo_path:
+                estilo.archivo_original = archivo_path
             flash("Estilo actualizado exitosamente.", "success")
         else:
             estilo = Estilo(
                 plantilla_key=plantilla_key, 
                 nombre=nombre, 
                 contenido=contenido,
+                archivo_original=archivo_path,
                 tenant_id=tenant.id
             )
             db.session.add(estilo)
@@ -1059,9 +1252,9 @@ def admin_estilo():
 @admin_estudio_required
 def eliminar_estilo(estilo_id):
     tenant = get_current_tenant()
-    estilo = Estilo.query.get_or_404(estilo_id)
+    estilo = Estilo.query.filter_by(id=estilo_id, tenant_id=tenant.id).first()
     
-    if estilo.tenant_id != tenant.id:
+    if not estilo:
         flash("No tienes permiso para eliminar este estilo.", "error")
         return redirect(url_for("admin"))
     
@@ -1172,6 +1365,8 @@ def get_campos_plantilla(plantilla_key):
 with app.app_context():
     db.create_all()
     os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
+    os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
+    os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
 
 
 if __name__ == "__main__":

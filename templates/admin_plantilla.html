@@ -32,7 +32,7 @@
                 {% endif %}
             {% endwith %}
 
-            <form action="{{ url_for('admin_plantilla', id=plantilla.id if plantilla else None) }}" method="POST" class="space-y-6">
+            <form action="{{ url_for('admin_plantilla', id=plantilla.id if plantilla else None) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
                     <h3 class="text-xl font-medium text-gray-900 mb-6">Información de la Plantilla</h3>
                     <div class="grid gap-6">
@@ -55,16 +55,42 @@
                                 placeholder="ej: Divorcio de mutuo acuerdo"
                                 class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
                         </div>
-                        <div>
-                            <label for="contenido" class="block text-sm font-medium text-gray-700 mb-2">
-                                Contenido de la plantilla *
+                        
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                            <label for="archivo_word" class="block text-sm font-medium text-blue-800 mb-2">
+                                <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                Subir documento Word (.docx) *
                             </label>
-                            <textarea name="contenido" id="contenido" required
-                                rows="20"
-                                placeholder="Escribe aquí la plantilla del documento..."
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-mono text-sm resize-y">{{ plantilla.contenido if plantilla else '' }}</textarea>
-                            <p class="text-xs text-gray-500 mt-1">Puedes usar marcadores como {invitado}, {demandante1}, etc.</p>
+                            <input type="file" name="archivo_word" id="archivo_word" accept=".docx"
+                                {% if not plantilla %}required{% endif %}
+                                class="w-full px-4 py-3 border border-blue-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                            <p class="text-xs text-blue-600 mt-2">
+                                <strong>Importante:</strong> La plataforma detectará automáticamente los campos a completar en tu documento.
+                            </p>
+                            <p class="text-xs text-blue-600 mt-1">
+                                Usa marcadores como: <code class="bg-blue-100 px-1 rounded">{{nombre}}</code>, <code class="bg-blue-100 px-1 rounded">[FECHA]</code>, <code class="bg-blue-100 px-1 rounded">_____</code> o <code class="bg-blue-100 px-1 rounded">Nombre:</code> para indicar campos.
+                            </p>
+                            {% if plantilla and plantilla.archivo_original %}
+                            <p class="text-xs text-green-600 mt-2">
+                                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Ya hay un archivo cargado. Sube uno nuevo solo si deseas reemplazarlo.
+                            </p>
+                            {% endif %}
                         </div>
+
+                        {% if plantilla %}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Contenido actual (solo lectura)
+                            </label>
+                            <div class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 font-mono text-sm max-h-64 overflow-y-auto whitespace-pre-wrap">{{ plantilla.contenido[:2000] }}{% if plantilla.contenido|length > 2000 %}...{% endif %}</div>
+                            <p class="text-xs text-gray-500 mt-1">Para modificar el contenido, sube un nuevo archivo Word.</p>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -79,6 +105,21 @@
                     </button>
                 </div>
             </form>
+
+            {% if plantilla %}
+            <div class="mt-8 bg-white rounded-lg shadow-md p-6 md:p-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Campos del formulario</h3>
+                    <a href="{{ url_for('admin_campos', plantilla_key=plantilla.key) }}" 
+                       class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        Gestionar campos
+                    </a>
+                </div>
+                <p class="text-sm text-gray-600">
+                    Puedes agregar o modificar los campos que se mostrarán en el formulario de generación.
+                </p>
+            </div>
+            {% endif %}
         </div>
     </main>
 </body>

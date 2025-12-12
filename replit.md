@@ -38,8 +38,12 @@ Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múlti
 │   ├── super_admin.html     # Panel de super administrador
 │   ├── admin_plantilla.html # CRUD de plantillas
 │   └── admin_estilo.html    # CRUD de estilos
-├── modelos_legales/         # Plantillas de documentos (subir .txt)
-├── estilos_estudio/         # Ejemplos de estilo por tipo de documento
+├── modelos_legales/         # Plantillas de documentos predeterminadas
+├── estilos_estudio/         # Ejemplos de estilo predeterminados
+├── plantillas_subidas/      # Plantillas Word subidas por tenants
+│   └── tenant_<id>/         # Carpeta específica por estudio
+├── estilos_subidos/         # Estilos Word subidos por tenants
+│   └── tenant_<id>/         # Carpeta específica por estudio
 ├── Resultados/              # Documentos .docx generados (subcarpetas por tenant)
 │   └── tenant_<id>/         # Carpeta específica por estudio
 ├── logos/                   # Logos de estudios
@@ -76,8 +80,21 @@ Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múlti
 - `fecha`, `tipo_documento`, `demandante`
 - `archivo`, `texto_generado`, `datos_caso`
 
-#### plantillas, estilos, campos_plantilla
-- Todas incluyen `tenant_id` para aislamiento
+#### plantillas
+- `id`, `tenant_id`, `key`, `nombre`
+- `contenido`: Texto extraído del documento Word
+- `archivo_original`: Ruta al archivo Word subido
+- `carpeta_estilos`, `activa`, timestamps
+
+#### estilos
+- `id`, `tenant_id`, `plantilla_key`, `nombre`
+- `contenido`: Texto extraído del documento Word de ejemplo
+- `archivo_original`: Ruta al archivo Word subido
+- `activo`, timestamps
+
+#### campos_plantilla
+- Campos dinámicos detectados automáticamente o agregados manualmente
+- `tenant_id` para aislamiento
 
 ## Sistema de Roles y Permisos
 
