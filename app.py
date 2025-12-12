@@ -1089,8 +1089,8 @@ def admin_plantilla():
                             ).scalar() or 0
                             campo = CampoPlantilla(
                                 plantilla_key=key,
-                                nombre_campo=campo_key,
-                                etiqueta=campo_name,
+                                nombre_campo=campo_key[:100],
+                                etiqueta=campo_name[:200] if len(campo_name) <= 200 else campo_name[:197] + "...",
                                 tipo='text',
                                 requerido=True,
                                 orden=max_orden + i + 1,
@@ -1132,8 +1132,8 @@ def admin_plantilla():
                     if not existing_campo:
                         campo = CampoPlantilla(
                             plantilla_key=key,
-                            nombre_campo=campo_key,
-                            etiqueta=campo_name,
+                            nombre_campo=campo_key[:100],
+                            etiqueta=campo_name[:200] if len(campo_name) <= 200 else campo_name[:197] + "...",
                             tipo='text',
                             requerido=True,
                             orden=i,
