@@ -332,8 +332,7 @@ class Task(db.Model):
         'documento': 'Documento',
         'audiencia': 'Audiencia',
         'revision': 'Revisión',
-        'notificacion': 'Notificación',
-        'vencimiento': 'Vencimiento'
+        'notificacion': 'Notificación'
     }
     
     PRIORIDADES = {
