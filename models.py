@@ -87,6 +87,12 @@ class User(UserMixin, db.Model):
     def is_usuario_estudio(self):
         return self.role == 'usuario_estudio'
     
+    def is_coordinador(self):
+        return self.role == 'coordinador'
+    
+    def can_manage_cases(self):
+        return self.role in ['super_admin', 'admin_estudio', 'coordinador']
+    
     def can_access_tenant(self, tenant_id, current_tenant_id=None):
         if self.is_super_admin():
             return current_tenant_id is not None and current_tenant_id == tenant_id
@@ -174,3 +180,193 @@ class CampoPlantilla(db.Model):
     placeholder = db.Column(db.String(200))
     opciones = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Case(db.Model):
+    """Caso legal - expediente judicial o extrajudicial."""
+    __tablename__ = 'cases'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    numero_expediente = db.Column(db.String(100))
+    titulo = db.Column(db.String(300), nullable=False)
+    descripcion = db.Column(db.Text)
+    cliente_nombre = db.Column(db.String(200), nullable=False)
+    cliente_email = db.Column(db.String(120))
+    cliente_telefono = db.Column(db.String(50))
+    contraparte_nombre = db.Column(db.String(200))
+    tipo_caso = db.Column(db.String(100))
+    juzgado = db.Column(db.String(200))
+    estado = db.Column(db.String(50), default='por_comenzar')
+    prioridad = db.Column(db.String(20), default='media')
+    fecha_inicio = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_limite = db.Column(db.DateTime)
+    fecha_cierre = db.Column(db.DateTime)
+    notas = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('cases', lazy='dynamic'))
+    created_by = db.relationship('User', backref=db.backref('created_cases', lazy='dynamic'))
+    assignments = db.relationship('CaseAssignment', backref='case', lazy='dynamic', cascade='all, delete-orphan')
+    documents = db.relationship('CaseDocument', backref='case', lazy='dynamic', cascade='all, delete-orphan')
+    tasks = db.relationship('Task', backref='case', lazy='dynamic', cascade='all, delete-orphan')
+    
+    ESTADOS = {
+        'por_comenzar': 'Por Comenzar',
+        'en_proceso': 'En Proceso',
+        'en_espera': 'En Espera',
+        'terminado': 'Terminado',
+        'archivado': 'Archivado'
+    }
+    
+    PRIORIDADES = {
+        'baja': 'Baja',
+        'media': 'Media',
+        'alta': 'Alta',
+        'urgente': 'Urgente'
+    }
+    
+    def get_estado_display(self):
+        return self.ESTADOS.get(self.estado, self.estado)
+    
+    def get_prioridad_display(self):
+        return self.PRIORIDADES.get(self.prioridad, self.prioridad)
+    
+    def get_assigned_users(self):
+        return [a.user for a in self.assignments.all()]
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'numero_expediente': self.numero_expediente,
+            'titulo': self.titulo,
+            'cliente_nombre': self.cliente_nombre,
+            'estado': self.estado,
+            'estado_display': self.get_estado_display(),
+            'prioridad': self.prioridad,
+            'prioridad_display': self.get_prioridad_display(),
+            'fecha_inicio': self.fecha_inicio.strftime('%Y-%m-%d') if self.fecha_inicio else None,
+            'fecha_limite': self.fecha_limite.strftime('%Y-%m-%d') if self.fecha_limite else None
+        }
+
+
+class CaseAssignment(db.Model):
+    """Asignación de usuarios a casos con roles específicos."""
+    __tablename__ = 'case_assignments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    rol_en_caso = db.Column(db.String(50), default='abogado')
+    es_responsable = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('case_assignments', lazy='dynamic'))
+    
+    ROLES_CASO = {
+        'abogado': 'Abogado',
+        'coordinador': 'Coordinador',
+        'asistente': 'Asistente',
+        'consultor': 'Consultor'
+    }
+    
+    __table_args__ = (
+        db.UniqueConstraint('case_id', 'user_id', name='uq_case_user'),
+    )
+    
+    def get_rol_display(self):
+        return self.ROLES_CASO.get(self.rol_en_caso, self.rol_en_caso)
+
+
+class CaseDocument(db.Model):
+    """Vincula documentos a casos con información de versión."""
+    __tablename__ = 'case_documents'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    document_id = db.Column(db.Integer, db.ForeignKey('document_records.id'), nullable=False)
+    version = db.Column(db.Integer, default=1)
+    descripcion = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    added_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    document = db.relationship('DocumentRecord', backref=db.backref('case_links', lazy='dynamic'))
+    added_by = db.relationship('User', backref=db.backref('added_case_documents', lazy='dynamic'))
+
+
+class Task(db.Model):
+    """Tareas vinculadas a casos para la bandeja de trabajo."""
+    __tablename__ = 'tasks'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=True)
+    titulo = db.Column(db.String(300), nullable=False)
+    descripcion = db.Column(db.Text)
+    tipo = db.Column(db.String(50), default='general')
+    estado = db.Column(db.String(50), default='pendiente')
+    prioridad = db.Column(db.String(20), default='media')
+    fecha_vencimiento = db.Column(db.DateTime)
+    fecha_completada = db.Column(db.DateTime)
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('tasks', lazy='dynamic'))
+    assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref=db.backref('assigned_tasks', lazy='dynamic'))
+    created_by = db.relationship('User', foreign_keys=[created_by_id], backref=db.backref('created_tasks', lazy='dynamic'))
+    
+    ESTADOS = {
+        'pendiente': 'Pendiente',
+        'en_curso': 'En Curso',
+        'bloqueado': 'Bloqueado',
+        'completado': 'Completado',
+        'cancelado': 'Cancelado'
+    }
+    
+    TIPOS = {
+        'general': 'General',
+        'documento': 'Documento',
+        'audiencia': 'Audiencia',
+        'revision': 'Revisión',
+        'notificacion': 'Notificación',
+        'vencimiento': 'Vencimiento'
+    }
+    
+    PRIORIDADES = {
+        'baja': 'Baja',
+        'media': 'Media',
+        'alta': 'Alta',
+        'urgente': 'Urgente'
+    }
+    
+    def get_estado_display(self):
+        return self.ESTADOS.get(self.estado, self.estado)
+    
+    def get_tipo_display(self):
+        return self.TIPOS.get(self.tipo, self.tipo)
+    
+    def get_prioridad_display(self):
+        return self.PRIORIDADES.get(self.prioridad, self.prioridad)
+    
+    def is_overdue(self):
+        if self.fecha_vencimiento and self.estado not in ['completado', 'cancelado']:
+            return datetime.utcnow() > self.fecha_vencimiento
+        return False
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'titulo': self.titulo,
+            'estado': self.estado,
+            'estado_display': self.get_estado_display(),
+            'tipo': self.tipo,
+            'tipo_display': self.get_tipo_display(),
+            'prioridad': self.prioridad,
+            'prioridad_display': self.get_prioridad_display(),
+            'fecha_vencimiento': self.fecha_vencimiento.strftime('%Y-%m-%d') if self.fecha_vencimiento else None,
+            'is_overdue': self.is_overdue()
+        }

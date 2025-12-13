@@ -14,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla, Tenant
+from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task
 
 logging.basicConfig(level=logging.DEBUG)
 
