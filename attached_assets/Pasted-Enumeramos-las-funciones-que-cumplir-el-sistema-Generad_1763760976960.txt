@@ -1,0 +1,25 @@
+Enumeramos las funciones que cumplirá el sistema:
+Generador de documentos con IA: El sistema generará todos los tipos de documentos que el cliente pida, respetando el estilo de escritura y forma de argumentación del cliente (o sea el abogado)
+Permite hacer la firma electrónica del cliente y el abogado
+Permite funcionar como un repositorio de documentos legales (Donde existen sus estados: por comenzar, en proceso y terminados) además, cada caso tiene: Cliente, tipo de proceso, documentos asociados, abogado responsable, fecha límite, historial de cambio.
+Bandeja de trabajo tipo Inbox, O sea que existan: administradores, coordinadores y usuarios. Y que los administradores tengan la opción de asignar casos a los coordinadores o usuarios, por ejemplo: que los coordinadores envien a través de la plataforma toda la información del caso y te cree casos y aparezcan en la bandeja de casos de los usuarios automáticamente (por comenzar, en proceso y concluido) 
+Cada caso tiene su abogado designado, y los administradores (jefes de abogados) pueden ver el proceso y avance de cada abogado
+Creación del documento por fases
+Versionado automático de documentos: Cada vez que se edita un documento, ver quien y cuando lo edito
+Integrar Firma electrónica, o sea poner como un repositorio de firmas y tu puedas elegir guardar la del sueño de su propia cuenta, por ejemplo o la de los clientes.
+Repositorio Inteligente de documentos, permitir la búsqueda de documentos por cliente, tipo de proceso, fecha y palabras clave del documento.
+IA revisora: de modo que identifique los errores en los documentos, como: revisar coherencia jurídica, Detectar contradicciones, Verificar estructura, Alertar campos incompletos Ejemplo: “El DNI del demandante no coincide en todo el documento”
+Checklists automáticos por tipo de proceso para cada tipo de documento: Demanda de alimentos: Partida de nacimiento ✅(Check) DNI demandante ✅(Check) Boletas ❌(Falta)
+Calendario procesal automático A partir del documento: Detecta plazos, Crea recordatorios, Alertas por correo. Cuando hay algún documento que se presenta ese mismo día, la plataforma se lo muestra al usuario en la página principal de dashboard y le envía un correo electrónico.
+Agregar: además del modelo por tipo de documento, una plantilla de estilo de escritura por tipo de documento, ejemplo: Estilo formal / agresivo / conciliador.
+Agregar funciones de visualizadores administrativos, algo como estadisticas de cada usuario con gráficos y más. Ejemplo: Historial de clientes, Cuántos casos has tomado, Cuántos documentos has terminado, Reportes, Documentos generados y entregados, Tiempo promedio por caso, Productividad por abogado (solo lo pueden ver los coordinadores y administradores.
+Crear un inbox con el nombre de todos los usuarios para poder comunicarse por ahí.
+Control de accesos: administrador, coordinador, practicante Cada uno con permisos distintos.
+Cada estudio: Su logo Sus plantillas Sus estilos Sus usuarios
+Agregar un asistente que esté siempre presente en toda la página web (abajo derecha), que ayude al usuario a guiarse y que tenga control para cambiar o modificar documentos y explicarle al usuario cualquier duda que tenga sobre el funcionamiento de la plataforma. Que tenga la forma de un mensaje para que la persona entienda que es un chatbot.
+Búsqueda por similitud (“muéstrame casos parecidos”) Osea, cuando el documento se haya generado, si la persona quiere buscar documentos parecidos anteriormente para guiarse, se lo puede consultar al chatbot.
+¿Cúal es la primera página?
+La página de registro del usuario
+¿Qué se ve al iniciar sesión?
+Un DashBoard que tendrá esta estética:
+Tendrá una barra a la izquierda donde se verán las subpáginas que ocupará el 15% de la pantalla, y lo demás será la pantalla donde se mostrarán los generadores y más.
