@@ -196,14 +196,16 @@
             switch(campo.tipo) {
                 case 'textarea':
                     inputHtml = `<textarea name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                        rows="4" placeholder="${campo.placeholder}"
+                        rows="4" placeholder="${campo.placeholder || ''}"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y min-h-32"></textarea>`;
                     break;
                 case 'select':
                     let optionsHtml = '<option value="">-- Seleccione --</option>';
-                    campo.opciones.forEach(opt => {
-                        optionsHtml += `<option value="${opt.trim()}">${opt.trim()}</option>`;
-                    });
+                    if (campo.opciones) {
+                        campo.opciones.forEach(opt => {
+                            optionsHtml += `<option value="${opt.trim()}">${opt.trim()}</option>`;
+                        });
+                    }
                     inputHtml = `<select name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
                         class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">${optionsHtml}</select>`;
                     break;
@@ -213,17 +215,17 @@
                     break;
                 case 'number':
                     inputHtml = `<input type="number" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                        placeholder="${campo.placeholder}"
+                        placeholder="${campo.placeholder || ''}"
                         class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
                     break;
                 case 'email':
                     inputHtml = `<input type="email" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                        placeholder="${campo.placeholder}"
+                        placeholder="${campo.placeholder || ''}"
                         class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
                     break;
                 default:
                     inputHtml = `<input type="text" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                        placeholder="${campo.placeholder}"
+                        placeholder="${campo.placeholder || ''}"
                         class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
             }
             
@@ -254,316 +256,3 @@
     });
 </script>
 {% endblock %}
-                    {% endif %}
-                    {% if is_impersonating %}
-                    <a href="{{ url_for('stop_impersonate') }}" class="text-yellow-600 hover:text-yellow-800 text-sm font-medium transition-all duration-200">
-                        Salir Vista
-                    </a>
-                    {% endif %}
-                    <a href="{{ url_for('logout') }}" class="text-red-600 hover:text-red-800 text-sm font-medium transition-all duration-200">
-                        Salir
-                    </a>
-                {% else %}
-                    <a href="{{ url_for('login') }}" class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-all duration-200">
-                        Iniciar Sesión
-                    </a>
-                    <a href="{{ url_for('registro_estudio') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200">
-                        Registrar Estudio
-                    </a>
-                {% endif %}
-            </nav>
-        </div>
-    </header>
-
-    <main class="pt-20 pb-12 px-4 md:px-8">
-        <div class="max-w-4xl mx-auto">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl font-medium text-gray-900 mb-4">Generador de Documentos Jurídicos</h2>
-                <p class="text-lg text-gray-600">Complete el formulario para generar su documento legal personalizado.</p>
-            </div>
-
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="mb-6 p-4 rounded-lg {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% elif category == 'info' %}bg-blue-50 text-blue-700 border border-blue-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            {% if not current_user.is_authenticated %}
-            <div class="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                <p class="text-blue-800 mb-4">Para generar documentos, necesitas iniciar sesión o registrar tu estudio jurídico.</p>
-                <div class="flex justify-center gap-4">
-                    <a href="{{ url_for('login') }}" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all duration-200">
-                        Iniciar Sesión
-                    </a>
-                    <a href="{{ url_for('registro_estudio') }}" class="px-6 py-2 bg-white hover:bg-gray-100 text-blue-600 border border-blue-600 font-medium rounded-lg transition-all duration-200">
-                        Registrar Mi Estudio
-                    </a>
-                </div>
-            </div>
-            {% endif %}
-
-            <form id="documentForm" action="{{ url_for('procesar_ia') }}" method="POST" class="space-y-8">
-                <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
-                    <h3 class="text-xl font-medium text-gray-900 mb-6">Tipo de Documento</h3>
-                    <div>
-                        <label for="tipo_documento" class="block text-sm font-medium text-gray-700 mb-2">
-                            Seleccione el tipo de documento *
-                        </label>
-                        <select name="tipo_documento" id="tipo_documento" required onchange="cargarCampos()"
-                            class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 bg-white">
-                            <option value="">-- Seleccione una opción --</option>
-                            {% for key, modelo in modelos.items() %}
-                                <option value="{{ key }}">{{ modelo.nombre }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div id="camposDinamicos" class="hidden">
-                    <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
-                        <h3 class="text-xl font-medium text-gray-900 mb-6">Datos del Caso</h3>
-                        <div id="camposContainer" class="grid gap-6">
-                        </div>
-                    </div>
-                </div>
-
-                <div id="camposEstaticos">
-                    <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
-                        <h3 class="text-xl font-medium text-gray-900 mb-6">Información Personal</h3>
-                        <div class="grid gap-6">
-                            <div>
-                                <label for="invitado" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Invitado
-                                </label>
-                                <input type="text" name="invitado" id="invitado"
-                                    placeholder="Nombre del invitado"
-                                    class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
-                            </div>
-                            <div>
-                                <label for="demandante1" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Demandante *
-                                </label>
-                                <input type="text" name="demandante1" id="demandante1"
-                                    placeholder="Nombre completo del demandante"
-                                    class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
-                            </div>
-                            <div>
-                                <label for="dni_demandante1" class="block text-sm font-medium text-gray-700 mb-2">
-                                    DNI del Demandante *
-                                </label>
-                                <input type="text" name="dni_demandante1" id="dni_demandante1"
-                                    placeholder="Número de documento de identidad"
-                                    class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow-md p-6 md:p-8 mt-8">
-                        <h3 class="text-xl font-medium text-gray-900 mb-6">Argumentos del Caso</h3>
-                        <div class="grid gap-6">
-                            <div>
-                                <label for="argumento1" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Argumento 1 *
-                                </label>
-                                <textarea name="argumento1" id="argumento1"
-                                    rows="4"
-                                    placeholder="Describa el primer argumento del caso..."
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y min-h-32"></textarea>
-                            </div>
-                            <div>
-                                <label for="argumento2" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Argumento 2
-                                </label>
-                                <textarea name="argumento2" id="argumento2"
-                                    rows="4"
-                                    placeholder="Describa el segundo argumento del caso..."
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y min-h-32"></textarea>
-                            </div>
-                            <div>
-                                <label for="argumento3" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Argumento 3
-                                </label>
-                                <textarea name="argumento3" id="argumento3"
-                                    rows="4"
-                                    placeholder="Describa el tercer argumento del caso..."
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y min-h-32"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow-md p-6 md:p-8 mt-8">
-                        <h3 class="text-xl font-medium text-gray-900 mb-6">Conclusión</h3>
-                        <div>
-                            <label for="conclusion" class="block text-sm font-medium text-gray-700 mb-2">
-                                Conclusión del Caso *
-                            </label>
-                            <textarea name="conclusion" id="conclusion"
-                                rows="4"
-                                placeholder="Describa la conclusión o petitorio del caso..."
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y min-h-32"></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex flex-col md:flex-row gap-4 justify-center">
-                    {% if current_user.is_authenticated %}
-                    <button type="button" id="previewBtn" onclick="submitForPreview()"
-                        class="h-12 px-8 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-                        <span id="previewBtnText">Ver Preview</span>
-                        <span id="previewBtnLoading" class="hidden">
-                            <svg class="animate-spin inline-block w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generando...
-                        </span>
-                    </button>
-                    <button type="submit" id="submitBtn"
-                        class="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 focus:ring-4 focus:ring-blue-200">
-                        <span id="btnText">Generar y Descargar</span>
-                        <span id="btnLoading" class="hidden">
-                            <svg class="animate-spin inline-block w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generando...
-                        </span>
-                    </button>
-                    {% else %}
-                    <button type="button" onclick="window.location.href='{{ url_for('login') }}'"
-                        class="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-                        Iniciar Sesión para Generar
-                    </button>
-                    {% endif %}
-                </div>
-            </form>
-        </div>
-    </main>
-
-    <footer class="bg-white border-t border-gray-200 py-6">
-        <div class="max-w-4xl mx-auto px-4 md:px-8 text-center text-sm text-gray-500">
-            &copy; 2025 Estudio Jurídico. Sistema de Generación de Documentos.
-        </div>
-    </footer>
-
-    <script>
-        let camposCache = {};
-
-        function cargarCampos() {
-            const tipoDoc = document.getElementById('tipo_documento').value;
-            const camposDinamicos = document.getElementById('camposDinamicos');
-            const camposEstaticos = document.getElementById('camposEstaticos');
-            const camposContainer = document.getElementById('camposContainer');
-            
-            if (!tipoDoc) {
-                camposDinamicos.classList.add('hidden');
-                camposEstaticos.classList.remove('hidden');
-                return;
-            }
-
-            if (camposCache[tipoDoc] !== undefined) {
-                renderizarCampos(camposCache[tipoDoc]);
-                return;
-            }
-
-            fetch('/api/campos/' + tipoDoc)
-                .then(response => response.json())
-                .then(campos => {
-                    camposCache[tipoDoc] = campos;
-                    renderizarCampos(campos);
-                })
-                .catch(error => {
-                    console.error('Error cargando campos:', error);
-                    camposDinamicos.classList.add('hidden');
-                    camposEstaticos.classList.remove('hidden');
-                });
-        }
-
-        function renderizarCampos(campos) {
-            const camposDinamicos = document.getElementById('camposDinamicos');
-            const camposEstaticos = document.getElementById('camposEstaticos');
-            const camposContainer = document.getElementById('camposContainer');
-
-            if (campos.length === 0) {
-                camposDinamicos.classList.add('hidden');
-                camposEstaticos.classList.remove('hidden');
-                return;
-            }
-
-            camposEstaticos.classList.add('hidden');
-            camposDinamicos.classList.remove('hidden');
-            camposContainer.innerHTML = '';
-
-            campos.forEach(campo => {
-                const div = document.createElement('div');
-                const requiredAttr = campo.requerido ? 'required' : '';
-                const requiredMark = campo.requerido ? ' *' : '';
-                
-                let inputHtml = '';
-                
-                switch(campo.tipo) {
-                    case 'textarea':
-                        inputHtml = `<textarea name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                            rows="4" placeholder="${campo.placeholder}"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y min-h-32"></textarea>`;
-                        break;
-                    case 'select':
-                        let optionsHtml = '<option value="">-- Seleccione --</option>';
-                        campo.opciones.forEach(opt => {
-                            optionsHtml += `<option value="${opt.trim()}">${opt.trim()}</option>`;
-                        });
-                        inputHtml = `<select name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                            class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">${optionsHtml}</select>`;
-                        break;
-                    case 'date':
-                        inputHtml = `<input type="date" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                            class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
-                        break;
-                    case 'number':
-                        inputHtml = `<input type="number" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                            placeholder="${campo.placeholder}"
-                            class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
-                        break;
-                    case 'email':
-                        inputHtml = `<input type="email" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                            placeholder="${campo.placeholder}"
-                            class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
-                        break;
-                    default:
-                        inputHtml = `<input type="text" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
-                            placeholder="${campo.placeholder}"
-                            class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
-                }
-                
-                div.innerHTML = `
-                    <label for="${campo.nombre_campo}" class="block text-sm font-medium text-gray-700 mb-2">
-                        ${campo.etiqueta}${requiredMark}
-                    </label>
-                    ${inputHtml}
-                `;
-                camposContainer.appendChild(div);
-            });
-        }
-
-        function submitForPreview() {
-            document.getElementById('previewBtnText').classList.add('hidden');
-            document.getElementById('previewBtnLoading').classList.remove('hidden');
-            document.getElementById('previewBtn').disabled = true;
-            document.getElementById('documentForm').action = '{{ url_for("preview") }}';
-            document.getElementById('documentForm').submit();
-        }
-
-        document.getElementById('documentForm').addEventListener('submit', function(e) {
-            if (this.action.includes('procesar_ia')) {
-                document.getElementById('btnText').classList.add('hidden');
-                document.getElementById('btnLoading').classList.remove('hidden');
-                document.getElementById('submitBtn').disabled = true;
-            }
-        });
-    </script>
-</body>
-</html>
