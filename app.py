@@ -605,6 +605,10 @@ def registro_estudio():
             flash("Ya existe una cuenta con este email.", "error")
             return render_template("registro_estudio.html")
         
+        if User.query.filter_by(username=username).first():
+            flash("Ya existe un usuario con este nombre. Por favor elige otro.", "error")
+            return render_template("registro_estudio.html")
+        
         slug = nombre_estudio.lower().replace(" ", "-").replace(".", "")[:50]
         base_slug = slug
         counter = 1
