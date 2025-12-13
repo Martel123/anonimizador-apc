@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %} - Plataforma Legal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'roboto': ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        'sidebar': '#1e293b',
+                        'sidebar-hover': '#334155',
+                        'sidebar-active': '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+        .sidebar-link { transition: all 0.2s ease; }
+        .sidebar-link:hover { background-color: #334155; }
+        .sidebar-link.active { background-color: #3b82f6; border-left: 3px solid #fff; }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-64 bg-sidebar text-white flex flex-col fixed h-full z-30">
+            <div class="p-4 border-b border-gray-700">
+                <div class="flex items-center space-x-3">
+                    {% if current_tenant and current_tenant.logo_path %}
+                        <img src="{{ url_for('static', filename=current_tenant.logo_path) }}" alt="Logo" class="h-10 w-10 rounded-full object-cover bg-white">
+                    {% else %}
+                        <div class="h-10 w-10 bg-blue-500 rounded-full flex items-center justify-center">
+                            <i class="fas fa-balance-scale text-white"></i>
+                        </div>
+                    {% endif %}
+                    <div class="flex-1 min-w-0">
+                        <h1 class="text-sm font-semibold truncate">
+                            {% if current_tenant %}{{ current_tenant.nombre }}{% else %}Plataforma Legal{% endif %}
+                        </h1>
+                        <p class="text-xs text-gray-400 truncate">{{ current_user.username }}</p>
+                    </div>
+                </div>
+                {% if is_impersonating %}
+                    <div class="mt-2 px-2 py-1 bg-yellow-500 text-yellow-900 text-xs rounded text-center">
+                        <i class="fas fa-eye mr-1"></i> Vista previa
+                    </div>
+                {% endif %}
+            </div>
+
+            <nav class="flex-1 overflow-y-auto py-4">
+                <div class="px-3 mb-2">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Principal</span>
+                </div>
+                <a href="{{ url_for('dashboard') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-home w-5 mr-3"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('index') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'index' %}active{% endif %}">
+                    <i class="fas fa-file-alt w-5 mr-3"></i>
+                    <span>Generador</span>
+                </a>
+                <a href="{{ url_for('historial') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'historial' %}active{% endif %}">
+                    <i class="fas fa-history w-5 mr-3"></i>
+                    <span>Historial</span>
+                </a>
+
+                {% if current_user.is_admin_estudio() or current_user.is_super_admin() %}
+                <div class="px-3 mt-6 mb-2">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Administración</span>
+                </div>
+                <a href="{{ url_for('admin') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin' %}active{% endif %}">
+                    <i class="fas fa-cog w-5 mr-3"></i>
+                    <span>Panel Admin</span>
+                </a>
+                <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin_usuarios' %}active{% endif %}">
+                    <i class="fas fa-users w-5 mr-3"></i>
+                    <span>Usuarios</span>
+                </a>
+                <a href="{{ url_for('configurar_estudio') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'configurar_estudio' %}active{% endif %}">
+                    <i class="fas fa-building w-5 mr-3"></i>
+                    <span>Configuración</span>
+                </a>
+                {% endif %}
+
+                {% if current_user.is_super_admin() %}
+                <div class="px-3 mt-6 mb-2">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Super Admin</span>
+                </div>
+                <a href="{{ url_for('super_admin') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'super_admin' %}active{% endif %}">
+                    <i class="fas fa-shield-alt w-5 mr-3"></i>
+                    <span>Gestión Global</span>
+                </a>
+                {% endif %}
+
+                {% if is_impersonating %}
+                <div class="px-3 mt-6">
+                    <a href="{{ url_for('stop_impersonate') }}" class="block px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-yellow-900 text-sm font-medium rounded-lg text-center transition-colors">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Salir de Vista
+                    </a>
+                </div>
+                {% endif %}
+            </nav>
+
+            <div class="p-4 border-t border-gray-700">
+                <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors">
+                    <i class="fas fa-sign-out-alt w-5 mr-3"></i>
+                    <span>Cerrar Sesión</span>
+                </a>
+            </div>
+        </aside>
+
+        <div class="flex-1 ml-64 overflow-y-auto">
+            <header class="bg-white shadow-sm sticky top-0 z-20">
+                <div class="px-6 py-4 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h2>
+                        <p class="text-sm text-gray-500">{% block page_subtitle %}{% endblock %}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button class="p-2 text-gray-400 hover:text-gray-600 relative">
+                            <i class="fas fa-bell text-xl"></i>
+                            <span class="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
+                        </button>
+                        <div class="flex items-center space-x-2">
+                            <div class="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                                {{ current_user.username[0]|upper }}
+                            </div>
+                            <span class="text-sm text-gray-700 hidden md:inline">{{ current_user.username }}</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="p-6">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% elif category == 'info' %}bg-blue-50 text-blue-700 border border-blue-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+                                <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'info' %}fa-info-circle{% else %}fa-check-circle{% endif %} mr-2"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

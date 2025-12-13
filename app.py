@@ -419,6 +419,86 @@ def inject_tenant():
 
 @app.route("/")
 def index():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return render_template("landing.html")
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    
+    from datetime import timedelta
+    today = datetime.now()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+    
+    total_documentos = 0
+    docs_este_mes = 0
+    docs_semana = 0
+    documentos_recientes = []
+    
+    if tenant_id:
+        total_documentos = DocumentRecord.query.filter_by(tenant_id=tenant_id).count()
+        docs_este_mes = DocumentRecord.query.filter(
+            DocumentRecord.tenant_id == tenant_id,
+            DocumentRecord.fecha >= month_ago
+        ).count()
+        docs_semana = DocumentRecord.query.filter(
+            DocumentRecord.tenant_id == tenant_id,
+            DocumentRecord.fecha >= week_ago
+        ).count()
+        documentos_recientes = DocumentRecord.query.filter_by(tenant_id=tenant_id).order_by(
+            DocumentRecord.fecha.desc()
+        ).limit(5).all()
+    
+    total_plantillas = len(MODELOS)
+    estilos_disponibles = 0
+    if tenant_id:
+        total_plantillas += Plantilla.query.filter_by(tenant_id=tenant_id, activa=True).count()
+        estilos_disponibles = Estilo.query.filter_by(tenant_id=tenant_id, activo=True).count()
+    
+    total_usuarios = 0
+    usuarios_activos = 0
+    if tenant_id:
+        total_usuarios = User.query.filter_by(tenant_id=tenant_id).count()
+        usuarios_activos = User.query.filter_by(tenant_id=tenant_id, activo=True).count()
+    
+    promedio_diario = round(docs_semana / 7, 1) if docs_semana > 0 else 0
+    
+    tipo_mas_usado = "-"
+    if tenant_id and total_documentos > 0:
+        result = db.session.query(
+            DocumentRecord.tipo_documento, 
+            db.func.count(DocumentRecord.id).label('count')
+        ).filter_by(tenant_id=tenant_id).group_by(
+            DocumentRecord.tipo_documento
+        ).order_by(db.desc('count')).first()
+        if result:
+            tipo_mas_usado = result[0][:20] + "..." if len(result[0]) > 20 else result[0]
+    
+    stats = {
+        'total_documentos': total_documentos,
+        'docs_este_mes': docs_este_mes,
+        'docs_semana': docs_semana,
+        'casos_activos': total_documentos,
+        'casos_pendientes': 0,
+        'total_plantillas': total_plantillas,
+        'estilos_disponibles': estilos_disponibles,
+        'total_usuarios': total_usuarios,
+        'usuarios_activos': usuarios_activos,
+        'promedio_diario': promedio_diario,
+        'tipo_mas_usado': tipo_mas_usado
+    }
+    
+    return render_template("dashboard.html", stats=stats, documentos_recientes=documentos_recientes)
+
+
+@app.route("/generador")
+@login_required
+def generador():
     tenant = get_current_tenant()
     tenant_id = tenant.id if tenant else None
     
@@ -433,7 +513,7 @@ def index():
                     "carpeta_estilos": p.carpeta_estilos or p.key
                 }
     
-    return render_template("index.html", modelos=modelos_completos, tenant=tenant)
+    return render_template("generador.html", modelos=modelos_completos, tenant=tenant)
 
 
 @app.route("/login", methods=["GET", "POST"])
