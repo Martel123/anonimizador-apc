@@ -65,6 +65,14 @@
                     <i class="fas fa-home w-5 mr-3"></i>
                     <span>Dashboard</span>
                 </a>
+                <a href="{{ url_for('casos') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['casos', 'caso_nuevo', 'caso_detalle', 'caso_editar'] %}active{% endif %}">
+                    <i class="fas fa-folder-open w-5 mr-3"></i>
+                    <span>Casos</span>
+                </a>
+                <a href="{{ url_for('tareas') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['tareas', 'tarea_nueva'] %}active{% endif %}">
+                    <i class="fas fa-tasks w-5 mr-3"></i>
+                    <span>Tareas</span>
+                </a>
                 <a href="{{ url_for('generador') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'generador' %}active{% endif %}">
                     <i class="fas fa-file-alt w-5 mr-3"></i>
                     <span>Generador</span>

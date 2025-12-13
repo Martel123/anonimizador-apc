@@ -479,12 +479,42 @@ def dashboard():
         if result:
             tipo_mas_usado = result[0][:20] + "..." if len(result[0]) > 20 else result[0]
     
+    casos_activos = 0
+    casos_pendientes = 0
+    tareas_pendientes = 0
+    tareas_vencidas = 0
+    casos_recientes = []
+    tareas_urgentes = []
+    
+    if tenant_id:
+        casos_activos = Case.query.filter(
+            Case.tenant_id == tenant_id,
+            Case.estado.in_(['en_proceso', 'en_espera'])
+        ).count()
+        casos_pendientes = Case.query.filter_by(tenant_id=tenant_id, estado='por_comenzar').count()
+        tareas_pendientes = Task.query.filter_by(tenant_id=tenant_id, estado='pendiente').count()
+        tareas_vencidas = Task.query.filter(
+            Task.tenant_id == tenant_id,
+            Task.estado.notin_(['completado', 'cancelado']),
+            Task.fecha_vencimiento.isnot(None),
+            Task.fecha_vencimiento < today
+        ).count()
+        casos_recientes = Case.query.filter_by(tenant_id=tenant_id).order_by(
+            Case.updated_at.desc()
+        ).limit(5).all()
+        tareas_urgentes = Task.query.filter(
+            Task.tenant_id == tenant_id,
+            Task.estado.notin_(['completado', 'cancelado'])
+        ).order_by(Task.fecha_vencimiento.asc().nullslast()).limit(5).all()
+    
     stats = {
         'total_documentos': total_documentos,
         'docs_este_mes': docs_este_mes,
         'docs_semana': docs_semana,
-        'casos_activos': total_documentos,
-        'casos_pendientes': 0,
+        'casos_activos': casos_activos,
+        'casos_pendientes': casos_pendientes,
+        'tareas_pendientes': tareas_pendientes,
+        'tareas_vencidas': tareas_vencidas,
         'total_plantillas': total_plantillas,
         'estilos_disponibles': estilos_disponibles,
         'total_usuarios': total_usuarios,
@@ -493,7 +523,7 @@ def dashboard():
         'tipo_mas_usado': tipo_mas_usado
     }
     
-    return render_template("dashboard.html", stats=stats, documentos_recientes=documentos_recientes)
+    return render_template("dashboard.html", stats=stats, documentos_recientes=documentos_recientes, casos_recientes=casos_recientes, tareas_urgentes=tareas_urgentes)
 
 
 @app.route("/generador")
@@ -1572,6 +1602,426 @@ def get_campos_plantilla(plantilla_key):
         'placeholder': c.placeholder or '',
         'opciones': c.opciones.split(',') if c.opciones else []
     } for c in campos])
+
+
+# ==================== GESTIÓN DE CASOS ====================
+
+def case_access_required(f):
+    """Decorator to ensure user can access case management."""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        tenant = get_current_tenant()
+        if not tenant:
+            flash("No tienes un estudio asociado.", "error")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def case_manage_required(f):
+    """Decorator to ensure user can manage cases (admin/coordinador)."""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.can_manage_cases():
+            flash("No tienes permisos para gestionar casos.", "error")
+            return redirect(url_for("casos"))
+        tenant = get_current_tenant()
+        if not tenant:
+            flash("No tienes un estudio asociado.", "error")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route("/casos")
+@case_access_required
+def casos():
+    tenant = get_current_tenant()
+    
+    estado_filter = request.args.get('estado', '')
+    prioridad_filter = request.args.get('prioridad', '')
+    busqueda = request.args.get('busqueda', '').strip()
+    
+    query = Case.query.filter_by(tenant_id=tenant.id)
+    
+    if not current_user.can_manage_cases():
+        assigned_case_ids = db.session.query(CaseAssignment.case_id).filter_by(user_id=current_user.id).subquery()
+        query = query.filter(
+            db.or_(
+                Case.created_by_id == current_user.id,
+                Case.id.in_(assigned_case_ids)
+            )
+        )
+    
+    if estado_filter:
+        query = query.filter_by(estado=estado_filter)
+    if prioridad_filter:
+        query = query.filter_by(prioridad=prioridad_filter)
+    if busqueda:
+        query = query.filter(
+            db.or_(
+                Case.titulo.ilike(f'%{busqueda}%'),
+                Case.cliente_nombre.ilike(f'%{busqueda}%'),
+                Case.numero_expediente.ilike(f'%{busqueda}%')
+            )
+        )
+    
+    casos_list = query.order_by(Case.updated_at.desc()).all()
+    
+    stats = {
+        'total': Case.query.filter_by(tenant_id=tenant.id).count(),
+        'por_comenzar': Case.query.filter_by(tenant_id=tenant.id, estado='por_comenzar').count(),
+        'en_proceso': Case.query.filter_by(tenant_id=tenant.id, estado='en_proceso').count(),
+        'en_espera': Case.query.filter_by(tenant_id=tenant.id, estado='en_espera').count(),
+        'terminado': Case.query.filter_by(tenant_id=tenant.id, estado='terminado').count(),
+    }
+    
+    return render_template("casos.html", 
+                          casos=casos_list,
+                          stats=stats,
+                          estado_filter=estado_filter,
+                          prioridad_filter=prioridad_filter,
+                          busqueda=busqueda,
+                          estados=Case.ESTADOS,
+                          prioridades=Case.PRIORIDADES)
+
+
+@app.route("/casos/nuevo", methods=["GET", "POST"])
+@case_manage_required
+def caso_nuevo():
+    tenant = get_current_tenant()
+    
+    if request.method == "POST":
+        titulo = request.form.get("titulo", "").strip()
+        cliente_nombre = request.form.get("cliente_nombre", "").strip()
+        
+        if not titulo or not cliente_nombre:
+            flash("El título y nombre del cliente son obligatorios.", "error")
+            return render_template("caso_form.html", caso=None, usuarios=User.query.filter_by(tenant_id=tenant.id, activo=True).all())
+        
+        caso = Case(
+            tenant_id=tenant.id,
+            titulo=titulo,
+            descripcion=request.form.get("descripcion", "").strip(),
+            numero_expediente=request.form.get("numero_expediente", "").strip(),
+            cliente_nombre=cliente_nombre,
+            cliente_email=request.form.get("cliente_email", "").strip(),
+            cliente_telefono=request.form.get("cliente_telefono", "").strip(),
+            contraparte_nombre=request.form.get("contraparte_nombre", "").strip(),
+            tipo_caso=request.form.get("tipo_caso", "").strip(),
+            juzgado=request.form.get("juzgado", "").strip(),
+            estado=request.form.get("estado", "por_comenzar"),
+            prioridad=request.form.get("prioridad", "media"),
+            notas=request.form.get("notas", "").strip(),
+            created_by_id=current_user.id
+        )
+        
+        fecha_limite = request.form.get("fecha_limite", "").strip()
+        if fecha_limite:
+            try:
+                caso.fecha_limite = datetime.strptime(fecha_limite, "%Y-%m-%d")
+            except ValueError:
+                pass
+        
+        db.session.add(caso)
+        db.session.flush()
+        
+        responsable_id = request.form.get("responsable_id", type=int)
+        if responsable_id:
+            assignment = CaseAssignment(
+                case_id=caso.id,
+                user_id=responsable_id,
+                rol_en_caso='abogado',
+                es_responsable=True
+            )
+            db.session.add(assignment)
+        
+        db.session.commit()
+        flash("Caso creado exitosamente.", "success")
+        return redirect(url_for("caso_detalle", caso_id=caso.id))
+    
+    usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+    return render_template("caso_form.html", caso=None, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES)
+
+
+@app.route("/casos/<int:caso_id>")
+@case_access_required
+def caso_detalle(caso_id):
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    
+    if not current_user.can_manage_cases():
+        is_assigned = CaseAssignment.query.filter_by(case_id=caso_id, user_id=current_user.id).first()
+        if caso.created_by_id != current_user.id and not is_assigned:
+            flash("No tienes acceso a este caso.", "error")
+            return redirect(url_for("casos"))
+    
+    assignments = CaseAssignment.query.filter_by(case_id=caso_id).all()
+    case_documents = CaseDocument.query.filter_by(case_id=caso_id).order_by(CaseDocument.created_at.desc()).all()
+    tasks = Task.query.filter_by(case_id=caso_id).order_by(Task.fecha_vencimiento).all()
+    
+    return render_template("caso_detalle.html",
+                          caso=caso,
+                          assignments=assignments,
+                          case_documents=case_documents,
+                          tasks=tasks,
+                          estados=Case.ESTADOS,
+                          prioridades=Case.PRIORIDADES)
+
+
+@app.route("/casos/<int:caso_id>/editar", methods=["GET", "POST"])
+@case_manage_required
+def caso_editar(caso_id):
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    
+    if request.method == "POST":
+        caso.titulo = request.form.get("titulo", "").strip()
+        caso.descripcion = request.form.get("descripcion", "").strip()
+        caso.numero_expediente = request.form.get("numero_expediente", "").strip()
+        caso.cliente_nombre = request.form.get("cliente_nombre", "").strip()
+        caso.cliente_email = request.form.get("cliente_email", "").strip()
+        caso.cliente_telefono = request.form.get("cliente_telefono", "").strip()
+        caso.contraparte_nombre = request.form.get("contraparte_nombre", "").strip()
+        caso.tipo_caso = request.form.get("tipo_caso", "").strip()
+        caso.juzgado = request.form.get("juzgado", "").strip()
+        caso.estado = request.form.get("estado", "por_comenzar")
+        caso.prioridad = request.form.get("prioridad", "media")
+        caso.notas = request.form.get("notas", "").strip()
+        
+        fecha_limite = request.form.get("fecha_limite", "").strip()
+        if fecha_limite:
+            try:
+                caso.fecha_limite = datetime.strptime(fecha_limite, "%Y-%m-%d")
+            except ValueError:
+                pass
+        else:
+            caso.fecha_limite = None
+        
+        if caso.estado == 'terminado' and not caso.fecha_cierre:
+            caso.fecha_cierre = datetime.utcnow()
+        elif caso.estado != 'terminado':
+            caso.fecha_cierre = None
+        
+        db.session.commit()
+        flash("Caso actualizado exitosamente.", "success")
+        return redirect(url_for("caso_detalle", caso_id=caso.id))
+    
+    usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+    return render_template("caso_form.html", caso=caso, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES)
+
+
+@app.route("/casos/<int:caso_id>/asignar", methods=["POST"])
+@case_manage_required
+def caso_asignar(caso_id):
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    
+    user_id = request.form.get("user_id", type=int)
+    rol = request.form.get("rol", "abogado")
+    es_responsable = request.form.get("es_responsable") == "on"
+    
+    if not user_id:
+        flash("Selecciona un usuario.", "error")
+        return redirect(url_for("caso_detalle", caso_id=caso_id))
+    
+    existing = CaseAssignment.query.filter_by(case_id=caso_id, user_id=user_id).first()
+    if existing:
+        flash("Este usuario ya está asignado al caso.", "error")
+        return redirect(url_for("caso_detalle", caso_id=caso_id))
+    
+    if es_responsable:
+        CaseAssignment.query.filter_by(case_id=caso_id, es_responsable=True).update({'es_responsable': False})
+    
+    assignment = CaseAssignment(
+        case_id=caso_id,
+        user_id=user_id,
+        rol_en_caso=rol,
+        es_responsable=es_responsable
+    )
+    db.session.add(assignment)
+    db.session.commit()
+    
+    flash("Usuario asignado exitosamente.", "success")
+    return redirect(url_for("caso_detalle", caso_id=caso_id))
+
+
+@app.route("/casos/<int:caso_id>/desasignar/<int:assignment_id>", methods=["POST"])
+@case_manage_required
+def caso_desasignar(caso_id, assignment_id):
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    
+    assignment = CaseAssignment.query.filter_by(id=assignment_id, case_id=caso_id).first_or_404()
+    db.session.delete(assignment)
+    db.session.commit()
+    
+    flash("Usuario removido del caso.", "success")
+    return redirect(url_for("caso_detalle", caso_id=caso_id))
+
+
+@app.route("/casos/<int:caso_id>/estado", methods=["POST"])
+@case_access_required
+def caso_cambiar_estado(caso_id):
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    
+    if not current_user.can_manage_cases():
+        is_assigned = CaseAssignment.query.filter_by(case_id=caso_id, user_id=current_user.id).first()
+        if caso.created_by_id != current_user.id and not is_assigned:
+            flash("No tienes permiso para modificar este caso.", "error")
+            return redirect(url_for("casos"))
+    
+    nuevo_estado = request.form.get("estado")
+    if nuevo_estado in Case.ESTADOS:
+        caso.estado = nuevo_estado
+        if nuevo_estado == 'terminado':
+            caso.fecha_cierre = datetime.utcnow()
+        else:
+            caso.fecha_cierre = None
+        db.session.commit()
+        flash(f"Estado actualizado a: {Case.ESTADOS[nuevo_estado]}", "success")
+    
+    return redirect(url_for("caso_detalle", caso_id=caso_id))
+
+
+# ==================== GESTIÓN DE TAREAS ====================
+
+@app.route("/tareas")
+@case_access_required
+def tareas():
+    tenant = get_current_tenant()
+    
+    estado_filter = request.args.get('estado', '')
+    tipo_filter = request.args.get('tipo', '')
+    mis_tareas = request.args.get('mis_tareas', '')
+    
+    query = Task.query.filter_by(tenant_id=tenant.id)
+    
+    if mis_tareas or not current_user.can_manage_cases():
+        query = query.filter(
+            db.or_(
+                Task.assigned_to_id == current_user.id,
+                Task.created_by_id == current_user.id
+            )
+        )
+    
+    if estado_filter:
+        query = query.filter_by(estado=estado_filter)
+    if tipo_filter:
+        query = query.filter_by(tipo=tipo_filter)
+    
+    tareas_list = query.order_by(
+        db.case(
+            (Task.estado == 'pendiente', 1),
+            (Task.estado == 'en_curso', 2),
+            (Task.estado == 'bloqueado', 3),
+            else_=4
+        ),
+        Task.fecha_vencimiento.asc().nullslast()
+    ).all()
+    
+    tareas_pendientes = Task.query.filter_by(tenant_id=tenant.id, estado='pendiente').count()
+    tareas_vencidas = Task.query.filter(
+        Task.tenant_id == tenant.id,
+        Task.estado.notin_(['completado', 'cancelado']),
+        Task.fecha_vencimiento.isnot(None),
+        Task.fecha_vencimiento < datetime.utcnow()
+    ).count()
+    
+    return render_template("tareas.html",
+                          tareas=tareas_list,
+                          tareas_pendientes=tareas_pendientes,
+                          tareas_vencidas=tareas_vencidas,
+                          estado_filter=estado_filter,
+                          tipo_filter=tipo_filter,
+                          mis_tareas=mis_tareas,
+                          estados=Task.ESTADOS,
+                          tipos=Task.TIPOS)
+
+
+@app.route("/tareas/nueva", methods=["GET", "POST"])
+@case_access_required
+def tarea_nueva():
+    tenant = get_current_tenant()
+    
+    if request.method == "POST":
+        titulo = request.form.get("titulo", "").strip()
+        if not titulo:
+            flash("El título es obligatorio.", "error")
+            return redirect(url_for("tarea_nueva"))
+        
+        tarea = Task(
+            tenant_id=tenant.id,
+            titulo=titulo,
+            descripcion=request.form.get("descripcion", "").strip(),
+            tipo=request.form.get("tipo", "general"),
+            prioridad=request.form.get("prioridad", "media"),
+            created_by_id=current_user.id
+        )
+        
+        case_id = request.form.get("case_id", type=int)
+        if case_id:
+            caso = Case.query.filter_by(id=case_id, tenant_id=tenant.id).first()
+            if caso:
+                tarea.case_id = case_id
+        
+        assigned_to_id = request.form.get("assigned_to_id", type=int)
+        if assigned_to_id:
+            user = User.query.filter_by(id=assigned_to_id, tenant_id=tenant.id, activo=True).first()
+            if user:
+                tarea.assigned_to_id = assigned_to_id
+        
+        fecha_vencimiento = request.form.get("fecha_vencimiento", "").strip()
+        if fecha_vencimiento:
+            try:
+                tarea.fecha_vencimiento = datetime.strptime(fecha_vencimiento, "%Y-%m-%d")
+            except ValueError:
+                pass
+        
+        db.session.add(tarea)
+        db.session.commit()
+        
+        flash("Tarea creada exitosamente.", "success")
+        return redirect(url_for("tareas"))
+    
+    casos = Case.query.filter_by(tenant_id=tenant.id).filter(Case.estado.notin_(['terminado', 'archivado'])).all()
+    usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+    preselected_case = request.args.get('caso_id', type=int)
+    
+    return render_template("tarea_form.html",
+                          tarea=None,
+                          casos=casos,
+                          usuarios=usuarios,
+                          preselected_case=preselected_case,
+                          tipos=Task.TIPOS,
+                          prioridades=Task.PRIORIDADES)
+
+
+@app.route("/tareas/<int:tarea_id>/estado", methods=["POST"])
+@case_access_required
+def tarea_cambiar_estado(tarea_id):
+    tenant = get_current_tenant()
+    tarea = Task.query.filter_by(id=tarea_id, tenant_id=tenant.id).first_or_404()
+    
+    if tarea.assigned_to_id != current_user.id and tarea.created_by_id != current_user.id and not current_user.can_manage_cases():
+        flash("No tienes permiso para modificar esta tarea.", "error")
+        return redirect(url_for("tareas"))
+    
+    nuevo_estado = request.form.get("estado")
+    if nuevo_estado in Task.ESTADOS:
+        tarea.estado = nuevo_estado
+        if nuevo_estado == 'completado':
+            tarea.fecha_completada = datetime.utcnow()
+        else:
+            tarea.fecha_completada = None
+        db.session.commit()
+        flash(f"Tarea actualizada: {Task.ESTADOS[nuevo_estado]}", "success")
+    
+    next_url = request.form.get("next", url_for("tareas"))
+    return redirect(next_url)
 
 
 with app.app_context():

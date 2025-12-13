@@ -1,0 +1,133 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Casos{% endblock %}
+{% block page_title %}Gestión de Casos{% endblock %}
+{% block page_subtitle %}Administra los expedientes y casos del estudio{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <a href="{{ url_for('casos') }}" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow {% if not estado_filter %}ring-2 ring-blue-500{% endif %}">
+        <div class="text-3xl font-bold text-gray-800">{{ stats.total }}</div>
+        <div class="text-sm text-gray-500">Total</div>
+    </a>
+    <a href="{{ url_for('casos', estado='por_comenzar') }}" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow {% if estado_filter == 'por_comenzar' %}ring-2 ring-blue-500{% endif %}">
+        <div class="text-3xl font-bold text-gray-400">{{ stats.por_comenzar }}</div>
+        <div class="text-sm text-gray-500">Por Comenzar</div>
+    </a>
+    <a href="{{ url_for('casos', estado='en_proceso') }}" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow {% if estado_filter == 'en_proceso' %}ring-2 ring-blue-500{% endif %}">
+        <div class="text-3xl font-bold text-blue-600">{{ stats.en_proceso }}</div>
+        <div class="text-sm text-gray-500">En Proceso</div>
+    </a>
+    <a href="{{ url_for('casos', estado='en_espera') }}" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow {% if estado_filter == 'en_espera' %}ring-2 ring-blue-500{% endif %}">
+        <div class="text-3xl font-bold text-yellow-600">{{ stats.en_espera }}</div>
+        <div class="text-sm text-gray-500">En Espera</div>
+    </a>
+    <a href="{{ url_for('casos', estado='terminado') }}" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow {% if estado_filter == 'terminado' %}ring-2 ring-blue-500{% endif %}">
+        <div class="text-3xl font-bold text-green-600">{{ stats.terminado }}</div>
+        <div class="text-sm text-gray-500">Terminados</div>
+    </a>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm">
+    <div class="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <form method="get" class="flex flex-wrap items-center gap-3">
+            <div class="relative">
+                <input type="text" name="busqueda" value="{{ busqueda }}" placeholder="Buscar casos..." 
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            </div>
+            <select name="prioridad" class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Todas las prioridades</option>
+                {% for key, label in prioridades.items() %}
+                <option value="{{ key }}" {% if prioridad_filter == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+                <i class="fas fa-filter mr-1"></i> Filtrar
+            </button>
+            {% if busqueda or prioridad_filter or estado_filter %}
+            <a href="{{ url_for('casos') }}" class="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm">
+                <i class="fas fa-times mr-1"></i> Limpiar
+            </a>
+            {% endif %}
+        </form>
+        
+        {% if current_user.can_manage_cases() %}
+        <a href="{{ url_for('caso_nuevo') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+            <i class="fas fa-plus mr-2"></i> Nuevo Caso
+        </a>
+        {% endif %}
+    </div>
+    
+    {% if casos %}
+    <div class="divide-y divide-gray-100">
+        {% for caso in casos %}
+        <a href="{{ url_for('caso_detalle', caso_id=caso.id) }}" class="block p-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        {% if caso.numero_expediente %}
+                        <span class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{{ caso.numero_expediente }}</span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 text-xs rounded-full font-medium
+                            {% if caso.estado == 'por_comenzar' %}bg-gray-100 text-gray-600
+                            {% elif caso.estado == 'en_proceso' %}bg-blue-100 text-blue-700
+                            {% elif caso.estado == 'en_espera' %}bg-yellow-100 text-yellow-700
+                            {% elif caso.estado == 'terminado' %}bg-green-100 text-green-700
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ caso.get_estado_display() }}
+                        </span>
+                        <span class="px-2 py-0.5 text-xs rounded-full font-medium
+                            {% if caso.prioridad == 'urgente' %}bg-red-100 text-red-700
+                            {% elif caso.prioridad == 'alta' %}bg-orange-100 text-orange-700
+                            {% elif caso.prioridad == 'media' %}bg-blue-100 text-blue-700
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ caso.get_prioridad_display() }}
+                        </span>
+                    </div>
+                    <h3 class="font-medium text-gray-900 truncate">{{ caso.titulo }}</h3>
+                    <div class="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                        <span><i class="fas fa-user mr-1"></i> {{ caso.cliente_nombre }}</span>
+                        {% if caso.tipo_caso %}
+                        <span><i class="fas fa-tag mr-1"></i> {{ caso.tipo_caso }}</span>
+                        {% endif %}
+                        {% if caso.fecha_limite %}
+                        <span class="{% if caso.fecha_limite < now %}text-red-500{% endif %}">
+                            <i class="fas fa-calendar mr-1"></i> {{ caso.fecha_limite.strftime('%d/%m/%Y') }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400 ml-4"></i>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-12 text-center">
+        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-folder-open text-gray-400 text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-1">No hay casos</h3>
+        <p class="text-gray-500 mb-4">
+            {% if busqueda or estado_filter or prioridad_filter %}
+                No se encontraron casos con los filtros aplicados.
+            {% else %}
+                Comienza creando tu primer caso.
+            {% endif %}
+        </p>
+        {% if current_user.can_manage_cases() and not busqueda and not estado_filter and not prioridad_filter %}
+        <a href="{{ url_for('caso_nuevo') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+            <i class="fas fa-plus mr-2"></i> Crear Caso
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var now = new Date();
+</script>
+{% endblock %}

@@ -80,6 +80,101 @@
     </div>
 </div>
 
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-folder-open text-blue-500 mr-2"></i>Casos Recientes
+            </h3>
+            <a href="{{ url_for('casos') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                Ver todos <i class="fas fa-arrow-right ml-1"></i>
+            </a>
+        </div>
+        <div class="space-y-3">
+            {% if casos_recientes %}
+                {% for caso in casos_recientes %}
+                <a href="{{ url_for('caso_detalle', caso_id=caso.id) }}" class="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate">{{ caso.titulo }}</p>
+                            <p class="text-xs text-gray-500">{{ caso.cliente_nombre }}</p>
+                        </div>
+                        <span class="px-2 py-0.5 text-xs rounded-full
+                            {% if caso.estado == 'en_proceso' %}bg-blue-100 text-blue-700
+                            {% elif caso.estado == 'en_espera' %}bg-yellow-100 text-yellow-700
+                            {% elif caso.estado == 'terminado' %}bg-green-100 text-green-700
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ caso.get_estado_display() }}
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-6 text-gray-500">
+                    <i class="fas fa-folder-open text-3xl mb-2"></i>
+                    <p class="text-sm">No hay casos registrados</p>
+                    {% if current_user.can_manage_cases() %}
+                    <a href="{{ url_for('caso_nuevo') }}" class="mt-2 inline-block text-blue-600 hover:text-blue-800 text-sm">
+                        Crear primer caso <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-tasks text-purple-500 mr-2"></i>Tareas Pendientes
+            </h3>
+            <a href="{{ url_for('tareas') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                Ver todas <i class="fas fa-arrow-right ml-1"></i>
+            </a>
+        </div>
+        {% if stats.tareas_vencidas > 0 %}
+        <div class="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <i class="fas fa-exclamation-triangle mr-1"></i> {{ stats.tareas_vencidas }} tarea{% if stats.tareas_vencidas > 1 %}s{% endif %} vencida{% if stats.tareas_vencidas > 1 %}s{% endif %}
+        </div>
+        {% endif %}
+        <div class="space-y-2">
+            {% if tareas_urgentes %}
+                {% for tarea in tareas_urgentes %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg {% if tarea.is_overdue() %}bg-red-50{% endif %}">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0
+                            {% if tarea.prioridad == 'urgente' %}bg-red-500
+                            {% elif tarea.prioridad == 'alta' %}bg-orange-500
+                            {% else %}bg-gray-400{% endif %}"></span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate">{{ tarea.titulo }}</p>
+                            {% if tarea.fecha_vencimiento %}
+                            <p class="text-xs {% if tarea.is_overdue() %}text-red-500{% else %}text-gray-500{% endif %}">
+                                <i class="fas fa-calendar mr-1"></i>{{ tarea.fecha_vencimiento.strftime('%d/%m') }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <form method="post" action="{{ url_for('tarea_cambiar_estado', tarea_id=tarea.id) }}">
+                        <button type="submit" name="estado" value="completado" class="text-gray-300 hover:text-green-500 transition-colors">
+                            <i class="far fa-check-circle text-lg"></i>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-6 text-gray-500">
+                    <i class="fas fa-check-double text-3xl mb-2"></i>
+                    <p class="text-sm">No hay tareas pendientes</p>
+                    <a href="{{ url_for('tarea_nueva') }}" class="mt-2 inline-block text-blue-600 hover:text-blue-800 text-sm">
+                        Crear tarea <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
     <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
         <div class="flex items-center justify-between mb-6">
@@ -121,44 +216,46 @@
             <h3 class="text-lg font-semibold text-gray-900">Acciones Rápidas</h3>
         </div>
         <div class="space-y-3">
-            <a href="{{ url_for('generador') }}" class="flex items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors group">
-                <div class="h-10 w-10 bg-blue-500 rounded-lg flex items-center justify-center mr-4 group-hover:bg-blue-600 transition-colors">
-                    <i class="fas fa-plus text-white"></i>
+            {% if current_user.can_manage_cases() %}
+            <a href="{{ url_for('caso_nuevo') }}" class="flex items-center p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group">
+                <div class="h-9 w-9 bg-green-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-green-600 transition-colors">
+                    <i class="fas fa-folder-plus text-white text-sm"></i>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-900">Nuevo Documento</p>
-                    <p class="text-xs text-gray-500">Generar documento con IA</p>
+                    <p class="text-sm font-medium text-gray-900">Nuevo Caso</p>
+                    <p class="text-xs text-gray-500">Crear expediente</p>
+                </div>
+            </a>
+            {% endif %}
+            
+            <a href="{{ url_for('tarea_nueva') }}" class="flex items-center p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors group">
+                <div class="h-9 w-9 bg-purple-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-purple-600 transition-colors">
+                    <i class="fas fa-plus-circle text-white text-sm"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">Nueva Tarea</p>
+                    <p class="text-xs text-gray-500">Agregar pendiente</p>
                 </div>
             </a>
             
-            <a href="{{ url_for('historial') }}" class="flex items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group">
-                <div class="h-10 w-10 bg-green-500 rounded-lg flex items-center justify-center mr-4 group-hover:bg-green-600 transition-colors">
-                    <i class="fas fa-history text-white"></i>
+            <a href="{{ url_for('generador') }}" class="flex items-center p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors group">
+                <div class="h-9 w-9 bg-blue-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-blue-600 transition-colors">
+                    <i class="fas fa-file-alt text-white text-sm"></i>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-900">Ver Historial</p>
-                    <p class="text-xs text-gray-500">Documentos generados</p>
+                    <p class="text-sm font-medium text-gray-900">Nuevo Documento</p>
+                    <p class="text-xs text-gray-500">Generar con IA</p>
                 </div>
             </a>
 
             {% if current_user.is_admin_estudio() or current_user.is_super_admin() %}
-            <a href="{{ url_for('admin') }}" class="flex items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors group">
-                <div class="h-10 w-10 bg-purple-500 rounded-lg flex items-center justify-center mr-4 group-hover:bg-purple-600 transition-colors">
-                    <i class="fas fa-cog text-white"></i>
+            <a href="{{ url_for('admin') }}" class="flex items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group">
+                <div class="h-9 w-9 bg-gray-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-gray-600 transition-colors">
+                    <i class="fas fa-cog text-white text-sm"></i>
                 </div>
                 <div>
                     <p class="text-sm font-medium text-gray-900">Administración</p>
-                    <p class="text-xs text-gray-500">Configurar plantillas</p>
-                </div>
-            </a>
-
-            <a href="{{ url_for('convertir_documento') }}" class="flex items-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors group">
-                <div class="h-10 w-10 bg-indigo-500 rounded-lg flex items-center justify-center mr-4 group-hover:bg-indigo-600 transition-colors">
-                    <i class="fas fa-magic text-white"></i>
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-gray-900">Convertir Documento</p>
-                    <p class="text-xs text-gray-500">Preparar plantilla Word</p>
+                    <p class="text-xs text-gray-500">Configurar estudio</p>
                 </div>
             </a>
             {% endif %}

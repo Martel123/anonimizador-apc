@@ -1,0 +1,287 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}{{ caso.titulo[:30] }}...{% endblock %}
+{% block page_title %}{{ caso.titulo }}{% endblock %}
+{% block page_subtitle %}
+{% if caso.numero_expediente %}Expediente: {{ caso.numero_expediente }}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-2 mb-6">
+    <a href="{{ url_for('casos') }}" class="text-gray-500 hover:text-gray-700">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <nav class="text-sm text-gray-500">
+        <a href="{{ url_for('casos') }}" class="hover:text-gray-700">Casos</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900">{{ caso.titulo[:40] }}{% if caso.titulo|length > 40 %}...{% endif %}</span>
+    </nav>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="px-3 py-1 text-sm rounded-full font-medium
+                        {% if caso.estado == 'por_comenzar' %}bg-gray-100 text-gray-600
+                        {% elif caso.estado == 'en_proceso' %}bg-blue-100 text-blue-700
+                        {% elif caso.estado == 'en_espera' %}bg-yellow-100 text-yellow-700
+                        {% elif caso.estado == 'terminado' %}bg-green-100 text-green-700
+                        {% else %}bg-gray-100 text-gray-600{% endif %}">
+                        {{ caso.get_estado_display() }}
+                    </span>
+                    <span class="px-3 py-1 text-sm rounded-full font-medium
+                        {% if caso.prioridad == 'urgente' %}bg-red-100 text-red-700
+                        {% elif caso.prioridad == 'alta' %}bg-orange-100 text-orange-700
+                        {% elif caso.prioridad == 'media' %}bg-blue-100 text-blue-700
+                        {% else %}bg-gray-100 text-gray-600{% endif %}">
+                        <i class="fas fa-flag mr-1"></i> {{ caso.get_prioridad_display() }}
+                    </span>
+                </div>
+                {% if current_user.can_manage_cases() %}
+                <a href="{{ url_for('caso_editar', caso_id=caso.id) }}" class="text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-edit mr-1"></i> Editar
+                </a>
+                {% endif %}
+            </div>
+
+            {% if caso.descripcion %}
+            <div class="mb-6">
+                <h4 class="text-sm font-medium text-gray-500 mb-2">Descripción</h4>
+                <p class="text-gray-700">{{ caso.descripcion }}</p>
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-2 gap-4">
+                {% if caso.tipo_caso %}
+                <div>
+                    <span class="text-sm text-gray-500">Tipo de Caso</span>
+                    <p class="font-medium">{{ caso.tipo_caso }}</p>
+                </div>
+                {% endif %}
+                {% if caso.juzgado %}
+                <div>
+                    <span class="text-sm text-gray-500">Juzgado</span>
+                    <p class="font-medium">{{ caso.juzgado }}</p>
+                </div>
+                {% endif %}
+                <div>
+                    <span class="text-sm text-gray-500">Fecha de Inicio</span>
+                    <p class="font-medium">{{ caso.fecha_inicio.strftime('%d/%m/%Y') }}</p>
+                </div>
+                {% if caso.fecha_limite %}
+                <div>
+                    <span class="text-sm text-gray-500">Fecha Límite</span>
+                    <p class="font-medium {% if caso.fecha_limite < now %}text-red-600{% endif %}">
+                        {{ caso.fecha_limite.strftime('%d/%m/%Y') }}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-users text-blue-500 mr-2"></i>Partes del Caso
+                </h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-4 bg-green-50 rounded-lg">
+                    <h4 class="text-sm font-medium text-green-800 mb-2">
+                        <i class="fas fa-user mr-1"></i> Cliente
+                    </h4>
+                    <p class="font-semibold text-gray-900">{{ caso.cliente_nombre }}</p>
+                    {% if caso.cliente_email %}
+                    <p class="text-sm text-gray-600"><i class="fas fa-envelope mr-1"></i> {{ caso.cliente_email }}</p>
+                    {% endif %}
+                    {% if caso.cliente_telefono %}
+                    <p class="text-sm text-gray-600"><i class="fas fa-phone mr-1"></i> {{ caso.cliente_telefono }}</p>
+                    {% endif %}
+                </div>
+                {% if caso.contraparte_nombre %}
+                <div class="p-4 bg-red-50 rounded-lg">
+                    <h4 class="text-sm font-medium text-red-800 mb-2">
+                        <i class="fas fa-user-tie mr-1"></i> Contraparte
+                    </h4>
+                    <p class="font-semibold text-gray-900">{{ caso.contraparte_nombre }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-tasks text-purple-500 mr-2"></i>Tareas del Caso
+                </h3>
+                <a href="{{ url_for('tarea_nueva', caso_id=caso.id) }}" class="text-blue-600 hover:text-blue-800 text-sm">
+                    <i class="fas fa-plus mr-1"></i> Nueva Tarea
+                </a>
+            </div>
+            {% if tasks %}
+            <div class="space-y-2">
+                {% for tarea in tasks %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <span class="w-2 h-2 rounded-full
+                            {% if tarea.estado == 'completado' %}bg-green-500
+                            {% elif tarea.estado == 'en_curso' %}bg-blue-500
+                            {% elif tarea.estado == 'bloqueado' %}bg-red-500
+                            {% else %}bg-gray-400{% endif %}"></span>
+                        <div>
+                            <p class="font-medium text-sm {% if tarea.estado == 'completado' %}line-through text-gray-400{% endif %}">{{ tarea.titulo }}</p>
+                            {% if tarea.fecha_vencimiento %}
+                            <p class="text-xs text-gray-500 {% if tarea.is_overdue() %}text-red-500{% endif %}">
+                                <i class="fas fa-calendar mr-1"></i> {{ tarea.fecha_vencimiento.strftime('%d/%m/%Y') }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <form method="post" action="{{ url_for('tarea_cambiar_estado', tarea_id=tarea.id) }}" class="flex items-center gap-2">
+                        <input type="hidden" name="next" value="{{ url_for('caso_detalle', caso_id=caso.id) }}">
+                        {% if tarea.estado != 'completado' %}
+                        <button type="submit" name="estado" value="completado" class="text-green-600 hover:text-green-800">
+                            <i class="fas fa-check-circle"></i>
+                        </button>
+                        {% endif %}
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-4">No hay tareas asociadas a este caso.</p>
+            {% endif %}
+        </div>
+
+        {% if caso.notas %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-sticky-note text-yellow-500 mr-2"></i>Notas
+            </h3>
+            <p class="text-gray-700 whitespace-pre-line">{{ caso.notas }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-sync-alt text-blue-500 mr-2"></i>Cambiar Estado
+            </h3>
+            <form method="post" action="{{ url_for('caso_cambiar_estado', caso_id=caso.id) }}" class="space-y-2">
+                {% for key, label in estados.items() %}
+                <button type="submit" name="estado" value="{{ key }}" 
+                        class="w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                        {% if caso.estado == key %}bg-blue-100 text-blue-700 cursor-default
+                        {% else %}bg-gray-50 hover:bg-gray-100 text-gray-700{% endif %}">
+                    {% if key == 'por_comenzar' %}<i class="fas fa-clock mr-2"></i>
+                    {% elif key == 'en_proceso' %}<i class="fas fa-spinner mr-2"></i>
+                    {% elif key == 'en_espera' %}<i class="fas fa-pause mr-2"></i>
+                    {% elif key == 'terminado' %}<i class="fas fa-check mr-2"></i>
+                    {% else %}<i class="fas fa-archive mr-2"></i>{% endif %}
+                    {{ label }}
+                </button>
+                {% endfor %}
+            </form>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-user-friends text-green-500 mr-2"></i>Equipo
+                </h3>
+            </div>
+            
+            {% if assignments %}
+            <div class="space-y-3 mb-4">
+                {% for assignment in assignments %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                            {{ assignment.user.username[0]|upper }}
+                        </div>
+                        <div>
+                            <p class="font-medium text-sm">{{ assignment.user.username }}</p>
+                            <p class="text-xs text-gray-500">
+                                {{ assignment.get_rol_display() }}
+                                {% if assignment.es_responsable %}
+                                <span class="text-green-600 ml-1"><i class="fas fa-star"></i></span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% if current_user.can_manage_cases() %}
+                    <form method="post" action="{{ url_for('caso_desasignar', caso_id=caso.id, assignment_id=assignment.id) }}">
+                        <button type="submit" class="text-red-400 hover:text-red-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm mb-4">Sin asignaciones</p>
+            {% endif %}
+
+            {% if current_user.can_manage_cases() %}
+            <form method="post" action="{{ url_for('caso_asignar', caso_id=caso.id) }}" class="space-y-3 pt-3 border-t border-gray-100">
+                <select name="user_id" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">Seleccionar usuario...</option>
+                    {% for usuario in current_tenant.users if usuario.activo %}
+                    <option value="{{ usuario.id }}">{{ usuario.username }}</option>
+                    {% endfor %}
+                </select>
+                <div class="flex gap-2">
+                    <select name="rol" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <option value="abogado">Abogado</option>
+                        <option value="coordinador">Coordinador</option>
+                        <option value="asistente">Asistente</option>
+                        <option value="consultor">Consultor</option>
+                    </select>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <label class="flex items-center text-sm">
+                    <input type="checkbox" name="es_responsable" class="mr-2 rounded">
+                    Responsable principal
+                </label>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-info-circle text-gray-500 mr-2"></i>Información
+            </h3>
+            <div class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Creado por</span>
+                    <span class="font-medium">{{ caso.created_by.username }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Fecha creación</span>
+                    <span class="font-medium">{{ caso.created_at.strftime('%d/%m/%Y') }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Última actualización</span>
+                    <span class="font-medium">{{ caso.updated_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                </div>
+                {% if caso.fecha_cierre %}
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Fecha cierre</span>
+                    <span class="font-medium text-green-600">{{ caso.fecha_cierre.strftime('%d/%m/%Y') }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var now = new Date();
+</script>
+{% endblock %}

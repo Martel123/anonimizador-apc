@@ -1,0 +1,164 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Tareas{% endblock %}
+{% block page_title %}Bandeja de Trabajo{% endblock %}
+{% block page_subtitle %}Gestiona tus tareas y pendientes{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-4 mb-6">
+    <div class="bg-white rounded-xl px-6 py-4 shadow-sm flex items-center gap-3">
+        <div class="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-clock text-yellow-600 text-xl"></i>
+        </div>
+        <div>
+            <div class="text-2xl font-bold text-gray-800">{{ tareas_pendientes }}</div>
+            <div class="text-sm text-gray-500">Pendientes</div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl px-6 py-4 shadow-sm flex items-center gap-3">
+        <div class="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+        </div>
+        <div>
+            <div class="text-2xl font-bold text-red-600">{{ tareas_vencidas }}</div>
+            <div class="text-sm text-gray-500">Vencidas</div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm">
+    <div class="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <form method="get" class="flex flex-wrap items-center gap-3">
+            <select name="estado" class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Todos los estados</option>
+                {% for key, label in estados.items() %}
+                <option value="{{ key }}" {% if estado_filter == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="tipo" class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">Todos los tipos</option>
+                {% for key, label in tipos.items() %}
+                <option value="{{ key }}" {% if tipo_filter == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <label class="flex items-center text-sm">
+                <input type="checkbox" name="mis_tareas" value="1" {% if mis_tareas %}checked{% endif %} class="mr-2 rounded">
+                Solo mis tareas
+            </label>
+            <button type="submit" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+                <i class="fas fa-filter mr-1"></i> Filtrar
+            </button>
+            {% if estado_filter or tipo_filter or mis_tareas %}
+            <a href="{{ url_for('tareas') }}" class="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm">
+                <i class="fas fa-times mr-1"></i> Limpiar
+            </a>
+            {% endif %}
+        </form>
+        
+        <a href="{{ url_for('tarea_nueva') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+            <i class="fas fa-plus mr-2"></i> Nueva Tarea
+        </a>
+    </div>
+    
+    {% if tareas %}
+    <div class="divide-y divide-gray-100">
+        {% for tarea in tareas %}
+        <div class="p-4 hover:bg-gray-50 transition-colors {% if tarea.is_overdue() %}bg-red-50{% endif %}">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start gap-4">
+                    <form method="post" action="{{ url_for('tarea_cambiar_estado', tarea_id=tarea.id) }}">
+                        {% if tarea.estado == 'completado' %}
+                        <button type="submit" name="estado" value="pendiente" class="mt-1 text-green-500 hover:text-green-700">
+                            <i class="fas fa-check-circle text-xl"></i>
+                        </button>
+                        {% elif tarea.estado == 'cancelado' %}
+                        <span class="mt-1 text-gray-400"><i class="fas fa-ban text-xl"></i></span>
+                        {% else %}
+                        <button type="submit" name="estado" value="completado" class="mt-1 text-gray-300 hover:text-green-500">
+                            <i class="far fa-circle text-xl"></i>
+                        </button>
+                        {% endif %}
+                    </form>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <h3 class="font-medium text-gray-900 {% if tarea.estado == 'completado' %}line-through text-gray-400{% endif %}">
+                                {{ tarea.titulo }}
+                            </h3>
+                            <span class="px-2 py-0.5 text-xs rounded-full
+                                {% if tarea.tipo == 'audiencia' %}bg-purple-100 text-purple-700
+                                {% elif tarea.tipo == 'documento' %}bg-blue-100 text-blue-700
+                                {% elif tarea.tipo == 'vencimiento' %}bg-red-100 text-red-700
+                                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                                {{ tarea.get_tipo_display() }}
+                            </span>
+                            <span class="px-2 py-0.5 text-xs rounded-full
+                                {% if tarea.prioridad == 'urgente' %}bg-red-100 text-red-700
+                                {% elif tarea.prioridad == 'alta' %}bg-orange-100 text-orange-700
+                                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                                {{ tarea.get_prioridad_display() }}
+                            </span>
+                        </div>
+                        {% if tarea.descripcion %}
+                        <p class="text-sm text-gray-500 mb-2">{{ tarea.descripcion[:100] }}{% if tarea.descripcion|length > 100 %}...{% endif %}</p>
+                        {% endif %}
+                        <div class="flex items-center gap-4 text-xs text-gray-500">
+                            {% if tarea.case %}
+                            <a href="{{ url_for('caso_detalle', caso_id=tarea.case.id) }}" class="hover:text-blue-600">
+                                <i class="fas fa-folder mr-1"></i> {{ tarea.case.titulo[:30] }}{% if tarea.case.titulo|length > 30 %}...{% endif %}
+                            </a>
+                            {% endif %}
+                            {% if tarea.assigned_to %}
+                            <span><i class="fas fa-user mr-1"></i> {{ tarea.assigned_to.username }}</span>
+                            {% endif %}
+                            {% if tarea.fecha_vencimiento %}
+                            <span class="{% if tarea.is_overdue() %}text-red-600 font-medium{% endif %}">
+                                <i class="fas fa-calendar mr-1"></i> {{ tarea.fecha_vencimiento.strftime('%d/%m/%Y') }}
+                                {% if tarea.is_overdue() %}<i class="fas fa-exclamation-triangle ml-1"></i>{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if tarea.estado not in ['completado', 'cancelado'] %}
+                    <form method="post" action="{{ url_for('tarea_cambiar_estado', tarea_id=tarea.id) }}" class="flex gap-1">
+                        {% if tarea.estado == 'pendiente' %}
+                        <button type="submit" name="estado" value="en_curso" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                            Iniciar
+                        </button>
+                        {% elif tarea.estado == 'en_curso' %}
+                        <button type="submit" name="estado" value="bloqueado" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+                            Bloquear
+                        </button>
+                        {% elif tarea.estado == 'bloqueado' %}
+                        <button type="submit" name="estado" value="en_curso" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                            Reanudar
+                        </button>
+                        {% endif %}
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-12 text-center">
+        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-check-double text-gray-400 text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-1">No hay tareas</h3>
+        <p class="text-gray-500 mb-4">
+            {% if estado_filter or tipo_filter or mis_tareas %}
+                No se encontraron tareas con los filtros aplicados.
+            {% else %}
+                Tu bandeja de trabajo está vacía.
+            {% endif %}
+        </p>
+        <a href="{{ url_for('tarea_nueva') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+            <i class="fas fa-plus mr-2"></i> Crear Tarea
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
