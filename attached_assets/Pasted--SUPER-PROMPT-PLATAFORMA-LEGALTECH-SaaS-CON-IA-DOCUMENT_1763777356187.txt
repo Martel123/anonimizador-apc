@@ -1,0 +1,414 @@
+🧠 SUPER PROMPT — PLATAFORMA LEGALTECH SaaS CON IA (DOCUMENTOS + GESTIÓN DE CASOS)
+ROL DEL AGENTE
+
+Actúa como arquitecto de software senior especializado en LegalTech, con experiencia en:
+
+Plataformas SaaS multi-tenant
+
+Sistemas de gestión jurídica
+
+Generación de documentos con IA
+
+UX para abogados
+
+Control de accesos y flujos de trabajo legales
+
+Firma electrónica
+
+Versionado y auditoría
+
+Dashboards administrativos
+
+Tu tarea es DISEÑAR Y CONSTRUIR una plataforma web completa basada en las siguientes especificaciones SIN OMITIR NINGÚN MÓDULO.
+
+1. OBJETIVO DEL SISTEMA
+
+Crear una plataforma SaaS LegalTech multi-estudio, donde estudios jurídicos puedan:
+
+Generar documentos legales con IA respetando su estilo propio
+
+Gestionar casos y clientes
+
+Trabajar con flujos internos (administradores, coordinadores, abogados, practicantes)
+
+Firmar documentos electrónicamente
+
+Tener control total del avance, productividad y plazos
+
+Centralizar todo en un dashboard jurídico inteligente
+
+2. MULTI-TENANCY (CRÍTICO)
+
+El sistema debe ser multi-tenant:
+
+Cada Estudio Jurídico tiene:
+
+Logo
+
+Plantillas propias
+
+Estilos de escritura
+
+Usuarios propios
+
+Casos propios
+
+Documentos propios
+
+Firmas propias
+
+Datos aislados (ningún cruce entre estudios)
+
+3. ROLES Y CONTROL DE ACCESOS
+Roles
+
+Administrador (Jefe de abogados)
+
+Coordinador
+
+Abogado / Usuario
+
+Practicante
+
+Permisos generales
+Función	Admin	Coordinador	Abogado	Practicante
+Asignar casos	✅	✅	❌	❌
+Ver productividad	✅	✅	❌	❌
+Generar documentos	✅	✅	✅	✅
+Firmar documentos	✅	✅	✅	❌
+Editar plantillas	✅	❌	❌	❌
+Ver todos los casos	✅	✅	❌	❌
+4. PRIMERA PÁGINA (ENTRY POINT)
+Página inicial: Registro / Login
+
+Registro por estudio jurídico
+
+Registro de usuario individual
+
+Flujo:
+
+Crear estudio
+
+Crear usuario administrador
+
+Configurar logo, estilos, plantillas
+
+5. LAYOUT GENERAL (DESPUÉS DE LOGIN)
+Estructura base
+
+Sidebar izquierda (15%)
+
+Área principal (85%)
+
+Chatbot fijo abajo a la derecha
+
+Sidebar (siempre visible)
+
+Dashboard
+
+Inbox
+
+Casos
+
+Generador de documentos
+
+Repositorio
+
+Calendario
+
+Firmas
+
+Estadísticas
+
+Usuarios
+
+Configuración (solo admin)
+
+6. DASHBOARD (PÁGINA PRINCIPAL)
+Qué se muestra:
+
+Casos por estado:
+
+🟡 Por comenzar
+
+🔵 En proceso
+
+🟢 Concluidos
+
+Documentos pendientes HOY
+
+Alertas de plazos procesales
+
+Últimos documentos generados
+
+Actividad reciente del equipo
+
+7. SISTEMA DE CASOS (CORE)
+
+Cada CASO debe tener:
+
+Cliente
+
+Tipo de proceso
+
+Abogado responsable
+
+Estado
+
+Fecha límite
+
+Documentos asociados
+
+Historial de cambios (auditoría)
+
+Checklist automático según tipo de proceso
+
+Estados:
+
+Por comenzar
+
+En proceso
+
+Concluido
+
+Asignación:
+
+Admin → Coordinador → Abogado
+
+Inbox automático al asignar
+
+8. INBOX (Bandeja de trabajo)
+
+Inbox por usuario
+
+Inbox por rol
+
+Comunicación interna tipo chat
+
+Notificaciones de:
+
+Casos asignados
+
+Documentos pendientes
+
+Cambios en documentos
+
+Alertas procesales
+
+9. GENERADOR DE DOCUMENTOS CON IA
+Características:
+
+Generación por fases:
+
+Hechos
+
+Fundamentos de derecho
+
+Medios probatorios
+
+Petitorio
+
+Revisión final
+
+Cada fase:
+
+Editable
+
+Guardable
+
+Versionada
+
+Modelos:
+
+Por tipo de documento
+
+Por tipo de proceso
+
+Estilos de escritura:
+
+Formal
+
+Agresivo
+
+Conciliador
+
+Personalizado por estudio
+
+10. VERSIONADO Y AUDITORÍA
+
+Cada edición crea una versión
+
+Guardar:
+
+Usuario
+
+Fecha
+
+Cambios
+
+Posibilidad de restaurar versiones
+
+11. FIRMA ELECTRÓNICA
+
+Repositorio de firmas:
+
+Firma del abogado
+
+Firma del cliente
+
+Asociable a documentos
+
+Registro de:
+
+Quién firmó
+
+Cuándo
+
+Qué documento
+
+12. REPOSITORIO INTELIGENTE
+Búsqueda avanzada:
+
+Cliente
+
+Tipo de proceso
+
+Fecha
+
+Palabras clave
+
+Búsqueda por similitud (vectorial)
+
+Función:
+
+“Muéstrame casos parecidos”
+
+13. IA REVISORA DE DOCUMENTOS
+
+Debe detectar:
+
+Errores de coherencia jurídica
+
+Contradicciones internas
+
+Problemas de estructura
+
+Campos incompletos
+
+Inconsistencias (ej. DNI distinto)
+
+Mostrar alertas claras al usuario.
+
+14. CHECKLISTS AUTOMÁTICOS
+
+Por tipo de proceso:
+
+Ejemplo: Demanda de alimentos
+
+Partida de nacimiento ✅
+
+DNI demandante ✅
+
+Boletas ❌ (Falta)
+
+15. CALENDARIO PROCESAL AUTOMÁTICO
+
+Extrae plazos desde documentos
+
+Crea eventos automáticamente
+
+Alertas por:
+
+Dashboard
+
+Email
+
+Documentos del día se muestran en portada
+
+16. ESTADÍSTICAS Y VISUALIZADORES
+
+Solo admin/coordinador:
+
+Casos por abogado
+
+Documentos generados
+
+Tiempo promedio por caso
+
+Productividad
+
+Historial de clientes
+
+Gráficos claros y profesionales
+
+17. ASISTENTE IA (CHATBOT GLOBAL)
+
+Visible en toda la web (abajo derecha)
+
+Funciones:
+
+Guía de uso
+
+Ayuda contextual
+
+Modificación de documentos
+
+Búsqueda por similitud
+
+Interfaz tipo chat (claro que es chatbot)
+
+18. ESPECIFICACIONES DE DISEÑO (UX/UI)
+
+Profesional
+
+Sobrio
+
+Estilo jurídico moderno
+
+Colores neutros
+
+Priorizar productividad
+
+Nada infantil
+
+Dashboard claro
+
+Formularios simples
+
+19. TECNOLOGÍA (SUGERIDA)
+
+Frontend: React / Next.js
+
+Backend: Python (FastAPI o Flask)
+
+DB: PostgreSQL
+
+Vector DB: pgvector o Pinecone
+
+Auth: JWT + roles
+
+IA: OpenAI / GPT
+
+Firma: módulo interno (no externa inicialmente)
+
+Deploy: Docker → Render
+
+20. RESULTADO ESPERADO
+
+Debes:
+
+Diseñar arquitectura
+
+Crear rutas
+
+Definir componentes
+
+Proponer modelos de datos
+
+Construir base funcional
+
+Dejar el sistema listo para escalar
+
+NO SIMPLIFIQUES
+NO OMITAS FUNCIONES
+PIENSA COMO LEGALTECH DE NIVEL EMPRESA
