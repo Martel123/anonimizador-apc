@@ -138,6 +138,7 @@ class Plantilla(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     key = db.Column(db.String(50), nullable=False)
     nombre = db.Column(db.String(100), nullable=False)
     contenido = db.Column(db.Text, nullable=True, default='')
@@ -146,6 +147,8 @@ class Plantilla(db.Model):
     activa = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    created_by = db.relationship('User', backref=db.backref('plantillas', lazy='dynamic'))
     
     __table_args__ = (
         db.UniqueConstraint('tenant_id', 'key', name='uq_plantilla_tenant_key'),
@@ -157,6 +160,7 @@ class Estilo(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     plantilla_key = db.Column(db.String(50), nullable=False)
     nombre = db.Column(db.String(100), nullable=False)
     contenido = db.Column(db.Text, nullable=True, default='')
@@ -164,6 +168,8 @@ class Estilo(db.Model):
     activo = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    created_by = db.relationship('User', backref=db.backref('estilos', lazy='dynamic'))
 
 
 class CampoPlantilla(db.Model):

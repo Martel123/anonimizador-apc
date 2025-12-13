@@ -1,0 +1,231 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Mis Estadisticas{% endblock %}
+{% block page_title %}Mis Estadisticas{% endblock %}
+{% block page_subtitle %}Metricas de rendimiento personal{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <form method="GET" class="flex flex-wrap items-center gap-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+                <input type="date" name="fecha_inicio" value="{{ fecha_inicio }}" 
+                       class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+                <input type="date" name="fecha_fin" value="{{ fecha_fin }}" 
+                       class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                    <i class="fas fa-filter mr-1"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <i class="fas fa-folder-open text-blue-600 text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ stats.total_casos }}</p>
+                <p class="text-sm text-gray-500">Casos Asignados</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-green-100 rounded-lg">
+                    <i class="fas fa-file-alt text-green-600 text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ stats.total_docs }}</p>
+                <p class="text-sm text-gray-500">Documentos Creados</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-purple-100 rounded-lg">
+                    <i class="fas fa-check-circle text-purple-600 text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ stats.tareas_completadas }}</p>
+                <p class="text-sm text-gray-500">Tareas Completadas</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 {% if stats.cumplimiento >= 80 %}bg-green-100{% elif stats.cumplimiento >= 50 %}bg-yellow-100{% else %}bg-red-100{% endif %} rounded-lg">
+                    <i class="fas fa-percentage {% if stats.cumplimiento >= 80 %}text-green-600{% elif stats.cumplimiento >= 50 %}text-yellow-600{% else %}text-red-600{% endif %} text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold {% if stats.cumplimiento >= 80 %}text-green-600{% elif stats.cumplimiento >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">{{ stats.cumplimiento }}%</p>
+                <p class="text-sm text-gray-500">Cumplimiento de Plazos</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Estado de Casos</h3>
+            <div class="h-48">
+                <canvas id="casosChart"></canvas>
+            </div>
+            <div class="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
+                <div class="text-center">
+                    <p class="text-lg font-bold text-yellow-600">{{ stats.casos_por_comenzar }}</p>
+                    <p class="text-xs text-gray-500">Por Comenzar</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-lg font-bold text-blue-600">{{ stats.casos_en_proceso }}</p>
+                    <p class="text-xs text-gray-500">En Proceso</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-lg font-bold text-green-600">{{ stats.casos_terminados }}</p>
+                    <p class="text-xs text-gray-500">Terminados</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Estado de Tareas</h3>
+            <div class="h-48">
+                <canvas id="tareasChart"></canvas>
+            </div>
+            <div class="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-gray-100">
+                <div class="text-center">
+                    <p class="text-lg font-bold text-gray-600">{{ stats.tareas_pendientes }}</p>
+                    <p class="text-xs text-gray-500">Pendientes</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-lg font-bold text-blue-600">{{ stats.tareas_en_curso }}</p>
+                    <p class="text-xs text-gray-500">En Curso</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-lg font-bold text-green-600">{{ stats.tareas_completadas }}</p>
+                    <p class="text-xs text-gray-500">Completadas</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-lg font-bold text-red-600">{{ stats.tareas_vencidas }}</p>
+                    <p class="text-xs text-gray-500">Vencidas</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Documentos Recientes</h3>
+            </div>
+            {% if docs_recientes %}
+            <div class="divide-y divide-gray-100">
+                {% for doc in docs_recientes %}
+                <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-50 rounded-lg mr-3">
+                            <i class="fas fa-file-word text-blue-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">{{ doc.tipo_documento }}</p>
+                            <p class="text-xs text-gray-500">{{ doc.demandante }}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-400">{{ doc.fecha.strftime('%d/%m/%Y') }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-gray-500">
+                <i class="fas fa-file-alt text-3xl mb-2 text-gray-300"></i>
+                <p class="text-sm">Sin documentos recientes</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Tareas Recientes</h3>
+            </div>
+            {% if tareas_recientes %}
+            <div class="divide-y divide-gray-100">
+                {% for tarea in tareas_recientes %}
+                <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50">
+                    <div class="flex items-center">
+                        <div class="p-2 {% if tarea.estado == 'completado' %}bg-green-50{% elif tarea.is_overdue() %}bg-red-50{% else %}bg-gray-50{% endif %} rounded-lg mr-3">
+                            <i class="fas {% if tarea.estado == 'completado' %}fa-check text-green-600{% elif tarea.is_overdue() %}fa-exclamation text-red-600{% else %}fa-tasks text-gray-600{% endif %}"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">{{ tarea.titulo[:40] }}{% if tarea.titulo|length > 40 %}...{% endif %}</p>
+                            <p class="text-xs text-gray-500">{{ tarea.get_estado_display() }}</p>
+                        </div>
+                    </div>
+                    {% if tarea.fecha_vencimiento %}
+                    <span class="text-xs {% if tarea.is_overdue() %}text-red-500{% else %}text-gray-400{% endif %}">{{ tarea.fecha_vencimiento.strftime('%d/%m/%Y') }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-gray-500">
+                <i class="fas fa-tasks text-3xl mb-2 text-gray-300"></i>
+                <p class="text-sm">Sin tareas recientes</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    new Chart(document.getElementById('casosChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Por Comenzar', 'En Proceso', 'Terminados'],
+            datasets: [{
+                data: [{{ stats.casos_por_comenzar }}, {{ stats.casos_en_proceso }}, {{ stats.casos_terminados }}],
+                backgroundColor: ['#EAB308', '#3B82F6', '#22C55E'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            cutout: '60%'
+        }
+    });
+
+    new Chart(document.getElementById('tareasChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Pendientes', 'En Curso', 'Completadas', 'Vencidas'],
+            datasets: [{
+                data: [{{ stats.tareas_pendientes }}, {{ stats.tareas_en_curso }}, {{ stats.tareas_completadas }}, {{ stats.tareas_vencidas }}],
+                backgroundColor: ['#9CA3AF', '#3B82F6', '#22C55E', '#EF4444'],
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Estadisticas del Equipo{% endblock %}
+{% block page_title %}Estadisticas del Equipo{% endblock %}
+{% block page_subtitle %}Metricas de rendimiento de todo el equipo{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <i class="fas fa-users text-blue-600"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ user_stats|length }}</p>
+                <p class="text-sm text-gray-500">Usuarios Activos</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-purple-100 rounded-lg">
+                    <i class="fas fa-folder-open text-purple-600"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ totales.casos }}</p>
+                <p class="text-sm text-gray-500">Casos Totales</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-green-100 rounded-lg">
+                    <i class="fas fa-file-alt text-green-600"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ totales.docs }}</p>
+                <p class="text-sm text-gray-500">Documentos Totales</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-yellow-100 rounded-lg">
+                    <i class="fas fa-calendar-alt text-yellow-600"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ totales.docs_mes }}</p>
+                <p class="text-sm text-gray-500">Docs Este Mes</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+                <div class="p-3 bg-indigo-100 rounded-lg">
+                    <i class="fas fa-check-double text-indigo-600"></i>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-2xl font-bold text-gray-900">{{ totales.tareas_completadas }}</p>
+                <p class="text-sm text-gray-500">Tareas Completadas</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Rendimiento por Usuario</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Casos</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Docs</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Docs/Mes</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tareas OK</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pendientes</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Vencidas</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cumplimiento</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for stat in user_stats %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="h-10 w-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium mr-3">
+                                    {{ stat.usuario.username[0]|upper }}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">{{ stat.usuario.username }}</p>
+                                    <p class="text-xs text-gray-500">{{ stat.usuario.email }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if stat.usuario.role == 'admin_estudio' %}
+                            <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">Admin</span>
+                            {% elif stat.usuario.role == 'coordinador' %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">Coordinador</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Usuario</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="text-sm font-medium text-gray-900">{{ stat.casos_total }}</span>
+                            {% if stat.casos_activos > 0 %}
+                            <span class="text-xs text-blue-600 block">({{ stat.casos_activos }} activos)</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center text-sm text-gray-900">{{ stat.docs_total }}</td>
+                        <td class="px-6 py-4 text-center text-sm text-gray-900">{{ stat.docs_mes }}</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="text-sm font-medium text-green-600">{{ stat.tareas_completadas }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="text-sm font-medium text-yellow-600">{{ stat.tareas_pendientes }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            {% if stat.tareas_vencidas > 0 %}
+                            <span class="text-sm font-medium text-red-600">{{ stat.tareas_vencidas }}</span>
+                            {% else %}
+                            <span class="text-sm text-gray-400">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center">
+                                <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                    <div class="h-2 rounded-full {% if stat.cumplimiento >= 80 %}bg-green-500{% elif stat.cumplimiento >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}" 
+                                         style="width: {{ stat.cumplimiento }}%"></div>
+                                </div>
+                                <span class="text-sm font-medium {% if stat.cumplimiento >= 80 %}text-green-600{% elif stat.cumplimiento >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                                    {{ stat.cumplimiento }}%
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Documentos por Usuario</h3>
+            <div class="h-64">
+                <canvas id="docsChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Cumplimiento de Plazos</h3>
+            <div class="h-64">
+                <canvas id="cumplimientoChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const userLabels = [{% for stat in user_stats %}'{{ stat.usuario.username }}'{% if not loop.last %},{% endif %}{% endfor %}];
+    const docsData = [{% for stat in user_stats %}{{ stat.docs_total }}{% if not loop.last %},{% endif %}{% endfor %}];
+    const cumplimientoData = [{% for stat in user_stats %}{{ stat.cumplimiento }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+    new Chart(document.getElementById('docsChart'), {
+        type: 'bar',
+        data: {
+            labels: userLabels,
+            datasets: [{
+                label: 'Documentos',
+                data: docsData,
+                backgroundColor: '#3B82F6',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    new Chart(document.getElementById('cumplimientoChart'), {
+        type: 'bar',
+        data: {
+            labels: userLabels,
+            datasets: [{
+                label: 'Cumplimiento %',
+                data: cumplimientoData,
+                backgroundColor: cumplimientoData.map(v => v >= 80 ? '#22C55E' : v >= 50 ? '#EAB308' : '#EF4444'),
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 100 } }
+        }
+    });
+</script>
+{% endblock %}

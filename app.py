@@ -2028,6 +2028,311 @@ def tarea_cambiar_estado(tarea_id):
     return redirect(next_url)
 
 
+# ==================== MIS PLANTILLAS (User personal templates) ====================
+
+@app.route("/mis-plantillas")
+@login_required
+def mis_plantillas():
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    user_id = current_user.id
+    
+    plantillas = Plantilla.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
+    estilos = Estilo.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
+    
+    return render_template("mis_plantillas.html", plantillas=plantillas, estilos=estilos, modelos=MODELOS)
+
+
+@app.route("/mi-plantilla", methods=["GET", "POST"])
+@login_required
+def mi_plantilla():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("dashboard"))
+    
+    plantilla_id = request.args.get('id', type=int)
+    plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id, created_by_id=current_user.id).first() if plantilla_id else None
+    campos_detectados = []
+    
+    if request.method == "POST":
+        key = request.form.get("key", "").strip()
+        nombre = request.form.get("nombre", "").strip()
+        
+        archivo = request.files.get('archivo_word')
+        contenido = ""
+        archivo_path = None
+        
+        if archivo and archivo.filename and archivo.filename.endswith('.docx'):
+            user_folder = os.path.join(CARPETA_PLANTILLAS_SUBIDAS, f"user_{current_user.id}")
+            os.makedirs(user_folder, exist_ok=True)
+            
+            safe_name = secure_filename(archivo.filename)
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            archivo_name = f"{timestamp}_{safe_name}"
+            archivo_path = os.path.join(user_folder, archivo_name)
+            archivo.save(archivo_path)
+            
+            contenido = extract_text_from_docx(archivo_path)
+            campos_detectados = detect_placeholders_from_text(contenido)
+        elif plantilla:
+            contenido = plantilla.contenido
+        
+        if not key or not nombre:
+            flash("La clave y el nombre son obligatorios.", "error")
+            return render_template("mi_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+        
+        if not contenido and not plantilla:
+            flash("Debes subir un archivo Word con la plantilla.", "error")
+            return render_template("mi_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+        
+        if plantilla:
+            plantilla.key = key
+            plantilla.nombre = nombre
+            if contenido:
+                plantilla.contenido = contenido
+            if archivo_path:
+                plantilla.archivo_original = archivo_path
+            flash("Plantilla actualizada exitosamente.", "success")
+        else:
+            plantilla = Plantilla(
+                key=f"user_{current_user.id}_{key}",
+                nombre=nombre,
+                contenido=contenido,
+                archivo_original=archivo_path,
+                carpeta_estilos=key,
+                tenant_id=tenant.id,
+                created_by_id=current_user.id
+            )
+            db.session.add(plantilla)
+            flash("Plantilla creada exitosamente.", "success")
+        
+        db.session.commit()
+        return redirect(url_for("mis_plantillas"))
+    
+    return render_template("mi_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+
+
+@app.route("/mi-plantilla/eliminar/<int:plantilla_id>", methods=["POST"])
+@login_required
+def eliminar_mi_plantilla(plantilla_id):
+    tenant = get_current_tenant()
+    plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id, created_by_id=current_user.id).first()
+    
+    if not plantilla:
+        flash("No tienes permiso para eliminar esta plantilla.", "error")
+        return redirect(url_for("mis_plantillas"))
+    
+    db.session.delete(plantilla)
+    db.session.commit()
+    flash("Plantilla eliminada exitosamente.", "success")
+    return redirect(url_for("mis_plantillas"))
+
+
+# ==================== ESTADISTICAS INDIVIDUALES ====================
+
+@app.route("/mis-estadisticas")
+@login_required
+def mis_estadisticas():
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    user_id = current_user.id
+    
+    from datetime import timedelta
+    fecha_inicio_str = request.args.get('fecha_inicio')
+    fecha_fin_str = request.args.get('fecha_fin')
+    today = datetime.now()
+    
+    if fecha_inicio_str:
+        try:
+            fecha_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d')
+        except:
+            fecha_inicio = today - timedelta(days=30)
+    else:
+        fecha_inicio = today - timedelta(days=30)
+    
+    if fecha_fin_str:
+        try:
+            fecha_fin = datetime.strptime(fecha_fin_str, '%Y-%m-%d')
+        except:
+            fecha_fin = today
+    else:
+        fecha_fin = today
+    
+    assigned_case_ids = db.session.query(CaseAssignment.case_id).filter_by(user_id=user_id).subquery()
+    casos_query = Case.query.filter(Case.id.in_(assigned_case_ids))
+    
+    casos_por_comenzar = casos_query.filter_by(estado='por_comenzar').count()
+    casos_en_proceso = casos_query.filter(Case.estado.in_(['en_proceso', 'en_espera'])).count()
+    casos_terminados = casos_query.filter_by(estado='terminado').count()
+    total_casos = casos_query.count()
+    
+    docs_query = DocumentRecord.query.filter_by(user_id=user_id, tenant_id=tenant_id)
+    total_docs = docs_query.count()
+    docs_periodo = docs_query.filter(DocumentRecord.fecha >= fecha_inicio, DocumentRecord.fecha <= fecha_fin).count()
+    
+    tareas_completadas = Task.query.filter_by(assigned_to_id=user_id, estado='completado').count()
+    tareas_pendientes = Task.query.filter_by(assigned_to_id=user_id, estado='pendiente').count()
+    tareas_en_curso = Task.query.filter_by(assigned_to_id=user_id, estado='en_curso').count()
+    tareas_vencidas = Task.query.filter(
+        Task.assigned_to_id == user_id,
+        Task.estado.notin_(['completado', 'cancelado']),
+        Task.fecha_vencimiento.isnot(None),
+        Task.fecha_vencimiento < today
+    ).count()
+    
+    total_tareas_con_fecha = Task.query.filter(
+        Task.assigned_to_id == user_id,
+        Task.fecha_vencimiento.isnot(None),
+        Task.estado == 'completado'
+    ).count()
+    tareas_a_tiempo = Task.query.filter(
+        Task.assigned_to_id == user_id,
+        Task.estado == 'completado',
+        Task.fecha_completada.isnot(None),
+        Task.fecha_vencimiento.isnot(None),
+        Task.fecha_completada <= Task.fecha_vencimiento
+    ).count()
+    cumplimiento = round((tareas_a_tiempo / total_tareas_con_fecha) * 100, 1) if total_tareas_con_fecha > 0 else 100
+    
+    docs_recientes = docs_query.order_by(DocumentRecord.fecha.desc()).limit(10).all()
+    tareas_recientes = Task.query.filter_by(assigned_to_id=user_id).order_by(Task.updated_at.desc()).limit(10).all()
+    
+    stats = {
+        'casos_por_comenzar': casos_por_comenzar,
+        'casos_en_proceso': casos_en_proceso,
+        'casos_terminados': casos_terminados,
+        'total_casos': total_casos,
+        'total_docs': total_docs,
+        'docs_periodo': docs_periodo,
+        'tareas_completadas': tareas_completadas,
+        'tareas_pendientes': tareas_pendientes,
+        'tareas_en_curso': tareas_en_curso,
+        'tareas_vencidas': tareas_vencidas,
+        'cumplimiento': cumplimiento
+    }
+    
+    return render_template("mis_estadisticas.html",
+                          stats=stats,
+                          docs_recientes=docs_recientes,
+                          tareas_recientes=tareas_recientes,
+                          fecha_inicio=fecha_inicio.strftime('%Y-%m-%d'),
+                          fecha_fin=fecha_fin.strftime('%Y-%m-%d'))
+
+
+# ==================== ESTADISTICAS EQUIPO (Admin/Coordinador) ====================
+
+@app.route("/estadisticas-equipo")
+@login_required
+def estadisticas_equipo():
+    if not current_user.can_manage_cases() and not current_user.is_admin_estudio():
+        flash("No tienes acceso a esta seccion.", "error")
+        return redirect(url_for("dashboard"))
+    
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    
+    from datetime import timedelta
+    today = datetime.now()
+    month_ago = today - timedelta(days=30)
+    
+    usuarios = User.query.filter_by(tenant_id=tenant_id, activo=True).all()
+    
+    user_stats = []
+    for usuario in usuarios:
+        assigned_ids = [a.case_id for a in usuario.case_assignments.all()]
+        casos_total = len(assigned_ids)
+        casos_activos = Case.query.filter(Case.id.in_(assigned_ids), Case.estado.in_(['en_proceso', 'en_espera'])).count() if assigned_ids else 0
+        
+        docs_total = DocumentRecord.query.filter_by(user_id=usuario.id, tenant_id=tenant_id).count()
+        docs_mes = DocumentRecord.query.filter(
+            DocumentRecord.user_id == usuario.id,
+            DocumentRecord.tenant_id == tenant_id,
+            DocumentRecord.fecha >= month_ago
+        ).count()
+        
+        tareas_completadas = Task.query.filter_by(assigned_to_id=usuario.id, estado='completado').count()
+        tareas_pendientes = Task.query.filter_by(assigned_to_id=usuario.id, estado='pendiente').count()
+        tareas_vencidas = Task.query.filter(
+            Task.assigned_to_id == usuario.id,
+            Task.estado.notin_(['completado', 'cancelado']),
+            Task.fecha_vencimiento.isnot(None),
+            Task.fecha_vencimiento < today
+        ).count()
+        
+        total_con_fecha = Task.query.filter(
+            Task.assigned_to_id == usuario.id,
+            Task.fecha_vencimiento.isnot(None),
+            Task.estado == 'completado'
+        ).count()
+        a_tiempo = Task.query.filter(
+            Task.assigned_to_id == usuario.id,
+            Task.estado == 'completado',
+            Task.fecha_completada.isnot(None),
+            Task.fecha_vencimiento.isnot(None),
+            Task.fecha_completada <= Task.fecha_vencimiento
+        ).count()
+        cumplimiento = round((a_tiempo / total_con_fecha) * 100) if total_con_fecha > 0 else 100
+        
+        user_stats.append({
+            'usuario': usuario,
+            'casos_total': casos_total,
+            'casos_activos': casos_activos,
+            'docs_total': docs_total,
+            'docs_mes': docs_mes,
+            'tareas_completadas': tareas_completadas,
+            'tareas_pendientes': tareas_pendientes,
+            'tareas_vencidas': tareas_vencidas,
+            'cumplimiento': cumplimiento
+        })
+    
+    totales = {
+        'casos': sum(s['casos_total'] for s in user_stats),
+        'docs': sum(s['docs_total'] for s in user_stats),
+        'docs_mes': sum(s['docs_mes'] for s in user_stats),
+        'tareas_completadas': sum(s['tareas_completadas'] for s in user_stats),
+        'tareas_pendientes': sum(s['tareas_pendientes'] for s in user_stats)
+    }
+    
+    return render_template("estadisticas_equipo.html", user_stats=user_stats, totales=totales)
+
+
+# ==================== AI ASSISTANT API ====================
+
+@app.route("/api/ai-assistant", methods=["POST"])
+@login_required
+def ai_assistant_api():
+    data = request.get_json()
+    message = data.get('message', '')
+    
+    if not message:
+        return jsonify({'response': 'Por favor escribe una consulta.'})
+    
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": """Eres un asistente legal IA especializado en derecho peruano.
+                Ayudas a abogados con:
+                - Consultas sobre procedimientos legales
+                - Estructura de documentos juridicos
+                - Plazos procesales
+                - Fundamentos juridicos comunes
+                - Sugerencias de mejora para escritos
+                Responde de forma concisa y profesional en espanol."""},
+                {"role": "user", "content": message}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        ai_response = response.choices[0].message.content
+        return jsonify({'response': ai_response})
+    except Exception as e:
+        logging.error(f"Error AI Assistant: {e}")
+        return jsonify({'response': 'Lo siento, hubo un error al procesar tu consulta. Intenta de nuevo.'})
+
+
 with app.app_context():
     db.create_all()
     os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
