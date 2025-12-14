@@ -1,0 +1,100 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Administrar Modelos{% endblock %}
+{% block page_title %}Todos los Modelos{% endblock %}
+{% block page_subtitle %}Vista de administrador - Todos los modelos de usuarios{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h3 class="text-lg font-medium text-gray-900">Modelos del Estudio</h3>
+            <p class="text-sm text-gray-500">Modelos creados por todos los usuarios del estudio</p>
+        </div>
+        <a href="{{ url_for('admin') }}" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+            <i class="fas fa-arrow-left mr-2"></i>Volver al Panel
+        </a>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <i class="fas fa-file-alt text-blue-600 text-xl"></i>
+                </div>
+                <span class="text-2xl font-bold text-gray-900">{{ modelos|length }}</span>
+            </div>
+            <h4 class="text-sm font-medium text-gray-600">Modelos de Usuarios</h4>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 bg-purple-100 rounded-lg">
+                    <i class="fas fa-globe text-purple-600 text-xl"></i>
+                </div>
+                <span class="text-2xl font-bold text-gray-900">{{ modelos_sistema|length }}</span>
+            </div>
+            <h4 class="text-sm font-medium text-gray-600">Modelos del Sistema</h4>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Modelos de Usuarios</h3>
+        </div>
+        
+        {% if modelos %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Propietario</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clave</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for modelo in modelos %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-blue-50 rounded-lg mr-3">
+                                    <i class="fas fa-file-alt text-blue-600"></i>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">{{ modelo.nombre }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {% if modelo.created_by_id and usuarios.get(modelo.created_by_id) %}
+                                {{ usuarios[modelo.created_by_id].username }}
+                            {% else %}
+                                Sistema
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">{{ modelo.key }}</td>
+                        <td class="px-6 py-4">
+                            {% if modelo.activa %}
+                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Activo</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">{{ modelo.created_at.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <i class="fas fa-file-alt text-gray-400 text-2xl"></i>
+            </div>
+            <h4 class="text-lg font-medium text-gray-900 mb-2">Sin modelos de usuarios</h4>
+            <p class="text-gray-500">Los usuarios aun no han creado modelos</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1060,6 +1060,43 @@ def admin():
                           tenant=tenant)
 
 
+@app.route("/admin/modelos")
+@admin_estudio_required
+def admin_modelos():
+    """Admin view to see all models from all users in the tenant."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    todos_modelos = Modelo.query.filter_by(tenant_id=tenant.id).all()
+    usuarios = {u.id: u for u in User.query.filter_by(tenant_id=tenant.id).all()}
+    
+    return render_template("admin_modelos.html", 
+                          modelos=todos_modelos, 
+                          usuarios=usuarios,
+                          modelos_sistema=MODELOS,
+                          tenant=tenant)
+
+
+@app.route("/admin/estilos")
+@admin_estudio_required
+def admin_estilos():
+    """Admin view to see all styles from all users in the tenant."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    todos_estilos = Estilo.query.filter_by(tenant_id=tenant.id).all()
+    usuarios = {u.id: u for u in User.query.filter_by(tenant_id=tenant.id).all()}
+    
+    return render_template("admin_estilos.html", 
+                          estilos=todos_estilos, 
+                          usuarios=usuarios,
+                          tenant=tenant)
+
+
 @app.route("/configurar_estudio", methods=["GET", "POST"])
 @admin_estudio_required
 def configurar_estudio():
