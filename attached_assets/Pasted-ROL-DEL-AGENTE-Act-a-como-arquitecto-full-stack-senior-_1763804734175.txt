@@ -1,0 +1,296 @@
+ROL DEL AGENTE
+
+Actúa como arquitecto full-stack senior especializado en LegalTech, con experiencia en:
+
+Sistemas SaaS
+
+Control de accesos por rol
+
+Gestión documental jurídica
+
+Conversión de documentos Word/PDF
+
+Seguridad y privacidad de datos
+
+UX para abogados
+
+Debes modificar y extender el sistema existente cumpliendo estrictamente las reglas descritas abajo.
+
+🔐 PRIORIDAD ABSOLUTA DEL PROYECTO (LO MÁS IMPORTANTE)
+
+El módulo de MODELOS DE DOCUMENTOS (antes “Plantillas”) y ESTILOS DE REDACCIÓN debe cumplir PRIVACIDAD ESTRICTA POR USUARIO, con UNA SOLA EXCEPCIÓN:
+
+👉 SOLO EL ADMINISTRADOR puede ver todo
+👉 Coordinadores y Usuarios SOLO pueden ver LO SUYO
+
+Esto es CRÍTICO, NO NEGOCIABLE y debe aplicarse en:
+
+Base de datos
+
+Backend (autorización)
+
+Frontend (UI)
+
+Acceso a archivos
+
+Descargas
+
+Conversión de documentos
+
+1️⃣ REGLAS DE VISIBILIDAD (CLARAS Y OBLIGATORIAS)
+Rol	Visibilidad de Modelos y Estilos
+Admin	Ve y gestiona todos
+Coordinador	Solo los suyos
+Usuario	Solo los suyos
+
+El admin puede ver, editar, eliminar, convertir y descargar modelos/estilos de cualquier usuario.
+
+Coordinadores y usuarios NUNCA pueden ver ni acceder a recursos de otros usuarios, ni siquiera por URL directa.
+
+2️⃣ CAMBIO DE CONCEPTO Y NOMENCLATURA
+
+Reemplazar completamente “Plantillas” por “Modelos” en:
+
+UI
+
+Rutas
+
+Código
+
+Variables
+
+Base de datos
+
+3️⃣ MODELOS DE DOCUMENTOS (POR USUARIO)
+
+Cada usuario debe tener su propio apartado privado con:
+
+Funcionalidades
+
+Crear modelo
+
+Subir archivo
+
+Convertir documento
+
+Configurar campos
+
+Descargar original
+
+Descargar convertido
+
+Editar
+
+Eliminar
+
+Activar / desactivar
+
+Restricción
+
+Coordinadores/usuarios → SOLO sus modelos
+
+Admin → todos
+
+Cada modelo debe tener obligatoriamente:
+
+owner_user_id
+
+nombre
+
+estado
+
+archivo original
+
+archivo convertido (si existe)
+
+metadata
+
+4️⃣ ESTILOS DE REDACCIÓN (POR USUARIO)
+
+Cada usuario debe poder:
+
+Crear estilos de redacción
+
+Editar
+
+Eliminar
+
+Marcar uno como predeterminado
+
+Los estilos:
+
+Se guardan en base de datos
+
+Tienen owner_user_id
+
+NO se cargan solo desde archivos del sistema
+
+Visibilidad:
+
+Admin → todos
+
+Coordinador/Usuario → solo los suyos
+
+5️⃣ SEGURIDAD TÉCNICA (IMPLEMENTACIÓN OBLIGATORIA)
+Capa 1: Queries
+
+Coordinador/Usuario:
+
+WHERE owner_user_id = current_user.id
+
+
+Admin: sin restricción (puede filtrar por usuario)
+
+Capa 2: Acceso por ID
+
+En endpoints tipo /modelos/:id o /estilos/:id:
+
+Si NO es admin y no es dueño → 403 Forbidden
+
+Capa 3: Archivos
+
+Validar siempre que:
+
+el archivo pertenece al usuario
+
+o el usuario es admin
+
+6️⃣ ESTRUCTURA DE ARCHIVOS (CRÍTICO)
+
+Guardar archivos separados por usuario:
+
+/uploads/<owner_user_id>/modelos/original/
+/uploads/<owner_user_id>/modelos/convertido/
+
+
+Nunca permitir:
+
+Descargar archivos de otro usuario
+
+Acceder por path directo sin validación
+
+7️⃣ SUBIDA DE ARCHIVOS (MULTI-FORMATO)
+
+Permitir subir archivos con texto:
+
+.docx
+
+.doc
+
+.pdf
+
+.txt
+
+El sistema debe:
+
+Extraer texto
+
+Permitir conversión a modelo
+
+Mostrar error claro si no se puede leer
+
+8️⃣ CONVERSOR DE DOCUMENTOS → PLACEHOLDERS {{ }}
+Método A — Placeholders explícitos (prioridad máxima)
+
+Detectar {{campo}} y [[CAMPO]]
+enlightened:
+
+Convertirlos directamente en campos
+
+Nunca inventar campos desde texto normal
+
+Método B — Documentos antiguos (huecos visuales)
+
+Detectar SOLO patrones fuertes:
+
+...... (≥ 6 puntos)
+
+_____ (≥ 5 guiones)
+
+(........)
+
+N° ____, DNI N° ______
+
+⚠️ Nunca convertir palabras normales como “Lima”, “de”, frases completas.
+
+Confirmación visual obligatoria
+
+Mostrar contexto del hueco
+
+Permitir:
+
+Convertir
+
+Ignorar
+
+Editar label y key
+
+Elegir tipo de campo
+
+Conversión final
+
+Reemplazar huecos confirmados por {{key}} en el documento
+
+Mantener formato lo más posible
+
+Generar archivo convertido descargable
+
+9️⃣ DESCARGA DEL DOCUMENTO CONVERTIDO (BUG A SOLUCIONAR)
+
+Al presionar “Descargar documento convertido”:
+
+El archivo debe descargarse correctamente
+
+Usar Content-Disposition: attachment
+
+Manejar nombres con espacios
+
+Si no existe → 404 con mensaje claro
+
+🔟 UI / EXPERIENCIA
+
+Cada usuario ve:
+
+“Mis Modelos”
+
+“Mis Estilos de Redacción”
+
+Admin ve:
+
+Todos los modelos y estilos
+
+Puede filtrar por usuario
+
+Coordinador/Usuario:
+
+NO pueden cambiar de usuario
+
+NO pueden ver recursos ajenos
+
+1️⃣1️⃣ PRUEBAS OBLIGATORIAS
+
+Considerar el módulo terminado solo si:
+
+Usuario A NO ve modelos de Usuario B
+
+Coordinador recibe 403 al acceder a modelo ajeno
+
+Admin puede acceder a todos
+
+Descargas están protegidas
+
+Conversión funciona sin crear campos absurdos
+
+📦 ENTREGABLES
+
+Cambios en base de datos (owner_user_id)
+
+Endpoints seguros
+
+Conversor funcionando
+
+UI actualizada
+
+Bug de descarga corregido
+
+Explicación breve del plan antes de codificar

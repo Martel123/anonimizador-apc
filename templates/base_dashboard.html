@@ -85,9 +85,13 @@
                 <div class="px-3 mt-6 mb-2">
                     <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Mi Cuenta</span>
                 </div>
-                <a href="{{ url_for('mis_plantillas') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['mis_plantillas', 'mi_plantilla', 'mi_estilo'] %}active{% endif %}">
+                <a href="{{ url_for('mis_modelos') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo'] %}active{% endif %}">
                     <i class="fas fa-file-signature w-5 mr-3"></i>
-                    <span>Mis Plantillas</span>
+                    <span>Mis Modelos</span>
+                </a>
+                <a href="{{ url_for('mis_estilos') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['mis_estilos', 'mi_estilo'] %}active{% endif %}">
+                    <i class="fas fa-paint-brush w-5 mr-3"></i>
+                    <span>Mis Estilos</span>
                 </a>
                 <a href="{{ url_for('mis_estadisticas') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'mis_estadisticas' %}active{% endif %}">
                     <i class="fas fa-chart-bar w-5 mr-3"></i>

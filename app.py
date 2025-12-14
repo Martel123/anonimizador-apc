@@ -14,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -2028,31 +2028,31 @@ def tarea_cambiar_estado(tarea_id):
     return redirect(next_url)
 
 
-# ==================== MIS PLANTILLAS (User personal templates) ====================
+# ==================== MIS MODELOS (User personal document models) ====================
 
-@app.route("/mis-plantillas")
+@app.route("/mis-modelos")
 @login_required
-def mis_plantillas():
+def mis_modelos():
     tenant = get_current_tenant()
     tenant_id = tenant.id if tenant else None
     user_id = current_user.id
     
-    plantillas = Plantilla.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
-    estilos = Estilo.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
+    modelos_usuario = Modelo.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
+    estilos_usuario = Estilo.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
     
-    return render_template("mis_plantillas.html", plantillas=plantillas, estilos=estilos, modelos=MODELOS)
+    return render_template("mis_modelos.html", modelos_usuario=modelos_usuario, estilos_usuario=estilos_usuario, modelos_sistema=MODELOS)
 
 
-@app.route("/mi-plantilla", methods=["GET", "POST"])
+@app.route("/mi-modelo", methods=["GET", "POST"])
 @login_required
-def mi_plantilla():
+def mi_modelo():
     tenant = get_current_tenant()
     if not tenant:
         flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("dashboard"))
     
-    plantilla_id = request.args.get('id', type=int)
-    plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id, created_by_id=current_user.id).first() if plantilla_id else None
+    modelo_id = request.args.get('id', type=int)
+    modelo = Modelo.query.filter_by(id=modelo_id, tenant_id=tenant.id, created_by_id=current_user.id).first() if modelo_id else None
     campos_detectados = []
     
     if request.method == "POST":
@@ -2075,27 +2075,27 @@ def mi_plantilla():
             
             contenido = extract_text_from_docx(archivo_path)
             campos_detectados = detect_placeholders_from_text(contenido)
-        elif plantilla:
-            contenido = plantilla.contenido
+        elif modelo:
+            contenido = modelo.contenido
         
         if not key or not nombre:
             flash("La clave y el nombre son obligatorios.", "error")
-            return render_template("mi_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+            return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados)
         
-        if not contenido and not plantilla:
-            flash("Debes subir un archivo Word con la plantilla.", "error")
-            return render_template("mi_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+        if not contenido and not modelo:
+            flash("Debes subir un archivo Word con el modelo.", "error")
+            return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados)
         
-        if plantilla:
-            plantilla.key = key
-            plantilla.nombre = nombre
+        if modelo:
+            modelo.key = key
+            modelo.nombre = nombre
             if contenido:
-                plantilla.contenido = contenido
+                modelo.contenido = contenido
             if archivo_path:
-                plantilla.archivo_original = archivo_path
-            flash("Plantilla actualizada exitosamente.", "success")
+                modelo.archivo_original = archivo_path
+            flash("Modelo actualizado exitosamente.", "success")
         else:
-            plantilla = Plantilla(
+            modelo = Modelo(
                 key=f"user_{current_user.id}_{key}",
                 nombre=nombre,
                 contenido=contenido,
@@ -2104,29 +2104,128 @@ def mi_plantilla():
                 tenant_id=tenant.id,
                 created_by_id=current_user.id
             )
-            db.session.add(plantilla)
-            flash("Plantilla creada exitosamente.", "success")
+            db.session.add(modelo)
+            flash("Modelo creado exitosamente.", "success")
         
         db.session.commit()
-        return redirect(url_for("mis_plantillas"))
+        return redirect(url_for("mis_modelos"))
     
-    return render_template("mi_plantilla.html", plantilla=plantilla, campos_detectados=campos_detectados)
+    return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados)
 
 
-@app.route("/mi-plantilla/eliminar/<int:plantilla_id>", methods=["POST"])
+@app.route("/mi-modelo/eliminar/<int:modelo_id>", methods=["POST"])
 @login_required
-def eliminar_mi_plantilla(plantilla_id):
+def eliminar_mi_modelo(modelo_id):
     tenant = get_current_tenant()
-    plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id, created_by_id=current_user.id).first()
+    modelo = Modelo.query.filter_by(id=modelo_id, tenant_id=tenant.id, created_by_id=current_user.id).first()
     
-    if not plantilla:
-        flash("No tienes permiso para eliminar esta plantilla.", "error")
-        return redirect(url_for("mis_plantillas"))
+    if not modelo:
+        flash("No tienes permiso para eliminar este modelo.", "error")
+        return redirect(url_for("mis_modelos"))
     
-    db.session.delete(plantilla)
+    db.session.delete(modelo)
     db.session.commit()
-    flash("Plantilla eliminada exitosamente.", "success")
-    return redirect(url_for("mis_plantillas"))
+    flash("Modelo eliminado exitosamente.", "success")
+    return redirect(url_for("mis_modelos"))
+
+
+# ==================== MIS ESTILOS (User personal styles) ====================
+
+@app.route("/mis-estilos")
+@login_required
+def mis_estilos():
+    tenant = get_current_tenant()
+    tenant_id = tenant.id if tenant else None
+    user_id = current_user.id
+    
+    estilos_usuario = Estilo.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
+    modelos_usuario = Modelo.query.filter_by(tenant_id=tenant_id, created_by_id=user_id).all()
+    
+    return render_template("mis_estilos.html", estilos_usuario=estilos_usuario, modelos_usuario=modelos_usuario)
+
+
+@app.route("/mi-estilo", methods=["GET", "POST"])
+@login_required
+def mi_estilo():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("dashboard"))
+    
+    estilo_id = request.args.get('id', type=int)
+    estilo = Estilo.query.filter_by(id=estilo_id, tenant_id=tenant.id, created_by_id=current_user.id).first() if estilo_id else None
+    modelos_usuario = Modelo.query.filter_by(tenant_id=tenant.id, created_by_id=current_user.id).all()
+    
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        plantilla_key = request.form.get("plantilla_key", "").strip()
+        
+        archivo = request.files.get('archivo_word')
+        contenido = ""
+        archivo_path = None
+        
+        if archivo and archivo.filename and archivo.filename.endswith('.docx'):
+            user_folder = os.path.join(CARPETA_ESTILOS_SUBIDOS, f"user_{current_user.id}")
+            os.makedirs(user_folder, exist_ok=True)
+            
+            safe_name = secure_filename(archivo.filename)
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            archivo_name = f"{timestamp}_{safe_name}"
+            archivo_path = os.path.join(user_folder, archivo_name)
+            archivo.save(archivo_path)
+            
+            contenido = extract_text_from_docx(archivo_path)
+        elif estilo:
+            contenido = estilo.contenido
+        
+        if not nombre:
+            flash("El nombre es obligatorio.", "error")
+            return render_template("mi_estilo.html", estilo=estilo, modelos_usuario=modelos_usuario)
+        
+        if not contenido and not estilo:
+            flash("Debes subir un archivo Word con el estilo.", "error")
+            return render_template("mi_estilo.html", estilo=estilo, modelos_usuario=modelos_usuario)
+        
+        if estilo:
+            estilo.nombre = nombre
+            estilo.plantilla_key = plantilla_key
+            if contenido:
+                estilo.contenido = contenido
+            if archivo_path:
+                estilo.archivo_original = archivo_path
+            flash("Estilo actualizado exitosamente.", "success")
+        else:
+            estilo = Estilo(
+                nombre=nombre,
+                plantilla_key=plantilla_key,
+                contenido=contenido,
+                archivo_original=archivo_path,
+                tenant_id=tenant.id,
+                created_by_id=current_user.id
+            )
+            db.session.add(estilo)
+            flash("Estilo creado exitosamente.", "success")
+        
+        db.session.commit()
+        return redirect(url_for("mis_estilos"))
+    
+    return render_template("mi_estilo.html", estilo=estilo, modelos_usuario=modelos_usuario)
+
+
+@app.route("/mi-estilo/eliminar/<int:estilo_id>", methods=["POST"])
+@login_required
+def eliminar_mi_estilo(estilo_id):
+    tenant = get_current_tenant()
+    estilo = Estilo.query.filter_by(id=estilo_id, tenant_id=tenant.id, created_by_id=current_user.id).first()
+    
+    if not estilo:
+        flash("No tienes permiso para eliminar este estilo.", "error")
+        return redirect(url_for("mis_estilos"))
+    
+    db.session.delete(estilo)
+    db.session.commit()
+    flash("Estilo eliminado exitosamente.", "success")
+    return redirect(url_for("mis_estilos"))
 
 
 # ==================== ESTADISTICAS INDIVIDUALES ====================

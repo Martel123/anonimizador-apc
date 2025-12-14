@@ -1,0 +1,78 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}{% if estilo %}Editar{% else %}Nuevo{% endif %} Estilo{% endblock %}
+{% block page_title %}{% if estilo %}Editar Estilo{% else %}Nuevo Estilo{% endif %}{% endblock %}
+{% block page_subtitle %}{% if estilo %}Modifica tu estilo de redaccion{% else %}Crea un nuevo estilo de redaccion{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">
+                {% if estilo %}Editar Estilo{% else %}Crear Nuevo Estilo{% endif %}
+            </h3>
+        </div>
+        
+        <form method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <label for="nombre" class="block text-sm font-medium text-gray-700 mb-2">Nombre del Estilo</label>
+                    <input type="text" id="nombre" name="nombre" 
+                           value="{{ estilo.nombre if estilo else '' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                           placeholder="ej: Estilo Formal Corporativo" required>
+                </div>
+                <div>
+                    <label for="plantilla_key" class="block text-sm font-medium text-gray-700 mb-2">Modelo Asociado (opcional)</label>
+                    <select id="plantilla_key" name="plantilla_key" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                        <option value="">-- Sin asociar --</option>
+                        {% for modelo in modelos_usuario %}
+                        <option value="{{ modelo.key }}" {% if estilo and estilo.plantilla_key == modelo.key %}selected{% endif %}>{{ modelo.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Selecciona un modelo para usar este estilo con el</p>
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Archivo Word (.docx)</label>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-green-400 transition-colors">
+                    <input type="file" id="archivo_word" name="archivo_word" accept=".docx" class="hidden">
+                    <label for="archivo_word" class="cursor-pointer">
+                        <div class="p-4 bg-green-50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                            <i class="fas fa-file-word text-green-600 text-2xl"></i>
+                        </div>
+                        <p class="text-sm text-gray-600">Haz clic para subir o arrastra tu archivo</p>
+                        <p class="text-xs text-gray-400 mt-1">Solo archivos .docx con ejemplo de redaccion</p>
+                    </label>
+                </div>
+                {% if estilo and estilo.archivo_original %}
+                <p class="mt-2 text-sm text-gray-500">
+                    <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                    Archivo actual: {{ estilo.archivo_original.split('/')[-1] }}
+                </p>
+                {% endif %}
+            </div>
+            
+            {% if estilo and estilo.contenido %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Vista Previa del Contenido</label>
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-48 overflow-y-auto">
+                    <pre class="text-xs text-gray-600 whitespace-pre-wrap">{{ estilo.contenido[:1000] }}{% if estilo.contenido|length > 1000 %}...{% endif %}</pre>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <a href="{{ url_for('mis_estilos') }}" class="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium">
+                    Cancelar
+                </a>
+                <button type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                    {% if estilo %}Guardar Cambios{% else %}Crear Estilo{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

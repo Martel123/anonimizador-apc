@@ -133,7 +133,8 @@ class DocumentRecord(db.Model):
         }
 
 
-class Plantilla(db.Model):
+class Modelo(db.Model):
+    """Modelo de documento legal (antes Plantilla)."""
     __tablename__ = 'plantillas'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -143,19 +144,33 @@ class Plantilla(db.Model):
     nombre = db.Column(db.String(100), nullable=False)
     contenido = db.Column(db.Text, nullable=True, default='')
     archivo_original = db.Column(db.String(255))
+    archivo_convertido = db.Column(db.String(255))
     carpeta_estilos = db.Column(db.String(100))
     activa = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    created_by = db.relationship('User', backref=db.backref('plantillas', lazy='dynamic'))
+    created_by = db.relationship('User', backref=db.backref('modelos', lazy='dynamic'))
     
     __table_args__ = (
         db.UniqueConstraint('tenant_id', 'key', name='uq_plantilla_tenant_key'),
     )
+    
+    def is_owner(self, user):
+        """Check if user is the owner of this modelo."""
+        return self.created_by_id == user.id
+    
+    def can_access(self, user):
+        """Check if user can access this modelo."""
+        if user.is_admin:
+            return True
+        return self.created_by_id == user.id
+
+Plantilla = Modelo
 
 
 class Estilo(db.Model):
+    """Estilo de redaccion para documentos legales."""
     __tablename__ = 'estilos'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -166,10 +181,21 @@ class Estilo(db.Model):
     contenido = db.Column(db.Text, nullable=True, default='')
     archivo_original = db.Column(db.String(255))
     activo = db.Column(db.Boolean, default=True)
+    es_predeterminado = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     created_by = db.relationship('User', backref=db.backref('estilos', lazy='dynamic'))
+    
+    def is_owner(self, user):
+        """Check if user is the owner of this estilo."""
+        return self.created_by_id == user.id
+    
+    def can_access(self, user):
+        """Check if user can access this estilo."""
+        if user.is_admin:
+            return True
+        return self.created_by_id == user.id
 
 
 class CampoPlantilla(db.Model):

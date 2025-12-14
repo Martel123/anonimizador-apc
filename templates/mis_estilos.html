@@ -1,0 +1,106 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Mis Estilos{% endblock %}
+{% block page_title %}Mis Estilos{% endblock %}
+{% block page_subtitle %}Gestiona tus estilos de redaccion personales{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h3 class="text-lg font-medium text-gray-900">Estilos Personales</h3>
+            <p class="text-sm text-gray-500">Estos estilos solo estan disponibles para tu cuenta</p>
+        </div>
+        <a href="{{ url_for('mi_estilo') }}" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+            <i class="fas fa-plus mr-2"></i>Nuevo Estilo
+        </a>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 bg-green-100 rounded-lg">
+                    <i class="fas fa-paint-brush text-green-600 text-xl"></i>
+                </div>
+                <span class="text-2xl font-bold text-gray-900">{{ estilos_usuario|length }}</span>
+            </div>
+            <h4 class="text-sm font-medium text-gray-600">Mis Estilos</h4>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <i class="fas fa-file-alt text-blue-600 text-xl"></i>
+                </div>
+                <span class="text-2xl font-bold text-gray-900">{{ modelos_usuario|length }}</span>
+            </div>
+            <h4 class="text-sm font-medium text-gray-600">Modelos Asociados</h4>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Mis Estilos de Redaccion</h3>
+        </div>
+        
+        {% if estilos_usuario %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modelo Asociado</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for estilo in estilos_usuario %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-green-50 rounded-lg mr-3">
+                                    <i class="fas fa-paint-brush text-green-600"></i>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">{{ estilo.nombre }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">{{ estilo.plantilla_key or 'Sin asociar' }}</td>
+                        <td class="px-6 py-4">
+                            {% if estilo.activo %}
+                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Activo</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">{{ estilo.created_at.strftime('%d/%m/%Y') }}</td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <a href="{{ url_for('mi_estilo', id=estilo.id) }}" class="text-blue-600 hover:text-blue-800 text-sm">
+                                <i class="fas fa-edit"></i> Editar
+                            </a>
+                            <form action="{{ url_for('eliminar_mi_estilo', estilo_id=estilo.id) }}" method="POST" class="inline">
+                                <button type="submit" onclick="return confirm('Eliminar este estilo?')" class="text-red-600 hover:text-red-800 text-sm ml-2">
+                                    <i class="fas fa-trash"></i> Eliminar
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <i class="fas fa-paint-brush text-gray-400 text-2xl"></i>
+            </div>
+            <h4 class="text-lg font-medium text-gray-900 mb-2">No tienes estilos</h4>
+            <p class="text-gray-500 mb-4">Crea tu primer estilo de redaccion personalizado</p>
+            <a href="{{ url_for('mi_estilo') }}" class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                <i class="fas fa-plus mr-2"></i>Crear Estilo
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
