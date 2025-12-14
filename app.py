@@ -70,6 +70,45 @@ def extract_text_from_docx(file_path):
     return '\n'.join(full_text)
 
 
+def extract_text_from_pdf(file_path):
+    """Extract text from PDF file."""
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(file_path)
+        text = []
+        for page in reader.pages:
+            text.append(page.extract_text() or '')
+        return '\n'.join(text)
+    except Exception as e:
+        logging.error(f"Error extracting PDF: {e}")
+        return ""
+
+
+def extract_text_from_txt(file_path):
+    """Extract text from TXT file."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        logging.error(f"Error reading TXT: {e}")
+        return ""
+
+
+ALLOWED_EXTENSIONS = {'.docx', '.pdf', '.txt'}
+
+
+def extract_text_from_file(file_path):
+    """Extract text from file based on extension."""
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == '.docx':
+        return extract_text_from_docx(file_path)
+    elif ext == '.pdf':
+        return extract_text_from_pdf(file_path)
+    elif ext == '.txt':
+        return extract_text_from_txt(file_path)
+    return ""
+
+
 def detect_placeholders_from_text(text):
     """
     Detect placeholders in text that represent fields to fill.
@@ -2100,7 +2139,12 @@ def mi_modelo():
         contenido = ""
         archivo_path = None
         
-        if archivo and archivo.filename and archivo.filename.endswith('.docx'):
+        if archivo and archivo.filename:
+            ext = os.path.splitext(archivo.filename)[1].lower()
+            if ext not in ALLOWED_EXTENSIONS:
+                flash(f"Formato de archivo no soportado ({ext}). Use .docx, .pdf o .txt", "error")
+                return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados)
+            
             user_folder = os.path.join(CARPETA_PLANTILLAS_SUBIDAS, f"user_{current_user.id}")
             os.makedirs(user_folder, exist_ok=True)
             
@@ -2110,9 +2154,12 @@ def mi_modelo():
             archivo_path = os.path.join(user_folder, archivo_name)
             archivo.save(archivo_path)
             
-            contenido = extract_text_from_docx(archivo_path)
+            contenido = extract_text_from_file(archivo_path)
+            if not contenido:
+                flash("No se pudo extraer texto del archivo. Verifique que el archivo contenga texto.", "error")
+                return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados)
             campos_detectados = detect_placeholders_from_text(contenido)
-        elif modelo:
+        if not contenido and modelo:
             contenido = modelo.contenido
         
         if not key or not nombre:
@@ -2201,7 +2248,12 @@ def mi_estilo():
         contenido = ""
         archivo_path = None
         
-        if archivo and archivo.filename and archivo.filename.endswith('.docx'):
+        if archivo and archivo.filename:
+            ext = os.path.splitext(archivo.filename)[1].lower()
+            if ext not in ALLOWED_EXTENSIONS:
+                flash(f"Formato de archivo no soportado ({ext}). Use .docx, .pdf o .txt", "error")
+                return render_template("mi_estilo.html", estilo=estilo, modelos_usuario=modelos_usuario)
+            
             user_folder = os.path.join(CARPETA_ESTILOS_SUBIDOS, f"user_{current_user.id}")
             os.makedirs(user_folder, exist_ok=True)
             
@@ -2211,8 +2263,11 @@ def mi_estilo():
             archivo_path = os.path.join(user_folder, archivo_name)
             archivo.save(archivo_path)
             
-            contenido = extract_text_from_docx(archivo_path)
-        elif estilo:
+            contenido = extract_text_from_file(archivo_path)
+            if not contenido:
+                flash("No se pudo extraer texto del archivo. Verifique que el archivo contenga texto.", "error")
+                return render_template("mi_estilo.html", estilo=estilo, modelos_usuario=modelos_usuario)
+        if not contenido and estilo:
             contenido = estilo.contenido
         
         if not nombre:
