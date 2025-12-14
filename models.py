@@ -34,7 +34,7 @@ class Tenant(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     users = db.relationship('User', backref='tenant', lazy='dynamic')
-    plantillas = db.relationship('Plantilla', backref='tenant', lazy='dynamic')
+    modelos = db.relationship('Modelo', backref='tenant', lazy='dynamic')
     estilos = db.relationship('Estilo', backref='tenant', lazy='dynamic')
     campos = db.relationship('CampoPlantilla', backref='tenant', lazy='dynamic')
     documents = db.relationship('DocumentRecord', backref='tenant', lazy='dynamic')
