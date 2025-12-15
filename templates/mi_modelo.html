@@ -81,11 +81,15 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <div class="flex items-center gap-2">
                                         <div class="flex-shrink-0 w-6 h-6 bg-green-200 rounded flex items-center justify-center text-xs font-bold text-gray-700">{{ loop.index }}</div>
-                                        <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen/Archivo</span>
+                                        <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen: {{ campo.nombre_campo }}</span>
                                     </div>
                                     <button type="button" onclick="removeCampo(this)" class="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center" title="Eliminar">
                                         <i class="fas fa-times text-xs"></i>
                                     </button>
+                                </div>
+                                <div class="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                                    <p class="text-xs text-blue-700"><i class="fas fa-info-circle mr-1"></i>Marcador en el documento:</p>
+                                    <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">{{ '{{IMAGEN:' + campo.nombre_campo + '}}' }}</code>
                                 </div>
                                 <input type="hidden" name="campo_nombre[]" value="{{ campo.nombre_campo }}">
                                 <input type="hidden" name="campo_etiqueta[]" value="{{ campo.etiqueta }}">
@@ -95,17 +99,19 @@
                                            accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" onchange="previewCampoArchivo(this, {{ loop.index0 }})">
                                     <label for="campo_archivo_{{ loop.index0 }}" class="cursor-pointer block">
                                         <i class="fas fa-cloud-upload-alt text-green-500 text-2xl mb-1"></i>
-                                        <p class="text-sm text-gray-600">Subir imagen</p>
+                                        <p class="text-sm text-gray-600">{% if campo.archivo_path %}Cambiar imagen{% else %}Subir imagen{% endif %}</p>
                                         <p class="text-xs text-gray-400">JPG, PNG, GIF, WebP</p>
                                     </label>
-                                    <div id="preview_campo_{{ loop.index0 }}" class="hidden mt-2">
+                                    <div id="preview_campo_{{ loop.index0 }}" class="{% if not campo.archivo_path %}hidden{% endif %} mt-2">
+                                        {% if campo.archivo_path %}
+                                        <img id="img_preview_{{ loop.index0 }}" src="/uploads/{{ campo.archivo_path }}" class="max-h-20 mx-auto rounded border">
+                                        <p id="filename_campo_{{ loop.index0 }}" class="text-xs text-green-600 mt-1"><i class="fas fa-check-circle mr-1"></i>Imagen guardada</p>
+                                        {% else %}
                                         <img id="img_preview_{{ loop.index0 }}" src="" class="max-h-20 mx-auto rounded border">
                                         <p id="filename_campo_{{ loop.index0 }}" class="text-xs text-green-600 mt-1"></p>
+                                        {% endif %}
                                     </div>
                                 </div>
-                                {% if campo.archivo_path %}
-                                <p class="text-xs text-green-600 mt-2"><i class="fas fa-check-circle mr-1"></i>Archivo guardado</p>
-                                {% endif %}
                             </div>
                             {% else %}
                             <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}" data-tipo="{{ campo.tipo }}">
@@ -618,6 +624,14 @@ function addCampo() {
 }
 
 function addCampoArchivo() {
+    const nombreImagen = prompt('Nombre del marcador de imagen (ej: logo, firma, foto):\n\nEste nombre se usara para crear el marcador {{IMAGEN:nombre}} que debes insertar en tu documento Word.');
+    if (!nombreImagen || !nombreImagen.trim()) return;
+    
+    const nombreNormalizado = nombreImagen.trim().toLowerCase()
+        .replace(/[áàäâ]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+        .replace(/[óòöô]/g, 'o').replace(/[úùüû]/g, 'u').replace(/ñ/g, 'n')
+        .replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    
     const container = document.getElementById('campos-container');
     const index = container.querySelectorAll('.campo-row').length;
     
@@ -629,14 +643,18 @@ function addCampoArchivo() {
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
                 <div class="flex-shrink-0 w-6 h-6 bg-green-200 rounded flex items-center justify-center text-xs font-bold text-gray-700">${index + 1}</div>
-                <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen/Archivo</span>
+                <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen: ${nombreNormalizado}</span>
             </div>
             <button type="button" onclick="removeCampo(this)" class="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center" title="Eliminar">
                 <i class="fas fa-times text-xs"></i>
             </button>
         </div>
-        <input type="hidden" name="campo_nombre[]" value="imagen_${index}">
-        <input type="hidden" name="campo_etiqueta[]" value="Imagen ${index + 1}">
+        <div class="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+            <p class="text-xs text-blue-700"><i class="fas fa-info-circle mr-1"></i>Inserta este marcador en tu documento Word donde quieras la imagen:</p>
+            <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">{{IMAGEN:${nombreNormalizado}}}</code>
+        </div>
+        <input type="hidden" name="campo_nombre[]" value="${nombreNormalizado}">
+        <input type="hidden" name="campo_etiqueta[]" value="Imagen: ${nombreNormalizado}">
         <input type="hidden" name="campo_tipo[]" value="file">
         <div class="border-2 border-dashed border-green-300 rounded-lg p-3 text-center hover:border-green-500 transition-colors bg-white">
             <input type="file" name="campo_archivo_${index}" id="campo_archivo_${index}" 
@@ -687,20 +705,39 @@ function handleTipoChange(select) {
         const row = select.closest('.campo-row');
         const index = parseInt(row.getAttribute('data-campo-index'));
         
+        const nombreInput = row.querySelector('input[name="campo_nombre[]"]');
+        const nombreActual = nombreInput ? nombreInput.value : '';
+        
+        const nombreImagen = prompt('Nombre del marcador de imagen (ej: logo, firma, foto):\n\nEste nombre se usara para crear el marcador {{IMAGEN:nombre}} que debes insertar en tu documento Word.', nombreActual);
+        
+        if (!nombreImagen || !nombreImagen.trim()) {
+            select.value = 'text';
+            return;
+        }
+        
+        const nombreNormalizado = nombreImagen.trim().toLowerCase()
+            .replace(/[áàäâ]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+            .replace(/[óòöô]/g, 'o').replace(/[úùüû]/g, 'u').replace(/ñ/g, 'n')
+            .replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        
         row.className = 'campo-row p-3 rounded-lg bg-green-50 border border-green-200';
         row.setAttribute('data-tipo', 'file');
         row.innerHTML = `
             <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-2">
                     <div class="flex-shrink-0 w-6 h-6 bg-green-200 rounded flex items-center justify-center text-xs font-bold text-gray-700">${index + 1}</div>
-                    <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen/Archivo</span>
+                    <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen: ${nombreNormalizado}</span>
                 </div>
                 <button type="button" onclick="removeCampo(this)" class="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center" title="Eliminar">
                     <i class="fas fa-times text-xs"></i>
                 </button>
             </div>
-            <input type="hidden" name="campo_nombre[]" value="imagen_${index}">
-            <input type="hidden" name="campo_etiqueta[]" value="Imagen ${index + 1}">
+            <div class="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                <p class="text-xs text-blue-700"><i class="fas fa-info-circle mr-1"></i>Inserta este marcador en tu documento Word donde quieras la imagen:</p>
+                <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">{{IMAGEN:${nombreNormalizado}}}</code>
+            </div>
+            <input type="hidden" name="campo_nombre[]" value="${nombreNormalizado}">
+            <input type="hidden" name="campo_etiqueta[]" value="Imagen: ${nombreNormalizado}">
             <input type="hidden" name="campo_tipo[]" value="file">
             <div class="border-2 border-dashed border-green-300 rounded-lg p-3 text-center hover:border-green-500 transition-colors bg-white">
                 <input type="file" name="campo_archivo_${index}" id="campo_archivo_${index}" 
