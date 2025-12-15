@@ -76,44 +76,6 @@
                     <div class="p-4">
                         <div id="campos-container" class="space-y-2 mb-4">
                             {% for campo in campos_guardados %}
-                            {% if campo.tipo == 'file' %}
-                            <div class="campo-row p-3 rounded-lg bg-green-50 border border-green-200" data-campo-index="{{ loop.index0 }}" data-tipo="file">
-                                <div class="flex items-center justify-between mb-2">
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex-shrink-0 w-6 h-6 bg-green-200 rounded flex items-center justify-center text-xs font-bold text-gray-700">{{ loop.index }}</div>
-                                        <span class="text-sm font-medium text-green-800"><i class="fas fa-image mr-1"></i>Imagen: {{ campo.nombre_campo }}</span>
-                                    </div>
-                                    <button type="button" onclick="removeCampo(this)" class="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center" title="Eliminar">
-                                        <i class="fas fa-times text-xs"></i>
-                                    </button>
-                                </div>
-                                <div class="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
-                                    <p class="text-xs text-blue-700"><i class="fas fa-info-circle mr-1"></i>Marcador en el documento:</p>
-                                    <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">{{ '{{IMAGEN:' + campo.nombre_campo + '}}' }}</code>
-                                </div>
-                                <input type="hidden" name="campo_nombre[]" value="{{ campo.nombre_campo }}">
-                                <input type="hidden" name="campo_etiqueta[]" value="{{ campo.etiqueta }}">
-                                <input type="hidden" name="campo_tipo[]" value="file">
-                                <div class="border-2 border-dashed border-green-300 rounded-lg p-3 text-center hover:border-green-500 transition-colors bg-white">
-                                    <input type="file" name="campo_archivo_{{ loop.index0 }}" id="campo_archivo_{{ loop.index0 }}" 
-                                           accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" onchange="previewCampoArchivo(this, {{ loop.index0 }})">
-                                    <label for="campo_archivo_{{ loop.index0 }}" class="cursor-pointer block">
-                                        <i class="fas fa-cloud-upload-alt text-green-500 text-2xl mb-1"></i>
-                                        <p class="text-sm text-gray-600">{% if campo.archivo_path %}Cambiar imagen{% else %}Subir imagen{% endif %}</p>
-                                        <p class="text-xs text-gray-400">JPG, PNG, GIF, WebP</p>
-                                    </label>
-                                    <div id="preview_campo_{{ loop.index0 }}" class="{% if not campo.archivo_path %}hidden{% endif %} mt-2">
-                                        {% if campo.archivo_path %}
-                                        <img id="img_preview_{{ loop.index0 }}" src="/static/imagenes_modelos/{{ campo.archivo_path }}" class="max-h-20 mx-auto rounded border">
-                                        <p id="filename_campo_{{ loop.index0 }}" class="text-xs text-green-600 mt-1"><i class="fas fa-check-circle mr-1"></i>Imagen guardada</p>
-                                        {% else %}
-                                        <img id="img_preview_{{ loop.index0 }}" src="" class="max-h-20 mx-auto rounded border">
-                                        <p id="filename_campo_{{ loop.index0 }}" class="text-xs text-green-600 mt-1"></p>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            {% else %}
                             <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}" data-tipo="{{ campo.tipo }}">
                                 <button type="button" onclick="removeCampo(this)" class="flex-shrink-0 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors" title="Eliminar campo">
                                     <i class="fas fa-times text-xs"></i>
@@ -123,16 +85,14 @@
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <input type="text" name="campo_etiqueta[]" value="{{ campo.etiqueta }}" 
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
-                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="handleTipoChange(this)">
+                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                     <option value="text" {% if campo.tipo == 'text' %}selected{% endif %}>Texto</option>
                                     <option value="textarea" {% if campo.tipo == 'textarea' %}selected{% endif %}>Area de texto</option>
                                     <option value="date" {% if campo.tipo == 'date' %}selected{% endif %}>Fecha</option>
                                     <option value="number" {% if campo.tipo == 'number' %}selected{% endif %}>Numero</option>
                                     <option value="email" {% if campo.tipo == 'email' %}selected{% endif %}>Email</option>
-                                    <option value="file">Archivo</option>
                                 </select>
                             </div>
-                            {% endif %}
                             {% endfor %}
                             {% for campo in campos_detectados %}
                             <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}" data-tipo="text">
@@ -144,25 +104,19 @@
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <input type="text" name="campo_etiqueta[]" value="{{ campo }}" 
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
-                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="handleTipoChange(this)">
+                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                     <option value="text">Texto</option>
                                     <option value="textarea">Area de texto</option>
                                     <option value="date">Fecha</option>
                                     <option value="number">Numero</option>
                                     <option value="email">Email</option>
-                                    <option value="file">Archivo</option>
                                 </select>
                             </div>
                             {% endfor %}
                         </div>
-                        <div class="flex flex-wrap gap-3">
-                            <button type="button" onclick="addCampo()" class="text-sm text-blue-600 hover:text-blue-800 flex items-center">
-                                <i class="fas fa-plus mr-1"></i> Agregar campo de texto
-                            </button>
-                            <button type="button" onclick="addCampoArchivo()" class="text-sm text-green-600 hover:text-green-800 flex items-center">
-                                <i class="fas fa-image mr-1"></i> Agregar imagen/archivo
-                            </button>
-                        </div>
+                        <button type="button" onclick="addCampo()" class="text-sm text-blue-600 hover:text-blue-800 flex items-center">
+                            <i class="fas fa-plus mr-1"></i> Agregar campo manualmente
+                        </button>
                     </div>
                 </div>
             </div>
@@ -610,13 +564,12 @@ function addCampo() {
                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
         <input type="text" name="campo_etiqueta[]" placeholder="Etiqueta visible" 
                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-        <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="handleTipoChange(this)">
+        <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
             <option value="text">Texto</option>
             <option value="textarea">Area de texto</option>
             <option value="date">Fecha</option>
             <option value="number">Numero</option>
             <option value="email">Email</option>
-            <option value="file">Archivo</option>
         </select>
     `;
     container.appendChild(row);
