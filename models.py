@@ -401,3 +401,26 @@ class Task(db.Model):
             'fecha_vencimiento': self.fecha_vencimiento.strftime('%Y-%m-%d') if self.fecha_vencimiento else None,
             'is_overdue': self.is_overdue()
         }
+
+
+class FinishedDocument(db.Model):
+    """Documentos terminados subidos por usuarios."""
+    __tablename__ = 'finished_documents'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=True)
+    nombre = db.Column(db.String(255), nullable=False)
+    archivo = db.Column(db.String(500), nullable=False)
+    descripcion = db.Column(db.Text)
+    tipo_documento = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('finished_documents', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('finished_documents', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('finished_documents', lazy='dynamic'))
+    
+    def get_filename(self):
+        return os.path.basename(self.archivo) if self.archivo else None

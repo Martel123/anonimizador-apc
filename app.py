@@ -14,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -2192,9 +2192,41 @@ def mi_modelo():
             flash("Modelo creado exitosamente.", "success")
         
         db.session.commit()
+        
+        campo_nombres = request.form.getlist('campo_nombre[]')
+        campo_etiquetas = request.form.getlist('campo_etiqueta[]')
+        campo_tipos = request.form.getlist('campo_tipo[]')
+        
+        if campo_nombres:
+            CampoPlantilla.query.filter_by(tenant_id=tenant.id, plantilla_key=modelo.key).delete()
+            
+            for i, nombre_campo in enumerate(campo_nombres):
+                if nombre_campo.strip():
+                    etiqueta = campo_etiquetas[i] if i < len(campo_etiquetas) else nombre_campo
+                    tipo = campo_tipos[i] if i < len(campo_tipos) else 'text'
+                    
+                    campo = CampoPlantilla(
+                        tenant_id=tenant.id,
+                        plantilla_key=modelo.key,
+                        nombre_campo=campo_to_key(nombre_campo),
+                        etiqueta=etiqueta.strip(),
+                        tipo=tipo,
+                        orden=i
+                    )
+                    db.session.add(campo)
+            
+            db.session.commit()
+        
         return redirect(url_for("mis_modelos"))
     
-    return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados)
+    campos_guardados = []
+    if modelo:
+        campos_guardados = CampoPlantilla.query.filter_by(
+            tenant_id=tenant.id, 
+            plantilla_key=modelo.key
+        ).order_by(CampoPlantilla.orden).all()
+    
+    return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados, campos_guardados=campos_guardados)
 
 
 @app.route("/mi-modelo/eliminar/<int:modelo_id>", methods=["POST"])
@@ -2318,6 +2350,125 @@ def eliminar_mi_estilo(estilo_id):
     db.session.commit()
     flash("Estilo eliminado exitosamente.", "success")
     return redirect(url_for("mis_estilos"))
+
+
+# ==================== DOCUMENTOS TERMINADOS ====================
+
+CARPETA_DOCUMENTOS_TERMINADOS = "documentos_terminados"
+
+@app.route("/documentos-terminados")
+@login_required
+def documentos_terminados():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("dashboard"))
+    
+    documentos = FinishedDocument.query.filter_by(
+        tenant_id=tenant.id, 
+        user_id=current_user.id
+    ).order_by(FinishedDocument.created_at.desc()).all()
+    
+    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
+    
+    return render_template("documentos_terminados.html", documentos=documentos, casos=casos)
+
+
+@app.route("/documentos-terminados/subir", methods=["POST"])
+@login_required
+def subir_documento_terminado():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    archivo = request.files.get('archivo')
+    nombre = request.form.get('nombre', '').strip()
+    case_id = request.form.get('case_id', type=int)
+    descripcion = request.form.get('descripcion', '').strip()
+    tipo_documento = request.form.get('tipo_documento', '').strip()
+    
+    if not archivo or not archivo.filename:
+        flash("Debes seleccionar un archivo.", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    ext = os.path.splitext(archivo.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        flash(f"Formato de archivo no soportado ({ext}). Use .docx, .pdf o .txt", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    if not nombre:
+        nombre = os.path.splitext(archivo.filename)[0]
+    
+    tenant_folder = os.path.join(CARPETA_DOCUMENTOS_TERMINADOS, f"tenant_{tenant.id}")
+    os.makedirs(tenant_folder, exist_ok=True)
+    
+    safe_name = secure_filename(archivo.filename)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    archivo_name = f"{timestamp}_{safe_name}"
+    archivo_path = os.path.join(tenant_folder, archivo_name)
+    archivo.save(archivo_path)
+    
+    documento = FinishedDocument(
+        tenant_id=tenant.id,
+        user_id=current_user.id,
+        case_id=case_id if case_id else None,
+        nombre=nombre,
+        archivo=archivo_path,
+        descripcion=descripcion,
+        tipo_documento=tipo_documento
+    )
+    db.session.add(documento)
+    db.session.commit()
+    
+    flash("Documento subido exitosamente.", "success")
+    return redirect(url_for("documentos_terminados"))
+
+
+@app.route("/documentos-terminados/eliminar/<int:doc_id>", methods=["POST"])
+@login_required
+def eliminar_documento_terminado(doc_id):
+    tenant = get_current_tenant()
+    documento = FinishedDocument.query.filter_by(
+        id=doc_id, 
+        tenant_id=tenant.id, 
+        user_id=current_user.id
+    ).first()
+    
+    if not documento:
+        flash("No tienes permiso para eliminar este documento.", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    if documento.archivo and os.path.exists(documento.archivo):
+        os.remove(documento.archivo)
+    
+    db.session.delete(documento)
+    db.session.commit()
+    flash("Documento eliminado exitosamente.", "success")
+    return redirect(url_for("documentos_terminados"))
+
+
+@app.route("/documentos-terminados/descargar/<int:doc_id>")
+@login_required
+def descargar_documento_terminado(doc_id):
+    tenant = get_current_tenant()
+    documento = FinishedDocument.query.filter_by(
+        id=doc_id, 
+        tenant_id=tenant.id,
+        user_id=current_user.id
+    ).first()
+    
+    if not documento or not documento.archivo:
+        flash("Documento no encontrado.", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    if not os.path.exists(documento.archivo):
+        flash("El archivo no existe en el servidor.", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    directory = os.path.dirname(documento.archivo)
+    filename = os.path.basename(documento.archivo)
+    return send_from_directory(directory, filename, as_attachment=True)
 
 
 # ==================== ESTADISTICAS INDIVIDUALES ====================

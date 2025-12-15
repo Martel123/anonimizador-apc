@@ -45,11 +45,16 @@
                     </label>
                 </div>
                 <div id="file-confirmation" class="hidden mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p class="text-sm text-green-700 flex items-center">
-                        <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                        <span>Archivo seleccionado: </span>
-                        <span id="selected-filename" class="font-medium ml-1"></span>
-                    </p>
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm text-green-700 flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            <span>Archivo seleccionado: </span>
+                            <span id="selected-filename" class="font-medium ml-1"></span>
+                        </p>
+                        <button type="button" id="cancel-file-upload" class="text-red-500 hover:text-red-700 p-1" title="Cancelar subida">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
                 {% if modelo and modelo.archivo_original %}
                 <p class="mt-2 text-sm text-gray-500">
@@ -67,6 +72,61 @@
                 </div>
             </div>
             {% endif %}
+            
+            <div id="campos-section" class="{% if not campos_detectados and not campos_guardados %}hidden{% endif %}">
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                        <h4 class="text-sm font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-list-ul text-blue-600 mr-2"></i>
+                            Campos Detectados / Placeholders
+                        </h4>
+                        <p class="text-xs text-gray-500 mt-1">Estos campos se convertiran en {{ "{{placeholder}}" }} para la generacion de documentos</p>
+                    </div>
+                    <div class="p-4">
+                        <div id="campos-container" class="space-y-2 mb-4">
+                            {% for campo in campos_guardados %}
+                            <div class="flex items-center gap-2 campo-row">
+                                <input type="text" name="campo_nombre[]" value="{{ campo.nombre_campo }}" 
+                                       class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <input type="text" name="campo_etiqueta[]" value="{{ campo.etiqueta }}" 
+                                       class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
+                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    <option value="text" {% if campo.tipo == 'text' %}selected{% endif %}>Texto</option>
+                                    <option value="textarea" {% if campo.tipo == 'textarea' %}selected{% endif %}>Area de texto</option>
+                                    <option value="date" {% if campo.tipo == 'date' %}selected{% endif %}>Fecha</option>
+                                    <option value="number" {% if campo.tipo == 'number' %}selected{% endif %}>Numero</option>
+                                    <option value="email" {% if campo.tipo == 'email' %}selected{% endif %}>Email</option>
+                                </select>
+                                <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                            {% for campo in campos_detectados %}
+                            <div class="flex items-center gap-2 campo-row">
+                                <input type="text" name="campo_nombre[]" value="{{ campo|replace(' ', '_')|lower }}" 
+                                       class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <input type="text" name="campo_etiqueta[]" value="{{ campo }}" 
+                                       class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
+                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    <option value="text">Texto</option>
+                                    <option value="textarea">Area de texto</option>
+                                    <option value="date">Fecha</option>
+                                    <option value="number">Numero</option>
+                                    <option value="email">Email</option>
+                                </select>
+                                <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" onclick="addCampo()" class="text-sm text-blue-600 hover:text-blue-800 flex items-center">
+                            <i class="fas fa-plus mr-1"></i> Agregar campo
+                        </button>
+                    </div>
+                </div>
+            </div>
             
             <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                 <a href="{{ url_for('mis_modelos') }}" class="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium">
@@ -95,13 +155,51 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmation.classList.remove('hidden');
                 uploadZone.classList.add('border-green-400', 'bg-green-50');
                 uploadZone.classList.remove('border-gray-300');
+                document.getElementById('campos-section').classList.remove('hidden');
             } else {
                 confirmation.classList.add('hidden');
                 uploadZone.classList.remove('border-green-400', 'bg-green-50');
                 uploadZone.classList.add('border-gray-300');
             }
         });
+        
+        const cancelBtn = document.getElementById('cancel-file-upload');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                fileInput.value = '';
+                confirmation.classList.add('hidden');
+                uploadZone.classList.remove('border-green-400', 'bg-green-50');
+                uploadZone.classList.add('border-gray-300');
+            });
+        }
     }
 });
+
+function removeCampo(btn) {
+    btn.closest('.campo-row').remove();
+}
+
+function addCampo() {
+    const container = document.getElementById('campos-container');
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 campo-row';
+    row.innerHTML = `
+        <input type="text" name="campo_nombre[]" placeholder="nombre_campo" 
+               class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        <input type="text" name="campo_etiqueta[]" placeholder="Etiqueta visible" 
+               class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            <option value="text">Texto</option>
+            <option value="textarea">Area de texto</option>
+            <option value="date">Fecha</option>
+            <option value="number">Numero</option>
+            <option value="email">Email</option>
+        </select>
+        <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    container.appendChild(row);
+}
 </script>
 {% endblock %}

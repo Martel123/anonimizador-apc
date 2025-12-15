@@ -28,6 +28,11 @@
         .sidebar-link { transition: all 0.2s ease; }
         .sidebar-link:hover { background-color: #334155; }
         .sidebar-link.active { background-color: #3b82f6; border-left: 3px solid #fff; }
+        .submenu-item { transition: all 0.2s ease; }
+        .submenu-item:hover { background-color: #475569; }
+        .submenu-item.active { color: #60a5fa; background-color: #334155; }
+        .submenu-arrow { transition: transform 0.2s ease; }
+        .submenu-arrow.rotate { transform: rotate(180deg); }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -73,26 +78,41 @@
                     <i class="fas fa-tasks w-5 mr-3"></i>
                     <span>Tareas</span>
                 </a>
-                <a href="{{ url_for('generador') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'generador' %}active{% endif %}">
-                    <i class="fas fa-file-alt w-5 mr-3"></i>
-                    <span>Generador</span>
-                </a>
-                <a href="{{ url_for('historial') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'historial' %}active{% endif %}">
-                    <i class="fas fa-history w-5 mr-3"></i>
-                    <span>Historial</span>
-                </a>
+                <div class="sidebar-submenu">
+                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados'] %}active{% endif %}">
+                        <span class="flex items-center">
+                            <i class="fas fa-file-alt w-5 mr-3"></i>
+                            <span>Documentos</span>
+                        </span>
+                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados'] %}rotate{% endif %}" id="documentos-arrow"></i>
+                    </button>
+                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados'] %}hidden{% endif %} pl-4">
+                        <a href="{{ url_for('generador') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'generador' %}active{% endif %}">
+                            <i class="fas fa-magic w-4 mr-3 text-xs"></i>
+                            <span>Generar</span>
+                        </a>
+                        <a href="{{ url_for('mis_modelos') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['mis_modelos', 'mi_modelo'] %}active{% endif %}">
+                            <i class="fas fa-file-signature w-4 mr-3 text-xs"></i>
+                            <span>Mis Modelos</span>
+                        </a>
+                        <a href="{{ url_for('mis_estilos') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['mis_estilos', 'mi_estilo'] %}active{% endif %}">
+                            <i class="fas fa-paint-brush w-4 mr-3 text-xs"></i>
+                            <span>Mis Estilos</span>
+                        </a>
+                        <a href="{{ url_for('historial') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'historial' %}active{% endif %}">
+                            <i class="fas fa-history w-4 mr-3 text-xs"></i>
+                            <span>Historial</span>
+                        </a>
+                        <a href="{{ url_for('documentos_terminados') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'documentos_terminados' %}active{% endif %}">
+                            <i class="fas fa-check-circle w-4 mr-3 text-xs"></i>
+                            <span>Terminados</span>
+                        </a>
+                    </div>
+                </div>
 
                 <div class="px-3 mt-6 mb-2">
                     <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Mi Cuenta</span>
                 </div>
-                <a href="{{ url_for('mis_modelos') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo'] %}active{% endif %}">
-                    <i class="fas fa-file-signature w-5 mr-3"></i>
-                    <span>Mis Modelos</span>
-                </a>
-                <a href="{{ url_for('mis_estilos') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['mis_estilos', 'mi_estilo'] %}active{% endif %}">
-                    <i class="fas fa-paint-brush w-5 mr-3"></i>
-                    <span>Mis Estilos</span>
-                </a>
                 <a href="{{ url_for('mis_estadisticas') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'mis_estadisticas' %}active{% endif %}">
                     <i class="fas fa-chart-bar w-5 mr-3"></i>
                     <span>Mis Estadisticas</span>
@@ -242,6 +262,17 @@
             </div>
         </div>
     </div>
+
+    <script>
+        function toggleSubmenu(menuId) {
+            const submenu = document.getElementById(menuId + '-submenu');
+            const arrow = document.getElementById(menuId + '-arrow');
+            if (submenu && arrow) {
+                submenu.classList.toggle('hidden');
+                arrow.classList.toggle('rotate');
+            }
+        }
+    </script>
 
     <script>
         const aiToggle = document.getElementById('ai-toggle');
