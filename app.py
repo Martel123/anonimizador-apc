@@ -2138,7 +2138,9 @@ def caso_detalle(caso_id):
                           case_documents=case_documents,
                           tasks=tasks,
                           estados=Case.ESTADOS,
-                          prioridades=Case.PRIORIDADES)
+                          prioridades=Case.PRIORIDADES,
+                          current_tenant=tenant,
+                          now=datetime.now())
 
 
 @app.route("/casos/<int:caso_id>/editar", methods=["GET", "POST"])
