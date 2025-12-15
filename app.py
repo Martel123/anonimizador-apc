@@ -2,6 +2,8 @@ import os
 import csv
 import json
 import logging
+import requests
+import resend
 from functools import wraps
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify, session, g
@@ -57,6 +59,95 @@ CARPETA_PLANTILLAS_SUBIDAS = "plantillas_subidas"
 CARPETA_ESTILOS_SUBIDOS = "estilos_subidos"
 CARPETA_IMAGENES_MODELOS = "static/imagenes_modelos"
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+
+
+def get_resend_credentials():
+    """Get Resend API credentials from Replit connector."""
+    try:
+        hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
+        token = os.environ.get('REPL_IDENTITY')
+        if not token:
+            token = os.environ.get('WEB_REPL_RENEWAL')
+            if token:
+                token = 'depl ' + token
+        else:
+            token = 'repl ' + token
+        
+        if not hostname or not token:
+            return None, None
+            
+        response = requests.get(
+            f'https://{hostname}/api/v2/connection?include_secrets=true&connector_names=resend',
+            headers={'Accept': 'application/json', 'X_REPLIT_TOKEN': token}
+        )
+        data = response.json()
+        if data.get('items'):
+            settings = data['items'][0].get('settings', {})
+            return settings.get('api_key'), settings.get('from_email')
+    except Exception as e:
+        logging.error(f"Error getting Resend credentials: {e}")
+    return None, None
+
+
+def send_notification_email(to_email, subject, html_content):
+    """Send email notification via Resend."""
+    try:
+        api_key, from_email = get_resend_credentials()
+        if not api_key or not from_email:
+            logging.warning("Resend not configured")
+            return False
+        
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content
+        })
+        return True
+    except Exception as e:
+        logging.error(f"Error sending email: {e}")
+        return False
+
+
+def check_and_send_notifications(tenant_id):
+    """Check documents and send notifications for urgent/importante deadlines."""
+    try:
+        docs = FinishedDocument.query.filter(
+            FinishedDocument.tenant_id == tenant_id,
+            FinishedDocument.plazo_entrega.isnot(None),
+            FinishedDocument.case_id.isnot(None)
+        ).all()
+        
+        for doc in docs:
+            priority = doc.get_priority_status()
+            
+            if priority == 'urgente' and not doc.sent_urgente_notification:
+                if doc.case:
+                    for assignment in doc.case.assignments:
+                        if assignment.user and assignment.user.email:
+                            send_notification_email(
+                                assignment.user.email,
+                                f"URGENTE: Documento '{doc.nombre}' vence pronto",
+                                f"<h2>Documento Urgente</h2><p>El documento <strong>{doc.nombre}</strong> tiene plazo de entrega en menos de 24 horas.</p><p>Expediente: {doc.numero_expediente or 'N/A'}</p>"
+                            )
+                doc.sent_urgente_notification = True
+                db.session.commit()
+                
+            elif priority == 'importante' and not doc.sent_importante_notification:
+                if doc.case:
+                    for assignment in doc.case.assignments:
+                        if assignment.user and assignment.user.email:
+                            send_notification_email(
+                                assignment.user.email,
+                                f"Importante: Documento '{doc.nombre}' vence en 2 dias",
+                                f"<h2>Recordatorio Importante</h2><p>El documento <strong>{doc.nombre}</strong> tiene plazo de entrega en menos de 48 horas.</p><p>Expediente: {doc.numero_expediente or 'N/A'}</p>"
+                            )
+                doc.sent_importante_notification = True
+                db.session.commit()
+    except Exception as e:
+        logging.error(f"Error checking notifications: {e}")
+
 
 import re
 
@@ -2659,6 +2750,8 @@ def documentos_terminados():
     if not tenant:
         flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("dashboard"))
+    
+    check_and_send_notifications(tenant.id)
     
     documentos = FinishedDocument.query.filter_by(
         tenant_id=tenant.id, 

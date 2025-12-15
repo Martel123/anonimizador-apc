@@ -435,6 +435,8 @@ class FinishedDocument(db.Model):
     tipo_documento = db.Column(db.String(100))
     numero_expediente = db.Column(db.String(100))
     plazo_entrega = db.Column(db.DateTime)
+    sent_importante_notification = db.Column(db.Boolean, default=False)
+    sent_urgente_notification = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
