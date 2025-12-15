@@ -2098,8 +2098,24 @@ def caso_nuevo():
         db.session.add(caso)
         db.session.flush()
         
+        colaboradores_ids = request.form.getlist("colaboradores")
         responsable_id = request.form.get("responsable_id", type=int)
-        if responsable_id:
+        
+        for colab_id in colaboradores_ids:
+            try:
+                user_id = int(colab_id)
+                es_responsable = (user_id == responsable_id)
+                assignment = CaseAssignment(
+                    case_id=caso.id,
+                    user_id=user_id,
+                    rol_en_caso='abogado',
+                    es_responsable=es_responsable
+                )
+                db.session.add(assignment)
+            except ValueError:
+                pass
+        
+        if responsable_id and str(responsable_id) not in colaboradores_ids:
             assignment = CaseAssignment(
                 case_id=caso.id,
                 user_id=responsable_id,
