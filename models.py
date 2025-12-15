@@ -214,6 +214,24 @@ class CampoPlantilla(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class ImagenModelo(db.Model):
+    """Imagen asociada a un modelo de documento."""
+    __tablename__ = 'imagenes_modelos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    modelo_id = db.Column(db.Integer, db.ForeignKey('plantillas.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    nombre = db.Column(db.String(200), nullable=False)
+    archivo = db.Column(db.String(255), nullable=False)
+    posicion = db.Column(db.String(50), default='inline')
+    descripcion = db.Column(db.String(500))
+    ancho_cm = db.Column(db.Float, default=5.0)
+    orden = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    modelo = db.relationship('Modelo', backref=db.backref('imagenes', lazy='dynamic', cascade='all, delete-orphan'))
+
+
 class Case(db.Model):
     """Caso legal - expediente judicial o extrajudicial."""
     __tablename__ = 'cases'

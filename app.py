@@ -14,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -27,6 +27,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 db.init_app(app)
 
@@ -54,6 +55,8 @@ CARPETA_ESTILOS = "estilos_estudio"
 CARPETA_RESULTADOS = "Resultados"
 CARPETA_PLANTILLAS_SUBIDAS = "plantillas_subidas"
 CARPETA_ESTILOS_SUBIDOS = "estilos_subidos"
+CARPETA_IMAGENES_MODELOS = "static/imagenes_modelos"
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
 import re
 
@@ -2448,6 +2451,44 @@ def mi_modelo():
             
             db.session.commit()
         
+        imagen_archivo = request.files.get('imagen_archivo')
+        if imagen_archivo and imagen_archivo.filename:
+            img_ext = os.path.splitext(imagen_archivo.filename)[1].lower()
+            if img_ext in ALLOWED_IMAGE_EXTENSIONS:
+                tenant_folder = os.path.join(CARPETA_IMAGENES_MODELOS, str(tenant.id))
+                os.makedirs(tenant_folder, exist_ok=True)
+                
+                safe_img_name = secure_filename(imagen_archivo.filename)
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                img_filename = f"{timestamp}_{safe_img_name}"
+                img_path = os.path.join(tenant_folder, img_filename)
+                imagen_archivo.save(img_path)
+                
+                imagen_nombre = request.form.get('imagen_nombre', safe_img_name).strip()
+                imagen_posicion = request.form.get('imagen_posicion', 'inline')
+                try:
+                    imagen_ancho = float(request.form.get('imagen_ancho') or 5.0)
+                    if imagen_ancho < 1 or imagen_ancho > 18:
+                        imagen_ancho = 5.0
+                except (ValueError, TypeError):
+                    imagen_ancho = 5.0
+                
+                nueva_imagen = ImagenModelo(
+                    modelo_id=modelo.id,
+                    tenant_id=tenant.id,
+                    nombre=imagen_nombre,
+                    archivo=img_path,
+                    posicion=imagen_posicion,
+                    ancho_cm=imagen_ancho,
+                    orden=modelo.imagenes.count()
+                )
+                db.session.add(nueva_imagen)
+                db.session.commit()
+                flash("Imagen agregada al modelo.", "success")
+                return redirect(url_for("mi_modelo", id=modelo.id))
+            else:
+                flash("Formato de imagen no soportado. Use JPG, PNG, GIF o WebP.", "error")
+        
         return redirect(url_for("mis_modelos"))
     
     campos_guardados = []
@@ -2458,6 +2499,30 @@ def mi_modelo():
         ).order_by(CampoPlantilla.orden).all()
     
     return render_template("mi_modelo.html", modelo=modelo, campos_detectados=campos_detectados, campos_guardados=campos_guardados)
+
+
+@app.route("/api/imagen-modelo/<int:imagen_id>", methods=["DELETE"])
+@login_required
+def eliminar_imagen_modelo(imagen_id):
+    tenant = get_current_tenant()
+    imagen = ImagenModelo.query.filter_by(id=imagen_id, tenant_id=tenant.id).first()
+    
+    if not imagen:
+        return jsonify({"success": False, "error": "Imagen no encontrada"}), 404
+    
+    modelo = Modelo.query.get(imagen.modelo_id)
+    if not modelo or modelo.created_by_id != current_user.id:
+        return jsonify({"success": False, "error": "No tienes permiso"}), 403
+    
+    if imagen.archivo and os.path.exists(imagen.archivo):
+        try:
+            os.remove(imagen.archivo)
+        except Exception as e:
+            logging.error(f"Error deleting image file: {e}")
+    
+    db.session.delete(imagen)
+    db.session.commit()
+    return jsonify({"success": True})
 
 
 @app.route("/mi-modelo/eliminar/<int:modelo_id>", methods=["POST"])
