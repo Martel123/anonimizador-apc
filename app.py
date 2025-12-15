@@ -16,7 +16,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue
+import uuid
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -3926,6 +3927,279 @@ def descargar_anonimizado(nombre):
         return redirect(url_for('anonimizar_documento'))
     
     return send_from_directory(folder, nombre, as_attachment=True)
+
+
+# ==================== REVISOR IA ====================
+
+CARPETA_REVISIONES = "revisiones_temp"
+
+def get_revisiones_folder(tenant_id):
+    folder = os.path.join(CARPETA_REVISIONES, f"tenant_{tenant_id}")
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def revisar_documento_con_ia(texto_documento, nombre_documento):
+    """Analiza un documento legal con IA para detectar errores y problemas."""
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        system_prompt = """Eres un revisor legal experto peruano especializado en documentos jurídicos. Tu tarea es revisar documentos legales y detectar problemas en las siguientes categorías:
+
+1. COHERENCIA JURÍDICA: Verifica que los fundamentos legales sean correctos, que las normas citadas existan y apliquen al caso, y que los argumentos sean lógicamente consistentes.
+
+2. CONTRADICCIONES: Detecta inconsistencias en los datos (nombres, fechas, montos, DNI que no coinciden a lo largo del documento), afirmaciones contradictorias, o hechos que se contradicen entre sí.
+
+3. ESTRUCTURA: Verifica que el documento tenga la estructura correcta para su tipo (demanda, contestación, recurso, etc.), que contenga todas las secciones necesarias y en el orden correcto.
+
+4. CAMPOS INCOMPLETOS: Identifica campos vacíos, placeholders no reemplazados (como {{nombre}}, [COMPLETAR], XXX), datos faltantes obligatorios, o información incompleta.
+
+Responde ÚNICAMENTE en formato JSON válido con la siguiente estructura:
+{
+    "evaluacion_general": "Breve resumen del estado general del documento (1-2 oraciones)",
+    "issues": [
+        {
+            "severidad": "error|advertencia|sugerencia",
+            "tipo": "coherencia|contradiccion|estructura|campo_incompleto",
+            "ubicacion": "Sección o parte del documento donde se encuentra el problema",
+            "fragmento": "Texto exacto donde se detectó el problema (máximo 100 caracteres)",
+            "descripcion": "Descripción clara del problema encontrado",
+            "recomendacion": "Cómo corregir el problema"
+        }
+    ]
+}
+
+Severidades:
+- "error": Problemas graves que deben corregirse obligatoriamente (contradicciones de datos, campos vacíos críticos)
+- "advertencia": Problemas importantes que deberían revisarse (posibles inconsistencias, estructura mejorable)
+- "sugerencia": Mejoras opcionales o recomendaciones de estilo
+
+Si el documento está bien, devuelve issues como array vacío."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Revisa el siguiente documento legal llamado '{nombre_documento}':\n\n{texto_documento[:15000]}"}
+            ],
+            temperature=0.3,
+            max_tokens=4000,
+            response_format={"type": "json_object"}
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error en revisión IA: {e}")
+        return None
+
+
+@app.route("/revisor-ia")
+@login_required
+def revisor_ia():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    # Obtener revisiones anteriores del usuario
+    revisiones = ReviewSession.query.filter_by(
+        tenant_id=tenant.id,
+        user_id=current_user.id
+    ).order_by(ReviewSession.created_at.desc()).limit(10).all()
+    
+    # Obtener documentos recientes para seleccionar
+    documentos_recientes = FinishedDocument.query.filter_by(
+        tenant_id=tenant.id,
+        user_id=current_user.id
+    ).order_by(FinishedDocument.created_at.desc()).limit(20).all()
+    
+    return render_template("revisor_ia.html",
+                          revisiones=revisiones,
+                          documentos_recientes=documentos_recientes)
+
+
+@app.route("/revisor-ia/analizar", methods=["POST"])
+@login_required
+def revisor_ia_analizar():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    texto_documento = None
+    nombre_documento = "Documento"
+    archivo_path = None
+    
+    # Opción 1: Subir archivo
+    archivo = request.files.get("archivo")
+    if archivo and archivo.filename:
+        filename = secure_filename(archivo.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        
+        if ext not in ['.docx', '.txt', '.pdf']:
+            flash("Formato no soportado. Use archivos .docx, .txt o .pdf", "error")
+            return redirect(url_for('revisor_ia'))
+        
+        folder = get_revisiones_folder(tenant.id)
+        unique_name = f"{uuid.uuid4().hex}_{filename}"
+        temp_path = os.path.join(folder, unique_name)
+        archivo.save(temp_path)
+        archivo_path = temp_path
+        nombre_documento = filename
+        
+        # Extraer texto
+        if ext == '.docx':
+            try:
+                doc = Document(temp_path)
+                texto_documento = "\n".join([p.text for p in doc.paragraphs])
+            except Exception as e:
+                logging.error(f"Error leyendo docx: {e}")
+                flash("Error al leer el archivo Word.", "error")
+                return redirect(url_for('revisor_ia'))
+        elif ext == '.txt':
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                texto_documento = f.read()
+        elif ext == '.pdf':
+            try:
+                from PyPDF2 import PdfReader
+                reader = PdfReader(temp_path)
+                texto_documento = "\n".join([page.extract_text() or "" for page in reader.pages])
+            except Exception as e:
+                logging.error(f"Error leyendo PDF: {e}")
+                flash("Error al leer el archivo PDF.", "error")
+                return redirect(url_for('revisor_ia'))
+    
+    # Opción 2: Seleccionar documento existente
+    documento_id = request.form.get("documento_id", type=int)
+    if not texto_documento and documento_id:
+        doc = FinishedDocument.query.filter_by(
+            id=documento_id,
+            tenant_id=tenant.id
+        ).first()
+        if doc:
+            nombre_documento = doc.nombre_documento
+            # Leer el contenido del archivo
+            if doc.archivo_path and os.path.exists(doc.archivo_path):
+                try:
+                    docx = Document(doc.archivo_path)
+                    texto_documento = "\n".join([p.text for p in docx.paragraphs])
+                except:
+                    pass
+            if not texto_documento and doc.contenido_texto:
+                texto_documento = doc.contenido_texto
+    
+    # Opción 3: Texto pegado directamente
+    texto_directo = request.form.get("texto_documento", "").strip()
+    if not texto_documento and texto_directo:
+        texto_documento = texto_directo
+        nombre_documento = "Texto pegado"
+    
+    if not texto_documento:
+        flash("No se proporcionó ningún documento para revisar.", "error")
+        return redirect(url_for('revisor_ia'))
+    
+    # Crear sesión de revisión
+    review = ReviewSession(
+        tenant_id=tenant.id,
+        user_id=current_user.id,
+        nombre_documento=nombre_documento,
+        archivo_path=archivo_path,
+        contenido_texto=texto_documento[:50000],
+        estado='procesando'
+    )
+    db.session.add(review)
+    db.session.commit()
+    
+    # Analizar con IA
+    resultado = revisar_documento_con_ia(texto_documento, nombre_documento)
+    
+    if not resultado:
+        review.estado = 'error'
+        db.session.commit()
+        flash("Error al analizar el documento. Intenta de nuevo.", "error")
+        return redirect(url_for('revisor_ia'))
+    
+    # Guardar resultados
+    review.evaluacion_general = resultado.get('evaluacion_general', '')
+    review.estado = 'completado'
+    review.completed_at = datetime.utcnow()
+    
+    errores = 0
+    advertencias = 0
+    sugerencias = 0
+    
+    for i, issue in enumerate(resultado.get('issues', [])):
+        severidad = issue.get('severidad', 'sugerencia')
+        if severidad == 'error':
+            errores += 1
+        elif severidad == 'advertencia':
+            advertencias += 1
+        else:
+            sugerencias += 1
+        
+        review_issue = ReviewIssue(
+            session_id=review.id,
+            severidad=severidad,
+            tipo=issue.get('tipo', 'otro'),
+            ubicacion=issue.get('ubicacion', ''),
+            fragmento=issue.get('fragmento', ''),
+            descripcion=issue.get('descripcion', ''),
+            recomendacion=issue.get('recomendacion', ''),
+            orden=i
+        )
+        db.session.add(review_issue)
+    
+    review.total_errores = errores
+    review.total_advertencias = advertencias
+    review.total_sugerencias = sugerencias
+    db.session.commit()
+    
+    return redirect(url_for('revisor_ia_resultado', review_id=review.id))
+
+
+@app.route("/revisor-ia/resultado/<int:review_id>")
+@login_required
+def revisor_ia_resultado(review_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    review = ReviewSession.query.filter_by(
+        id=review_id,
+        tenant_id=tenant.id
+    ).first_or_404()
+    
+    issues = ReviewIssue.query.filter_by(session_id=review.id).order_by(
+        db.case(
+            (ReviewIssue.severidad == 'error', 1),
+            (ReviewIssue.severidad == 'advertencia', 2),
+            else_=3
+        ),
+        ReviewIssue.orden
+    ).all()
+    
+    return render_template("revisor_ia_resultado.html",
+                          review=review,
+                          issues=issues)
+
+
+@app.route("/revisor-ia/historial")
+@login_required
+def revisor_ia_historial():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    revisiones = ReviewSession.query.filter_by(
+        tenant_id=tenant.id,
+        user_id=current_user.id
+    ).order_by(ReviewSession.created_at.desc()).all()
+    
+    return render_template("revisor_ia_historial.html", revisiones=revisiones)
 
 
 with app.app_context():

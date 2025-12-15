@@ -1,0 +1,107 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Historial de Revisiones{% endblock %}
+{% block page_title %}Historial de Revisiones IA{% endblock %}
+{% block page_subtitle %}Todas tus revisiones de documentos{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <a href="{{ url_for('revisor_ia') }}" class="text-blue-600 hover:text-blue-700 flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Volver al Revisor
+        </a>
+        <a href="{{ url_for('revisor_ia') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center">
+            <i class="fas fa-plus mr-2"></i>Nueva Revision
+        </a>
+    </div>
+
+    {% if revisiones %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="divide-y divide-gray-100">
+            {% for rev in revisiones %}
+            <a href="{{ url_for('revisor_ia_resultado', review_id=rev.id) }}" class="block px-6 py-4 hover:bg-gray-50 transition-colors">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        {% if rev.estado == 'completado' %}
+                            {% if rev.total_errores > 0 %}
+                            <div class="p-2 bg-red-100 rounded-lg">
+                                <i class="fas fa-exclamation-circle text-red-600"></i>
+                            </div>
+                            {% elif rev.total_advertencias > 0 %}
+                            <div class="p-2 bg-yellow-100 rounded-lg">
+                                <i class="fas fa-exclamation-triangle text-yellow-600"></i>
+                            </div>
+                            {% else %}
+                            <div class="p-2 bg-green-100 rounded-lg">
+                                <i class="fas fa-check-circle text-green-600"></i>
+                            </div>
+                            {% endif %}
+                        {% elif rev.estado == 'error' %}
+                        <div class="p-2 bg-red-100 rounded-lg">
+                            <i class="fas fa-times text-red-600"></i>
+                        </div>
+                        {% else %}
+                        <div class="p-2 bg-yellow-100 rounded-lg">
+                            <i class="fas fa-spinner fa-spin text-yellow-600"></i>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <p class="font-medium text-gray-900">{{ rev.nombre_documento }}</p>
+                            <p class="text-sm text-gray-500">{{ rev.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        {% if rev.estado == 'completado' %}
+                            {% if rev.total_errores > 0 %}
+                            <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                                {{ rev.total_errores }} error{% if rev.total_errores > 1 %}es{% endif %}
+                            </span>
+                            {% endif %}
+                            {% if rev.total_advertencias > 0 %}
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                                {{ rev.total_advertencias }} advertencia{% if rev.total_advertencias > 1 %}s{% endif %}
+                            </span>
+                            {% endif %}
+                            {% if rev.total_sugerencias > 0 %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                {{ rev.total_sugerencias }} sugerencia{% if rev.total_sugerencias > 1 %}s{% endif %}
+                            </span>
+                            {% endif %}
+                            {% if rev.total_errores == 0 and rev.total_advertencias == 0 and rev.total_sugerencias == 0 %}
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                <i class="fas fa-check mr-1"></i>Sin problemas
+                            </span>
+                            {% endif %}
+                        {% elif rev.estado == 'error' %}
+                            <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                                Error en analisis
+                            </span>
+                        {% else %}
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                                Procesando...
+                            </span>
+                        {% endif %}
+                        <i class="fas fa-chevron-right text-gray-400"></i>
+                    </div>
+                </div>
+                {% if rev.evaluacion_general %}
+                <p class="text-sm text-gray-600 mt-2 ml-14 line-clamp-2">{{ rev.evaluacion_general }}</p>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div class="p-4 bg-gray-100 rounded-full inline-block mb-4">
+            <i class="fas fa-search text-gray-400 text-4xl"></i>
+        </div>
+        <h3 class="text-xl font-medium text-gray-900 mb-2">No hay revisiones</h3>
+        <p class="text-gray-600 mb-4">Aun no has analizado ningun documento con el Revisor IA.</p>
+        <a href="{{ url_for('revisor_ia') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+            <i class="fas fa-plus mr-2"></i>Iniciar Primera Revision
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
