@@ -543,3 +543,42 @@ class FinishedDocument(db.Model):
         if hours < 0:
             return 0
         return max(1, int(hours / 24) + (1 if hours % 24 > 0 else 0))
+
+
+class ReviewSession(db.Model):
+    """Sesión de revisión de documento por IA."""
+    __tablename__ = 'review_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    nombre_documento = db.Column(db.String(255), nullable=False)
+    archivo_path = db.Column(db.String(500))
+    contenido_texto = db.Column(db.Text)
+    estado = db.Column(db.String(50), default='pendiente')  # pendiente, procesando, completado, error
+    evaluacion_general = db.Column(db.Text)
+    total_errores = db.Column(db.Integer, default=0)
+    total_advertencias = db.Column(db.Integer, default=0)
+    total_sugerencias = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('reviews', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('reviews', lazy='dynamic'))
+    issues = db.relationship('ReviewIssue', backref='session', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class ReviewIssue(db.Model):
+    """Problema detectado en una revisión de documento."""
+    __tablename__ = 'review_issues'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('review_sessions.id'), nullable=False)
+    severidad = db.Column(db.String(20), nullable=False)  # error, advertencia, sugerencia
+    tipo = db.Column(db.String(100), nullable=False)  # coherencia, contradiccion, estructura, campo_incompleto
+    ubicacion = db.Column(db.String(500))
+    fragmento = db.Column(db.Text)
+    descripcion = db.Column(db.Text, nullable=False)
+    recomendacion = db.Column(db.Text)
+    orden = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
