@@ -2702,6 +2702,176 @@ def descargar_documento_terminado(doc_id):
     return send_from_directory(directory, filename, as_attachment=True)
 
 
+@app.route("/documentos-terminados/editar/<int:doc_id>", methods=["GET", "POST"])
+@login_required
+def editar_documento_terminado(doc_id):
+    tenant = get_current_tenant()
+    documento = FinishedDocument.query.filter_by(
+        id=doc_id, 
+        tenant_id=tenant.id,
+        user_id=current_user.id
+    ).first()
+    
+    if not documento:
+        flash("No tienes permiso para editar este documento.", "error")
+        return redirect(url_for("documentos_terminados"))
+    
+    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
+    
+    contenido_texto = ""
+    campos_detectados = []
+    if documento.archivo and os.path.exists(documento.archivo):
+        contenido_texto = extract_text_from_file(documento.archivo)
+        campos_detectados = detect_placeholders_with_context(contenido_texto)
+    
+    if request.method == "POST":
+        action = request.form.get('action', 'save_metadata')
+        
+        if action == 'save_metadata':
+            documento.nombre = request.form.get('nombre', documento.nombre).strip()
+            documento.descripcion = request.form.get('descripcion', '').strip()
+            documento.tipo_documento = request.form.get('tipo_documento', '').strip()
+            case_id = request.form.get('case_id', type=int)
+            documento.case_id = case_id if case_id else None
+            db.session.commit()
+            flash("Documento actualizado exitosamente.", "success")
+            return redirect(url_for("documentos_terminados"))
+        
+        elif action == 'update_fields':
+            field_values = {}
+            for key in request.form:
+                if key.startswith('field_'):
+                    field_name = key.replace('field_', '')
+                    field_values[field_name] = request.form[key]
+            
+            if field_values and documento.archivo and os.path.exists(documento.archivo):
+                ext = os.path.splitext(documento.archivo)[1].lower()
+                if ext == '.docx':
+                    try:
+                        doc = Document(documento.archivo)
+                        
+                        def replace_in_runs(para, search_text, replace_text):
+                            """Replace text in runs while preserving formatting."""
+                            full_text = para.text
+                            if search_text not in full_text:
+                                return False
+                            
+                            runs_text = [(run, run.text) for run in para.runs]
+                            combined = ''.join([t for _, t in runs_text])
+                            
+                            if search_text in combined:
+                                start_idx = combined.find(search_text)
+                                end_idx = start_idx + len(search_text)
+                                
+                                char_idx = 0
+                                first_run_idx = None
+                                first_run_char = None
+                                last_run_idx = None
+                                last_run_char = None
+                                
+                                for i, (run, text) in enumerate(runs_text):
+                                    run_start = char_idx
+                                    run_end = char_idx + len(text)
+                                    
+                                    if first_run_idx is None and run_end > start_idx:
+                                        first_run_idx = i
+                                        first_run_char = start_idx - run_start
+                                    
+                                    if run_end >= end_idx:
+                                        last_run_idx = i
+                                        last_run_char = end_idx - run_start
+                                        break
+                                    
+                                    char_idx = run_end
+                                
+                                if first_run_idx is not None and last_run_idx is not None:
+                                    if first_run_idx == last_run_idx:
+                                        run = para.runs[first_run_idx]
+                                        original = run.text
+                                        run.text = original[:first_run_char] + replace_text + original[last_run_char:]
+                                    else:
+                                        first_run = para.runs[first_run_idx]
+                                        first_run.text = first_run.text[:first_run_char] + replace_text
+                                        
+                                        for i in range(first_run_idx + 1, last_run_idx):
+                                            para.runs[i].text = ''
+                                        
+                                        last_run = para.runs[last_run_idx]
+                                        last_run.text = last_run.text[last_run_char:]
+                                    return True
+                            return False
+                        
+                        for para in doc.paragraphs:
+                            for field_name, field_value in field_values.items():
+                                if field_value:
+                                    for campo in campos_detectados:
+                                        if campo['nombre'] == field_name and campo['match_text'] in para.text:
+                                            replace_in_runs(para, campo['match_text'], field_value)
+                        
+                        for table in doc.tables:
+                            for row in table.rows:
+                                for cell in row.cells:
+                                    for para in cell.paragraphs:
+                                        for field_name, field_value in field_values.items():
+                                            if field_value:
+                                                for campo in campos_detectados:
+                                                    if campo['nombre'] == field_name and campo['match_text'] in para.text:
+                                                        replace_in_runs(para, campo['match_text'], field_value)
+                        
+                        doc.save(documento.archivo)
+                        flash("Campos actualizados en el documento.", "success")
+                    except Exception as e:
+                        logging.error(f"Error updating document fields: {e}")
+                        flash("Error al actualizar los campos del documento.", "error")
+                elif ext == '.txt':
+                    try:
+                        with open(documento.archivo, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        for field_name, field_value in field_values.items():
+                            if field_value:
+                                for campo in campos_detectados:
+                                    if campo['nombre'] == field_name:
+                                        content = content.replace(campo['match_text'], field_value)
+                        with open(documento.archivo, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        flash("Campos actualizados en el documento.", "success")
+                    except Exception as e:
+                        logging.error(f"Error updating text document fields: {e}")
+                        flash("Error al actualizar los campos del documento.", "error")
+                else:
+                    flash("La edicion de campos solo esta disponible para archivos .docx y .txt", "warning")
+            
+            contenido_texto = extract_text_from_file(documento.archivo)
+            campos_detectados = detect_placeholders_with_context(contenido_texto)
+            contenido_html = ""
+            if contenido_texto and campos_detectados:
+                contenido_html = generate_highlighted_html(contenido_texto, campos_detectados)
+            elif contenido_texto:
+                from markupsafe import escape
+                contenido_html = str(escape(contenido_texto)).replace('\n', '<br>')
+            
+            return render_template("editar_documento_terminado.html", 
+                                 documento=documento, 
+                                 casos=casos,
+                                 contenido_texto=contenido_texto,
+                                 contenido_html=contenido_html,
+                                 campos_detectados=campos_detectados)
+    
+    contenido_html = ""
+    if contenido_texto and campos_detectados:
+        contenido_html = generate_highlighted_html(contenido_texto, campos_detectados)
+    elif contenido_texto:
+        from markupsafe import escape
+        contenido_html = str(escape(contenido_texto)).replace('\n', '<br>')
+    
+    return render_template("editar_documento_terminado.html", 
+                         documento=documento, 
+                         casos=casos,
+                         contenido_texto=contenido_texto,
+                         contenido_html=contenido_html,
+                         campos_detectados=campos_detectados)
+
+
 # ==================== ESTADISTICAS INDIVIDUALES ====================
 
 @app.route("/mis-estadisticas")

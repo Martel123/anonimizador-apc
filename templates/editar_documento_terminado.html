@@ -1,0 +1,187 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Editar Documento{% endblock %}
+{% block page_title %}Editar Documento{% endblock %}
+{% block page_subtitle %}{{ documento.nombre }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="mb-4">
+        <a href="{{ url_for('documentos_terminados') }}" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Volver a Documentos Terminados
+        </a>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+        <div class="space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-info-circle text-blue-600 mr-2"></i>Informacion del Documento
+                </h3>
+                <form action="{{ url_for('editar_documento_terminado', doc_id=documento.id) }}" method="POST">
+                    <input type="hidden" name="action" value="save_metadata">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Nombre del documento</label>
+                            <input type="text" name="nombre" value="{{ documento.nombre }}" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de documento</label>
+                            <input type="text" name="tipo_documento" value="{{ documento.tipo_documento or '' }}" 
+                                   placeholder="Ej: Demanda, Contestacion, Recurso"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Asignar a caso</label>
+                            <select name="case_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">-- Sin asignar --</option>
+                                {% for caso in casos %}
+                                <option value="{{ caso.id }}" {% if documento.case_id == caso.id %}selected{% endif %}>
+                                    {{ caso.titulo }} ({{ caso.cliente_nombre }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Descripcion</label>
+                            <textarea name="descripcion" rows="3" 
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">{{ documento.descripcion or '' }}</textarea>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                <i class="fas fa-save mr-2"></i>Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            {% if campos_detectados %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-edit text-green-600 mr-2"></i>Editar Campos del Documento
+                </h3>
+                <p class="text-sm text-gray-500 mb-4">
+                    Completa los valores para reemplazar los campos detectados en el documento.
+                    Los cambios se aplicaran directamente al archivo.
+                </p>
+                <form action="{{ url_for('editar_documento_terminado', doc_id=documento.id) }}" method="POST">
+                    <input type="hidden" name="action" value="update_fields">
+                    <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        {% for campo in campos_detectados %}
+                        <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 campo-editor" data-campo-index="{{ loop.index0 }}">
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">{{ campo.etiqueta }}</label>
+                                <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">{{ campo.pattern_type }}</span>
+                            </div>
+                            <input type="text" name="field_{{ campo.nombre }}" 
+                                   placeholder="Ingresa el valor para: {{ campo.match_text[:50] }}..."
+                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <p class="text-xs text-gray-400 mt-1">Original: "{{ campo.match_text[:60] }}{% if campo.match_text|length > 60 %}...{% endif %}"</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="flex justify-end mt-4 pt-4 border-t border-gray-200">
+                        <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            <i class="fas fa-check mr-2"></i>Aplicar Cambios al Documento
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900">Vista Previa del Documento</h3>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% if campos_detectados %}
+                        {{ campos_detectados|length }} campos detectados
+                        {% else %}
+                        No se detectaron campos editables
+                        {% endif %}
+                    </p>
+                </div>
+                <a href="{{ url_for('descargar_documento_terminado', doc_id=documento.id) }}" 
+                   class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors">
+                    <i class="fas fa-download mr-2"></i>Descargar
+                </a>
+            </div>
+
+            <div class="flex-1 p-6 overflow-y-auto max-h-[700px] bg-gray-50">
+                {% if contenido_html %}
+                <div id="preview-content" class="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap bg-white p-4 rounded-lg border border-gray-200">
+                    {{ contenido_html|safe }}
+                </div>
+                {% else %}
+                <div class="flex flex-col items-center justify-center h-full text-gray-400 py-12">
+                    <i class="fas fa-file-alt text-5xl mb-4"></i>
+                    <p class="text-lg font-medium">No hay contenido disponible</p>
+                    <p class="text-sm mt-2">El archivo no se puede previsualizar</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+#preview-content {
+    font-family: 'Times New Roman', Times, serif;
+}
+.placeholder-highlight {
+    transition: all 0.2s ease;
+    display: inline;
+}
+.placeholder-highlight:hover {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+.campo-editor:hover {
+    background-color: #eff6ff;
+    border-color: #93c5fd;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const campoEditors = document.querySelectorAll('.campo-editor');
+    const highlights = document.querySelectorAll('.placeholder-highlight');
+    
+    campoEditors.forEach(editor => {
+        editor.addEventListener('mouseenter', function() {
+            const index = this.getAttribute('data-campo-index');
+            highlights.forEach(h => {
+                if (h.getAttribute('data-campo-index') === index) {
+                    h.style.boxShadow = '0 0 0 3px rgba(34, 197, 94, 0.5)';
+                    h.style.backgroundColor = '#bbf7d0';
+                }
+            });
+        });
+        editor.addEventListener('mouseleave', function() {
+            highlights.forEach(h => {
+                h.style.boxShadow = '';
+                h.style.backgroundColor = '';
+            });
+        });
+    });
+    
+    highlights.forEach(h => {
+        h.addEventListener('click', function() {
+            const index = this.getAttribute('data-campo-index');
+            const editor = document.querySelector(`.campo-editor[data-campo-index="${index}"]`);
+            if (editor) {
+                editor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                editor.style.backgroundColor = '#dbeafe';
+                setTimeout(() => {
+                    editor.style.backgroundColor = '';
+                }, 2000);
+                const input = editor.querySelector('input');
+                if (input) input.focus();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

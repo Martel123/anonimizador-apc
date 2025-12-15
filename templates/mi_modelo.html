@@ -136,7 +136,7 @@
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
                 <h3 class="text-lg font-medium text-gray-900">Vista Previa del Documento</h3>
-                <p class="text-xs text-gray-500 mt-1">Los campos detectados estan resaltados con colores</p>
+                <p class="text-xs text-gray-500 mt-1">Los campos detectados estan resaltados con colores. <span class="text-blue-600 font-medium">Selecciona texto para crear nuevos campos.</span></p>
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500">Campos detectados:</span>
@@ -196,6 +196,15 @@
     </div>
 </div>
 
+<div id="selection-popup" class="fixed hidden z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-3" style="min-width: 200px;">
+    <div class="text-xs text-gray-500 mb-2">Texto seleccionado:</div>
+    <div id="selection-text" class="text-sm font-medium text-gray-800 mb-3 max-w-xs truncate"></div>
+    <button type="button" onclick="createFieldFromSelection()" class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+        <i class="fas fa-plus"></i>
+        Crear Campo
+    </button>
+</div>
+
 <style>
 .placeholder-highlight {
     transition: all 0.2s ease;
@@ -213,17 +222,36 @@
 }
 #preview-content {
     font-family: 'Times New Roman', Times, serif;
+    user-select: text;
+}
+#preview-content::selection {
+    background-color: #93c5fd;
+}
+.manual-field {
+    background-color: #fef3c7 !important;
+    border: 1px dashed #f59e0b;
 }
 </style>
 
 <script>
 let camposData = [];
+let currentSelection = null;
+let documentContent = '';
 
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('archivo_word');
     const confirmation = document.getElementById('file-confirmation');
     const filenameSpan = document.getElementById('selected-filename');
     const uploadZone = document.getElementById('upload-zone');
+    
+    const previewContent = document.getElementById('preview-content');
+    previewContent.addEventListener('mouseup', handleTextSelection);
+    document.addEventListener('mousedown', function(e) {
+        const popup = document.getElementById('selection-popup');
+        if (!popup.contains(e.target) && !previewContent.contains(e.target)) {
+            hideSelectionPopup();
+        }
+    });
     
     if (fileInput && confirmation && filenameSpan) {
         fileInput.addEventListener('change', async function() {
@@ -442,6 +470,160 @@ function addCampo() {
     `;
     container.appendChild(row);
     document.getElementById('campos-count').textContent = index + 1;
+}
+
+function handleTextSelection(e) {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    if (selectedText && selectedText.length > 1 && selectedText.length < 200) {
+        currentSelection = {
+            text: selectedText,
+            range: selection.getRangeAt(0).cloneRange()
+        };
+        
+        const popup = document.getElementById('selection-popup');
+        const selectionTextEl = document.getElementById('selection-text');
+        
+        selectionTextEl.textContent = selectedText.length > 50 ? selectedText.substring(0, 50) + '...' : selectedText;
+        
+        const rect = selection.getRangeAt(0).getBoundingClientRect();
+        popup.style.left = `${rect.left + window.scrollX}px`;
+        popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
+        popup.classList.remove('hidden');
+    } else {
+        hideSelectionPopup();
+    }
+}
+
+function hideSelectionPopup() {
+    document.getElementById('selection-popup').classList.add('hidden');
+    currentSelection = null;
+}
+
+function createFieldFromSelection() {
+    if (!currentSelection || !currentSelection.text) {
+        hideSelectionPopup();
+        return;
+    }
+    
+    const selectedText = currentSelection.text;
+    const fieldName = selectedText.toLowerCase()
+        .replace(/[áàäâ]/g, 'a')
+        .replace(/[éèëê]/g, 'e')
+        .replace(/[íìïî]/g, 'i')
+        .replace(/[óòöô]/g, 'o')
+        .replace(/[úùüû]/g, 'u')
+        .replace(/[ñ]/g, 'n')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 50) || 'campo';
+    
+    const container = document.getElementById('campos-container');
+    const index = container.querySelectorAll('.campo-row').length;
+    const colors = ['bg-yellow-200', 'bg-green-200', 'bg-blue-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200'];
+    const colorIndex = index % colors.length;
+    
+    const newCampo = {
+        nombre: fieldName,
+        etiqueta: selectedText,
+        tipo: 'text',
+        contexto: selectedText,
+        pattern_type: 'manual_selection',
+        match_text: selectedText
+    };
+    camposData.push(newCampo);
+    
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer manual-field';
+    row.setAttribute('data-campo-index', index);
+    row.innerHTML = `
+        <div class="flex-shrink-0 w-6 h-6 ${colors[colorIndex]} rounded flex items-center justify-center text-xs font-bold text-gray-700">${index + 1}</div>
+        <input type="text" name="campo_nombre[]" value="${fieldName}" 
+               class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        <input type="text" name="campo_etiqueta[]" value="${escapeHtml(selectedText)}" 
+               class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
+        <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            <option value="text">Texto</option>
+            <option value="textarea">Area de texto</option>
+            <option value="date">Fecha</option>
+            <option value="number">Numero</option>
+            <option value="email">Email</option>
+        </select>
+        <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    row.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON') {
+            highlightCampo(index);
+        }
+    });
+    container.appendChild(row);
+    
+    document.getElementById('campos-section').classList.remove('hidden');
+    document.getElementById('campos-count').textContent = index + 1;
+    
+    highlightSelectionInPreview(selectedText, index, colors[colorIndex]);
+    
+    hideSelectionPopup();
+    
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('active');
+    setTimeout(() => row.classList.remove('active'), 2000);
+}
+
+function highlightSelectionInPreview(text, index, colorClass) {
+    const previewContent = document.getElementById('preview-content');
+    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<!data-campo-[^>]*>)(${escapedText})(?![^<]*<\/span>)`, 'g');
+    
+    let found = false;
+    const walker = document.createTreeWalker(previewContent, NodeFilter.SHOW_TEXT, null, false);
+    const nodesToReplace = [];
+    
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (node.textContent.includes(text)) {
+            nodesToReplace.push(node);
+            found = true;
+            break;
+        }
+    }
+    
+    if (found && nodesToReplace.length > 0) {
+        const node = nodesToReplace[0];
+        const parent = node.parentNode;
+        const textContent = node.textContent;
+        const startIndex = textContent.indexOf(text);
+        
+        if (startIndex !== -1) {
+            const before = textContent.substring(0, startIndex);
+            const match = textContent.substring(startIndex, startIndex + text.length);
+            const after = textContent.substring(startIndex + text.length);
+            
+            const fragment = document.createDocumentFragment();
+            if (before) fragment.appendChild(document.createTextNode(before));
+            
+            const span = document.createElement('span');
+            span.className = `placeholder-highlight ${colorClass} px-1 rounded cursor-pointer hover:ring-2 hover:ring-blue-500`;
+            span.setAttribute('data-campo-index', index);
+            span.setAttribute('data-campo-nombre', text.substring(0, 50));
+            span.setAttribute('title', text);
+            span.textContent = match;
+            fragment.appendChild(span);
+            
+            if (after) fragment.appendChild(document.createTextNode(after));
+            
+            parent.replaceChild(fragment, node);
+        }
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 </script>
 {% endblock %}

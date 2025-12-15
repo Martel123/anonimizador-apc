@@ -109,6 +109,10 @@
                             {{ doc.created_at.strftime('%d/%m/%Y %H:%M') }}
                         </td>
                         <td class="px-6 py-4 text-right">
+                            <a href="{{ url_for('editar_documento_terminado', doc_id=doc.id) }}" 
+                               class="inline-flex items-center px-3 py-1 text-sm text-green-600 hover:text-green-800 mr-2">
+                                <i class="fas fa-edit mr-1"></i>Editar
+                            </a>
                             <a href="{{ url_for('descargar_documento_terminado', doc_id=doc.id) }}" 
                                class="inline-flex items-center px-3 py-1 text-sm text-blue-600 hover:text-blue-800 mr-2">
                                 <i class="fas fa-download mr-1"></i>Descargar
