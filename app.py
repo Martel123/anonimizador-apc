@@ -199,6 +199,183 @@ def campo_to_key(campo_name):
     return key[:50] if key else 'campo'
 
 
+def detect_placeholders_with_context(text):
+    """
+    Detect placeholders in text and return them with position context.
+    Returns list of dicts with: nombre, etiqueta, tipo, start, end, contexto, match_text
+    """
+    campos = []
+    campo_counter = {}
+    seen_positions = set()
+    
+    patterns = [
+        (r'\{\{([^}]+)\}\}', 'curly_double'),
+        (r'\{([^{}]+)\}', 'curly_single'),
+        (r'\[\[([^\]]+)\]\]', 'bracket_double'),
+        (r'\[([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s_]+)\]', 'bracket_single'),
+    ]
+    
+    for pattern, pattern_type in patterns:
+        for match in re.finditer(pattern, text):
+            start, end = match.start(), match.end()
+            if any(s <= start < e or s < end <= e for s, e in seen_positions):
+                continue
+            seen_positions.add((start, end))
+            
+            captured = match.group(1).strip().replace('_', ' ')
+            if captured and len(captured) > 1:
+                context_start = max(0, start - 30)
+                context_end = min(len(text), end + 30)
+                contexto = text[context_start:context_end]
+                
+                campos.append({
+                    'nombre': campo_to_key(captured),
+                    'etiqueta': captured,
+                    'tipo': 'text',
+                    'start': start,
+                    'end': end,
+                    'contexto': contexto,
+                    'match_text': match.group(0),
+                    'pattern_type': pattern_type
+                })
+    
+    dot_pattern = r'([A-Za-zÁÉÍÓÚáéíóúÑñ\s\.\,\-°]+?)(?:N[°º]?\s*)?([\.…]{3,}|_{3,})'
+    
+    for match in re.finditer(dot_pattern, text):
+        start, end = match.start(), match.end()
+        if any(s <= start < e or s < end <= e for s, e in seen_positions):
+            continue
+        seen_positions.add((start, end))
+        
+        full_match = match.group(0)
+        context = match.group(1) if match.group(1) else ""
+        placeholder_chars = match.group(2) if match.group(2) else ""
+        
+        context = context.strip()
+        context = re.sub(r'^[,\.\s]+', '', context)
+        context = re.sub(r'[,\.\s]+$', '', context)
+        
+        if len(context) < 3:
+            before_start = max(0, match.start() - 50)
+            before_text = text[before_start:match.start()]
+            words = re.findall(r'[A-Za-zÁÉÍÓÚáéíóúÑñ]+(?:\s+[A-Za-zÁÉÍÓÚáéíóúÑñ]+)*', before_text)
+            if words:
+                context = words[-1] if len(words[-1]) > 2 else ' '.join(words[-2:]) if len(words) > 1 else words[-1]
+        
+        if 'N°' in full_match or 'N.' in context or 'Nº' in full_match:
+            if 'D.N.I' in context or 'DNI' in context:
+                context = 'Número de DNI'
+            elif 'celular' in context.lower() or 'teléfono' in context.lower():
+                context = 'Número de celular'
+            elif 'expediente' in context.lower():
+                context = 'Número de expediente'
+            else:
+                context = 'Número'
+        
+        if context and len(context) >= 2:
+            base_name = context[:100]
+            if base_name.lower() in campo_counter:
+                campo_counter[base_name.lower()] += 1
+                display_name = f"{base_name} {campo_counter[base_name.lower()]}"
+            else:
+                campo_counter[base_name.lower()] = 1
+                display_name = base_name
+            
+            context_start = max(0, start - 30)
+            context_end = min(len(text), end + 30)
+            contexto = text[context_start:context_end]
+            
+            campos.append({
+                'nombre': campo_to_key(display_name),
+                'etiqueta': display_name,
+                'tipo': 'text',
+                'start': start,
+                'end': end,
+                'contexto': contexto,
+                'match_text': full_match,
+                'pattern_type': 'dots_underscores'
+            })
+    
+    lines = text.split('\n')
+    current_pos = 0
+    for line in lines:
+        if ':' in line and re.search(r':\s*$', line.strip()):
+            parts = line.split(':')
+            if parts[0].strip() and len(parts[0].strip()) > 2:
+                campo_name = parts[0].strip()
+                if campo_name.lower() not in campo_counter:
+                    start = current_pos + line.find(campo_name)
+                    end = current_pos + len(line)
+                    
+                    if not any(s <= start < e or s < end <= e for s, e in seen_positions):
+                        seen_positions.add((start, end))
+                        context_start = max(0, current_pos - 10)
+                        context_end = min(len(text), current_pos + len(line) + 10)
+                        
+                        campos.append({
+                            'nombre': campo_to_key(campo_name),
+                            'etiqueta': campo_name,
+                            'tipo': 'text',
+                            'start': start,
+                            'end': end,
+                            'contexto': text[context_start:context_end],
+                            'match_text': line.strip(),
+                            'pattern_type': 'colon_field'
+                        })
+                        campo_counter[campo_name.lower()] = 1
+        current_pos += len(line) + 1
+    
+    campos.sort(key=lambda x: x['start'])
+    return campos
+
+
+def generate_highlighted_html(text, campos):
+    """
+    Generate HTML with highlighted placeholders for preview.
+    Properly escapes content to prevent XSS attacks.
+    Iterates in forward order to preserve campo index synchronization.
+    """
+    from markupsafe import escape
+    
+    if not campos:
+        escaped = str(escape(text))
+        return escaped.replace('\n', '<br>')
+    
+    sorted_campos = sorted(enumerate(campos), key=lambda x: x[1]['start'])
+    
+    segments = []
+    last_pos = 0
+    
+    for original_idx, campo in sorted_campos:
+        start = campo['start']
+        end = campo['end']
+        
+        if start > last_pos:
+            before_text = text[last_pos:start]
+            segments.append(str(escape(before_text)))
+        
+        match_text = text[start:end]
+        escaped_match = str(escape(match_text))
+        escaped_etiqueta = str(escape(campo['etiqueta']))
+        escaped_nombre = str(escape(campo['nombre']))
+        
+        colors = ['bg-yellow-200', 'bg-green-200', 'bg-blue-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200']
+        color = colors[original_idx % len(colors)]
+        
+        highlighted = f'<span class="placeholder-highlight {color} px-1 rounded cursor-pointer hover:ring-2 hover:ring-blue-500" data-campo-index="{original_idx}" data-campo-nombre="{escaped_nombre}" title="{escaped_etiqueta}">{escaped_match}</span>'
+        segments.append(highlighted)
+        
+        last_pos = end
+    
+    if last_pos < len(text):
+        remaining_text = text[last_pos:]
+        segments.append(str(escape(remaining_text)))
+    
+    result = ''.join(segments)
+    result = result.replace('\n', '<br>')
+    return result
+
+
 def super_admin_required(f):
     @wraps(f)
     @login_required
@@ -2122,7 +2299,7 @@ def mis_modelos():
 @app.route("/api/detect-campos", methods=["POST"])
 @login_required
 def api_detect_campos():
-    """AJAX endpoint to detect fields from uploaded file."""
+    """AJAX endpoint to detect fields from uploaded file with document preview."""
     archivo = request.files.get('archivo')
     
     if not archivo or not archivo.filename:
@@ -2143,17 +2320,28 @@ def api_detect_campos():
         if not contenido:
             return jsonify({'success': False, 'error': 'No se pudo extraer texto del archivo'}), 400
         
-        campos_detectados = detect_placeholders_from_text(contenido)
+        campos_detectados = detect_placeholders_with_context(contenido)
+        
+        highlighted_html = generate_highlighted_html(contenido, campos_detectados)
         
         campos_result = []
-        for campo in campos_detectados:
+        for i, campo in enumerate(campos_detectados):
             campos_result.append({
-                'nombre': campo_to_key(campo),
-                'etiqueta': campo,
-                'tipo': 'text'
+                'nombre': campo['nombre'],
+                'etiqueta': campo['etiqueta'],
+                'tipo': campo['tipo'],
+                'index': i,
+                'contexto': campo['contexto'],
+                'match_text': campo['match_text'],
+                'pattern_type': campo['pattern_type']
             })
         
-        return jsonify({'success': True, 'campos': campos_result})
+        return jsonify({
+            'success': True, 
+            'campos': campos_result,
+            'contenido_html': highlighted_html,
+            'contenido_raw': contenido[:5000] if len(contenido) > 5000 else contenido
+        })
     except Exception as e:
         logging.error(f"Error detecting campos: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
