@@ -77,6 +77,9 @@
                         <div id="campos-container" class="space-y-2 mb-4">
                             {% for campo in campos_guardados %}
                             <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}">
+                                <button type="button" onclick="removeCampo(this)" class="flex-shrink-0 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors" title="Eliminar campo">
+                                    <i class="fas fa-times text-xs"></i>
+                                </button>
                                 <div class="flex-shrink-0 w-6 h-6 bg-yellow-200 rounded flex items-center justify-center text-xs font-bold text-gray-700">{{ loop.index }}</div>
                                 <input type="text" name="campo_nombre[]" value="{{ campo.nombre_campo }}" 
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
@@ -89,13 +92,13 @@
                                     <option value="number" {% if campo.tipo == 'number' %}selected{% endif %}>Numero</option>
                                     <option value="email" {% if campo.tipo == 'email' %}selected{% endif %}>Email</option>
                                 </select>
-                                <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
-                                    <i class="fas fa-times"></i>
-                                </button>
                             </div>
                             {% endfor %}
                             {% for campo in campos_detectados %}
                             <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}">
+                                <button type="button" onclick="removeCampo(this)" class="flex-shrink-0 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors" title="Eliminar campo">
+                                    <i class="fas fa-times text-xs"></i>
+                                </button>
                                 <div class="flex-shrink-0 w-6 h-6 bg-yellow-200 rounded flex items-center justify-center text-xs font-bold text-gray-700">{{ loop.index }}</div>
                                 <input type="text" name="campo_nombre[]" value="{{ campo|replace(' ', '_')|lower }}" 
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
@@ -108,9 +111,6 @@
                                     <option value="number">Numero</option>
                                     <option value="email">Email</option>
                                 </select>
-                                <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
-                                    <i class="fas fa-times"></i>
-                                </button>
                             </div>
                             {% endfor %}
                         </div>
@@ -369,6 +369,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 row.className = 'flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer';
                                 row.setAttribute('data-campo-index', index);
                                 row.innerHTML = `
+                                    <button type="button" onclick="removeCampo(this)" class="flex-shrink-0 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors" title="Eliminar campo">
+                                        <i class="fas fa-times text-xs"></i>
+                                    </button>
                                     <div class="flex-shrink-0 w-6 h-6 ${colors[colorIndex]} rounded flex items-center justify-center text-xs font-bold text-gray-700">${index + 1}</div>
                                     <input type="text" name="campo_nombre[]" value="${campo.nombre}" 
                                            class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
@@ -381,9 +384,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <option value="number">Numero</option>
                                         <option value="email">Email</option>
                                     </select>
-                                    <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
-                                        <i class="fas fa-times"></i>
-                                    </button>
                                 `;
                                 row.addEventListener('click', function(e) {
                                     if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON') {
@@ -528,6 +528,9 @@ function addCampo() {
     row.className = 'flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors';
     row.setAttribute('data-campo-index', index);
     row.innerHTML = `
+        <button type="button" onclick="removeCampo(this)" class="flex-shrink-0 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors" title="Eliminar campo">
+            <i class="fas fa-times text-xs"></i>
+        </button>
         <div class="flex-shrink-0 w-6 h-6 ${colors[colorIndex]} rounded flex items-center justify-center text-xs font-bold text-gray-700">${index + 1}</div>
         <input type="text" name="campo_nombre[]" placeholder="nombre_campo" 
                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
@@ -540,9 +543,6 @@ function addCampo() {
             <option value="number">Numero</option>
             <option value="email">Email</option>
         </select>
-        <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
-            <i class="fas fa-times"></i>
-        </button>
     `;
     container.appendChild(row);
     document.getElementById('campos-count').textContent = index + 1;
