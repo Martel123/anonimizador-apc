@@ -215,42 +215,38 @@
     </div>
 
     <!-- AI Assistant Widget -->
-    <div id="ai-assistant" class="fixed bottom-4 left-4 z-50">
-        <button id="ai-toggle" class="w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 bg-purple-600 hover:bg-purple-700 border-2 border-purple-400 hover:border-purple-500 flex items-center justify-center">
-            <i class="fas fa-question-circle text-white text-2xl"></i>
+    <div id="ai-assistant" class="fixed bottom-4 right-4 z-50">
+        <button id="ai-toggle" class="w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-blue-400 hover:border-blue-500">
+            <img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="Asistente IA" class="w-full h-full object-cover">
         </button>
         
-        <div id="ai-chat" class="hidden absolute bottom-16 left-0 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div class="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4">
+        <div id="ai-chat" class="hidden absolute bottom-16 right-0 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2">
-                        <div class="w-8 h-8 rounded-full border border-white bg-purple-500 flex items-center justify-center">
-                            <i class="fas fa-question-circle text-white"></i>
-                        </div>
+                        <img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-8 h-8 rounded-full border border-white">
                         <div>
                             <h3 class="font-semibold text-sm">Guia de Ayuda</h3>
-                            <p class="text-xs text-purple-200">Aqui para ayudarte</p>
+                            <p class="text-xs text-blue-200">Aqui para ayudarte</p>
                         </div>
                     </div>
-                    <button id="ai-close" class="text-white hover:text-purple-200">
+                    <button id="ai-close" class="text-white hover:text-blue-200">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
             
-            <div id="ai-messages" class="h-64 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            <div id="ai-messages" class="h-72 overflow-y-auto p-4 space-y-3 bg-gray-50">
                 <div class="flex items-start space-x-2">
-                    <div class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-question-circle text-white text-xs"></i>
-                    </div>
+                    <img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0">
                     <div class="bg-white p-3 rounded-lg shadow-sm max-w-[85%]">
-                        <p class="text-sm text-gray-700">Hola! Soy tu guia de la plataforma. Preguntame lo que necesites saber, por ejemplo:</p>
-                        <ul class="text-xs text-gray-600 mt-2 space-y-1">
-                            <li><i class="fas fa-lightbulb text-yellow-500 mr-1"></i> Como creo un caso nuevo?</li>
-                            <li><i class="fas fa-lightbulb text-yellow-500 mr-1"></i> Como genero un documento?</li>
-                            <li><i class="fas fa-lightbulb text-yellow-500 mr-1"></i> Donde veo mis documentos?</li>
-                            <li><i class="fas fa-lightbulb text-yellow-500 mr-1"></i> Como agrego usuarios?</li>
-                        </ul>
+                        <p class="text-sm text-gray-700 text-justify">Hola! Soy tu guia de la plataforma. Preguntame lo que necesites saber, por ejemplo:</p>
+                        <div class="text-sm text-gray-600 mt-3 space-y-2">
+                            <div class="flex"><span class="font-bold mr-2">1.</span><span>Como creo un caso nuevo?</span></div>
+                            <div class="flex"><span class="font-bold mr-2">2.</span><span>Como genero un documento?</span></div>
+                            <div class="flex"><span class="font-bold mr-2">3.</span><span>Donde veo mis documentos?</span></div>
+                            <div class="flex"><span class="font-bold mr-2">4.</span><span>Como agrego usuarios?</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -309,7 +305,7 @@
             const loadingMsg = document.createElement('div');
             loadingMsg.id = 'ai-loading';
             loadingMsg.className = 'flex items-start space-x-2';
-            loadingMsg.innerHTML = `<div class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-question-circle text-white text-xs"></i></div><div class="bg-white p-3 rounded-lg shadow-sm"><i class="fas fa-spinner fa-spin text-purple-600"></i></div>`;
+            loadingMsg.innerHTML = `<img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0"><div class="bg-white p-3 rounded-lg shadow-sm"><i class="fas fa-spinner fa-spin text-blue-600"></i></div>`;
             aiMessages.appendChild(loadingMsg);
             aiMessages.scrollTop = aiMessages.scrollHeight;
 
@@ -323,16 +319,22 @@
                 
                 document.getElementById('ai-loading').remove();
                 
+                let formattedResponse = data.response
+                    .replace(/\n/g, '<br>')
+                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                    .replace(/^(\d+)\.\s/gm, '<div class="flex mt-2"><span class="font-bold mr-2">$1.</span><span>')
+                    .replace(/<br>(?=<div class="flex)/g, '</span></div>');
+                
                 const botMsg = document.createElement('div');
                 botMsg.className = 'flex items-start space-x-2';
-                botMsg.innerHTML = `<div class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-question-circle text-white text-xs"></i></div><div class="bg-white p-3 rounded-lg shadow-sm max-w-[85%]"><p class="text-sm text-gray-700">${data.response}</p></div>`;
+                botMsg.innerHTML = `<img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0"><div class="bg-white p-3 rounded-lg shadow-sm max-w-[85%]"><div class="text-sm text-gray-700 text-justify">${formattedResponse}</div></div>`;
                 aiMessages.appendChild(botMsg);
                 aiMessages.scrollTop = aiMessages.scrollHeight;
             } catch (error) {
                 document.getElementById('ai-loading')?.remove();
                 const errorMsg = document.createElement('div');
                 errorMsg.className = 'flex items-start space-x-2';
-                errorMsg.innerHTML = `<div class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-question-circle text-white text-xs"></i></div><div class="bg-red-50 p-3 rounded-lg"><p class="text-sm text-red-600">Ups! Algo salio mal.</p></div>`;
+                errorMsg.innerHTML = `<img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0"><div class="bg-red-50 p-3 rounded-lg"><p class="text-sm text-red-600">Ups! Algo salio mal.</p></div>`;
                 aiMessages.appendChild(errorMsg);
             }
         });
