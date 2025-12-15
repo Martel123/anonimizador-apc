@@ -129,7 +129,7 @@
                             {% endif %}
                             {% endfor %}
                             {% for campo in campos_detectados %}
-                            <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}">
+                            <div class="flex items-center gap-2 campo-row p-2 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer" data-campo-index="{{ loop.index0 }}" data-tipo="text">
                                 <button type="button" onclick="removeCampo(this)" class="flex-shrink-0 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded flex items-center justify-center transition-colors" title="Eliminar campo">
                                     <i class="fas fa-times text-xs"></i>
                                 </button>
@@ -138,7 +138,7 @@
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <input type="text" name="campo_etiqueta[]" value="{{ campo }}" 
                                        class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
-                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="handleTipoChange(this)">
                                     <option value="text">Texto</option>
                                     <option value="textarea">Area de texto</option>
                                     <option value="date">Fecha</option>
