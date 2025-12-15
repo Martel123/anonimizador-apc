@@ -4167,10 +4167,14 @@ def revisor_ia_resultado(review_id):
         flash("No tienes acceso a esta función.", "error")
         return redirect(url_for('index'))
     
-    review = ReviewSession.query.filter_by(
-        id=review_id,
-        tenant_id=tenant.id
-    ).first_or_404()
+    # Query by tenant and user for security
+    query = ReviewSession.query.filter_by(id=review_id, tenant_id=tenant.id)
+    
+    # Regular users can only see their own reviews
+    if not (current_user.is_admin_estudio() or current_user.is_super_admin() or current_user.is_coordinador()):
+        query = query.filter_by(user_id=current_user.id)
+    
+    review = query.first_or_404()
     
     issues = ReviewIssue.query.filter_by(session_id=review.id).order_by(
         db.case(
