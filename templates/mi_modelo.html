@@ -148,14 +148,61 @@ document.addEventListener('DOMContentLoaded', function() {
     const uploadZone = document.getElementById('upload-zone');
     
     if (fileInput && confirmation && filenameSpan) {
-        fileInput.addEventListener('change', function() {
+        fileInput.addEventListener('change', async function() {
             if (this.files && this.files.length > 0) {
-                const filename = this.files[0].name;
-                filenameSpan.textContent = filename;
+                const file = this.files[0];
+                filenameSpan.textContent = file.name;
                 confirmation.classList.remove('hidden');
                 uploadZone.classList.add('border-green-400', 'bg-green-50');
                 uploadZone.classList.remove('border-gray-300');
-                document.getElementById('campos-section').classList.remove('hidden');
+                
+                const camposSection = document.getElementById('campos-section');
+                const camposContainer = document.getElementById('campos-container');
+                camposSection.classList.remove('hidden');
+                camposContainer.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i>Detectando campos...</div>';
+                
+                const formData = new FormData();
+                formData.append('archivo', file);
+                
+                try {
+                    const response = await fetch('/api/detect-campos', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    
+                    camposContainer.innerHTML = '';
+                    
+                    if (data.success && data.campos.length > 0) {
+                        data.campos.forEach(campo => {
+                            const row = document.createElement('div');
+                            row.className = 'flex items-center gap-2 campo-row';
+                            row.innerHTML = `
+                                <input type="text" name="campo_nombre[]" value="${campo.nombre}" 
+                                       class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <input type="text" name="campo_etiqueta[]" value="${campo.etiqueta}" 
+                                       class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Etiqueta">
+                                <select name="campo_tipo[]" class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    <option value="text">Texto</option>
+                                    <option value="textarea">Area de texto</option>
+                                    <option value="date">Fecha</option>
+                                    <option value="number">Numero</option>
+                                    <option value="email">Email</option>
+                                </select>
+                                <button type="button" onclick="removeCampo(this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            `;
+                            camposContainer.appendChild(row);
+                        });
+                    } else if (data.success) {
+                        camposContainer.innerHTML = '<p class="text-sm text-gray-500 py-2">No se detectaron campos automaticamente. Puedes agregarlos manualmente.</p>';
+                    } else {
+                        camposContainer.innerHTML = `<p class="text-sm text-red-500 py-2">${data.error || 'Error al detectar campos'}</p>`;
+                    }
+                } catch (error) {
+                    camposContainer.innerHTML = '<p class="text-sm text-red-500 py-2">Error al procesar el archivo</p>';
+                }
             } else {
                 confirmation.classList.add('hidden');
                 uploadZone.classList.remove('border-green-400', 'bg-green-50');
@@ -170,6 +217,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmation.classList.add('hidden');
                 uploadZone.classList.remove('border-green-400', 'bg-green-50');
                 uploadZone.classList.add('border-gray-300');
+                document.getElementById('campos-container').innerHTML = '';
+                document.getElementById('campos-section').classList.add('hidden');
             });
         }
     }

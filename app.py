@@ -2119,6 +2119,49 @@ def mis_modelos():
     return render_template("mis_modelos.html", modelos_usuario=modelos_usuario, estilos_usuario=estilos_usuario, modelos_sistema=MODELOS)
 
 
+@app.route("/api/detect-campos", methods=["POST"])
+@login_required
+def api_detect_campos():
+    """AJAX endpoint to detect fields from uploaded file."""
+    archivo = request.files.get('archivo')
+    
+    if not archivo or not archivo.filename:
+        return jsonify({'success': False, 'error': 'No se proporcionó archivo'}), 400
+    
+    ext = os.path.splitext(archivo.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({'success': False, 'error': f'Formato no soportado: {ext}'}), 400
+    
+    import tempfile
+    temp_dir = tempfile.mkdtemp()
+    temp_path = os.path.join(temp_dir, secure_filename(archivo.filename))
+    
+    try:
+        archivo.save(temp_path)
+        contenido = extract_text_from_file(temp_path)
+        
+        if not contenido:
+            return jsonify({'success': False, 'error': 'No se pudo extraer texto del archivo'}), 400
+        
+        campos_detectados = detect_placeholders_from_text(contenido)
+        
+        campos_result = []
+        for campo in campos_detectados:
+            campos_result.append({
+                'nombre': campo_to_key(campo),
+                'etiqueta': campo,
+                'tipo': 'text'
+            })
+        
+        return jsonify({'success': True, 'campos': campos_result})
+    except Exception as e:
+        logging.error(f"Error detecting campos: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 @app.route("/mi-modelo", methods=["GET", "POST"])
 @login_required
 def mi_modelo():
