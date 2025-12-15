@@ -1,0 +1,126 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Anonimizar Documento{% endblock %}
+{% block page_title %}Anonimizar Documento{% endblock %}
+{% block page_subtitle %}Protege la informacion sensible de tus documentos legales{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-start space-x-4 mb-6">
+            <div class="p-3 bg-purple-100 rounded-lg">
+                <i class="fas fa-user-secret text-purple-600 text-2xl"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-medium text-gray-900">Como funciona</h3>
+                <p class="text-sm text-gray-500 mt-1">
+                    Sube un documento legal y nuestro sistema identificara automaticamente toda la informacion sensible
+                    (nombres, direcciones, DNI, montos, etc.) y la reemplazara con espacios en blanco para llenar.
+                </p>
+            </div>
+        </div>
+
+        <form action="{{ url_for('anonimizar_documento') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-file-upload mr-2"></i>Selecciona tu documento
+                </label>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-400 transition-colors">
+                    <input type="file" name="documento" id="documento" accept=".docx,.pdf,.txt" 
+                           class="hidden" onchange="updateFileName(this)" required>
+                    <label for="documento" class="cursor-pointer">
+                        <div class="flex flex-col items-center">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+                            <span class="text-sm text-gray-600" id="file-name">Haz clic para seleccionar un archivo</span>
+                            <span class="text-xs text-gray-400 mt-1">Formatos: .docx, .pdf, .txt</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center">
+                <i class="fas fa-magic mr-2"></i>Anonimizar Documento
+            </button>
+        </form>
+    </div>
+
+    {% if resultado %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-green-50">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle text-green-600 mr-3"></i>
+                <h3 class="text-lg font-medium text-gray-900">Documento Anonimizado</h3>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-6">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-purple-50 rounded-lg p-4">
+                    <h4 class="font-medium text-purple-900 mb-3">
+                        <i class="fas fa-list-ul mr-2"></i>Informacion Anonimizada
+                    </h4>
+                    <div class="space-y-2">
+                        {% for categoria, items in categorias.items() %}
+                        <div class="bg-white rounded-lg p-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-gray-700">{{ categoria }}</span>
+                                <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">{{ items|length }}</span>
+                            </div>
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                {% for item in items %}
+                                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">{{ item }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="font-medium text-gray-900 mb-3">
+                        <i class="fas fa-chart-pie mr-2"></i>Resumen
+                    </h4>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Total de elementos anonimizados:</span>
+                            <span class="font-bold text-purple-600">{{ total_anonimizado }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Categorias detectadas:</span>
+                            <span class="font-bold text-purple-600">{{ categorias|length }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-medium text-gray-900 mb-3">
+                    <i class="fas fa-eye mr-2"></i>Vista Previa del Documento Anonimizado
+                </h4>
+                <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <pre class="text-sm text-gray-700 whitespace-pre-wrap font-serif">{{ texto_anonimizado }}</pre>
+                </div>
+            </div>
+
+            <div class="flex space-x-4">
+                <a href="{{ url_for('descargar_anonimizado', nombre=nombre_archivo) }}" 
+                   class="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center">
+                    <i class="fas fa-download mr-2"></i>Descargar Documento Anonimizado
+                </a>
+                <a href="{{ url_for('anonimizar_documento') }}" 
+                   class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors">
+                    <i class="fas fa-redo mr-2"></i>Nuevo
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function updateFileName(input) {
+    const fileName = input.files[0]?.name || 'Haz clic para seleccionar un archivo';
+    document.getElementById('file-name').textContent = fileName;
+}
+</script>
+{% endblock %}

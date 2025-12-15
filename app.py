@@ -3260,11 +3260,192 @@ def ai_assistant_api():
         return jsonify({'response': 'Lo siento, hubo un error al procesar tu consulta. Intenta de nuevo.'})
 
 
+# ==================== DOCUMENT ANONYMIZER ====================
+
+import uuid
+
+CARPETA_ANONIMIZADOS = "documentos_anonimizados"
+
+
+def get_anonimizados_folder(tenant_id, user_id):
+    """Get tenant-scoped and user-scoped folder for anonymized documents."""
+    folder = os.path.join(CARPETA_ANONIMIZADOS, f"tenant_{tenant_id}", f"user_{user_id}")
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def anonimizar_con_ia(texto):
+    """Use OpenAI to identify and anonymize sensitive information in legal documents."""
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        prompt = """Analiza el siguiente documento legal y devuelve un JSON con dos claves:
+        
+1. "categorias": Un diccionario donde cada clave es una categoria de informacion sensible y el valor es una lista de los elementos encontrados. Las categorias deben ser:
+   - "Nombres de personas": nombres completos de personas
+   - "DNI/Documentos de identidad": numeros de DNI, RUC, pasaportes
+   - "Direcciones": direcciones fisicas, domicilios
+   - "Telefonos": numeros de telefono
+   - "Montos de dinero": cantidades monetarias (S/, USD, etc)
+   - "Fechas especificas": fechas exactas mencionadas
+   - "Numeros de expediente": numeros de casos o expedientes
+   - "Correos electronicos": direcciones de email
+   - "Entidades/Instituciones": nombres de empresas, juzgados, etc.
+   - "Otros datos sensibles": cualquier otra informacion identificable
+
+2. "texto_anonimizado": El texto completo del documento con toda la informacion sensible reemplazada por "........................" (24 puntos).
+
+IMPORTANTE:
+- Solo incluye categorias que tengan elementos encontrados
+- Mantiene la estructura y formato del documento original
+- Reemplaza CADA ocurrencia de informacion sensible
+
+DOCUMENTO A ANALIZAR:
+"""
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Eres un experto en proteccion de datos personales y anonimizacion de documentos legales. Respondes SOLO con JSON valido, sin texto adicional."},
+                {"role": "user", "content": prompt + texto}
+            ],
+            temperature=0.3,
+            max_tokens=4000,
+            response_format={"type": "json_object"}
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        return result
+    except Exception as e:
+        logging.error(f"Error anonimizando documento: {e}")
+        return None
+
+
+def guardar_docx_anonimizado(texto, nombre_archivo, tenant_id, user_id):
+    """Save anonymized text as Word document in tenant-scoped folder."""
+    folder = get_anonimizados_folder(tenant_id, user_id)
+    
+    doc = Document()
+    
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Times New Roman'
+    font.size = Pt(12)
+    
+    for para_text in texto.split('\n'):
+        if para_text.strip():
+            p = doc.add_paragraph(para_text)
+            p.paragraph_format.line_spacing = 1.5
+        else:
+            doc.add_paragraph()
+    
+    file_path = os.path.join(folder, nombre_archivo)
+    doc.save(file_path)
+    return file_path
+
+
+@app.route("/anonimizar-documento", methods=["GET", "POST"])
+@login_required
+def anonimizar_documento():
+    if request.method == "GET":
+        return render_template("anonimizar_documento.html")
+    
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta funcion.", "error")
+        return redirect(url_for('index'))
+    
+    if 'documento' not in request.files:
+        flash("Por favor selecciona un documento.", "error")
+        return redirect(url_for('anonimizar_documento'))
+    
+    archivo = request.files['documento']
+    if archivo.filename == '':
+        flash("No se selecciono ningun archivo.", "error")
+        return redirect(url_for('anonimizar_documento'))
+    
+    ext = os.path.splitext(archivo.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        flash("Formato no permitido. Usa .docx, .pdf o .txt", "error")
+        return redirect(url_for('anonimizar_documento'))
+    
+    temp_dir = "temp_uploads"
+    os.makedirs(temp_dir, exist_ok=True)
+    unique_id = uuid.uuid4().hex[:8]
+    filename = secure_filename(archivo.filename)
+    temp_filename = f"{unique_id}_{filename}"
+    temp_path = os.path.join(temp_dir, temp_filename)
+    archivo.save(temp_path)
+    
+    try:
+        texto_original = extract_text_from_file(temp_path)
+        
+        if not texto_original or len(texto_original.strip()) < 50:
+            flash("El documento esta vacio o no se pudo extraer el texto.", "error")
+            os.remove(temp_path)
+            return redirect(url_for('anonimizar_documento'))
+        
+        resultado = anonimizar_con_ia(texto_original)
+        
+        if not resultado:
+            flash("Error al procesar el documento. Intenta de nuevo.", "error")
+            os.remove(temp_path)
+            return redirect(url_for('anonimizar_documento'))
+        
+        categorias = resultado.get('categorias', {})
+        texto_anonimizado = resultado.get('texto_anonimizado', texto_original)
+        
+        categorias_no_vacias = {k: v for k, v in categorias.items() if v}
+        
+        total_anonimizado = sum(len(items) for items in categorias_no_vacias.values())
+        
+        random_suffix = uuid.uuid4().hex[:12]
+        nombre_base = os.path.splitext(filename)[0][:20]
+        nombre_archivo = f"ANON_{random_suffix}.docx"
+        
+        guardar_docx_anonimizado(texto_anonimizado, nombre_archivo, tenant.id, current_user.id)
+        
+        os.remove(temp_path)
+        
+        return render_template("anonimizar_documento.html",
+                             resultado=True,
+                             categorias=categorias_no_vacias,
+                             texto_anonimizado=texto_anonimizado,
+                             total_anonimizado=total_anonimizado,
+                             nombre_archivo=nombre_archivo)
+    
+    except Exception as e:
+        logging.error(f"Error en anonimizacion: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        flash("Error al procesar el documento.", "error")
+        return redirect(url_for('anonimizar_documento'))
+
+
+@app.route("/descargar-anonimizado/<nombre>")
+@login_required
+def descargar_anonimizado(nombre):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a este archivo.", "error")
+        return redirect(url_for('index'))
+    
+    folder = get_anonimizados_folder(tenant.id, current_user.id)
+    file_path = os.path.join(folder, nombre)
+    
+    if not os.path.exists(file_path):
+        flash("Archivo no encontrado.", "error")
+        return redirect(url_for('anonimizar_documento'))
+    
+    return send_from_directory(folder, nombre, as_attachment=True)
+
+
 with app.app_context():
     db.create_all()
     os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
     os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
     os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
+    os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
 
 
 if __name__ == "__main__":
