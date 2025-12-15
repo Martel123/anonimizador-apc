@@ -2054,7 +2054,8 @@ def casos():
                           prioridad_filter=prioridad_filter,
                           busqueda=busqueda,
                           estados=Case.ESTADOS,
-                          prioridades=Case.PRIORIDADES)
+                          prioridades=Case.PRIORIDADES,
+                          now=datetime.now())
 
 
 @app.route("/casos/nuevo", methods=["GET", "POST"])
