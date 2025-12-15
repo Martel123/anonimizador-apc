@@ -91,15 +91,19 @@
                                     </td>
                                     <td class="px-6 py-4">
                                         {% if user.id != current_user.id %}
-                                        <form method="POST" action="{{ url_for('toggle_usuario', user_id=user.id) }}" class="inline">
-                                            <button type="submit" class="{% if user.activo %}bg-red-500 hover:bg-red-600{% else %}bg-green-500 hover:bg-green-600{% endif %} text-white px-3 py-1 rounded text-sm">
-                                                {% if user.activo %}
-                                                    <i class="fas fa-ban mr-1"></i>Desactivar
-                                                {% else %}
-                                                    <i class="fas fa-check mr-1"></i>Activar
-                                                {% endif %}
-                                            </button>
-                                        </form>
+                                            {% if is_admin or user.role != 'admin_estudio' %}
+                                            <form method="POST" action="{{ url_for('toggle_usuario', user_id=user.id) }}" class="inline">
+                                                <button type="submit" class="{% if user.activo %}bg-red-500 hover:bg-red-600{% else %}bg-green-500 hover:bg-green-600{% endif %} text-white px-3 py-1 rounded text-sm">
+                                                    {% if user.activo %}
+                                                        <i class="fas fa-ban mr-1"></i>Desactivar
+                                                    {% else %}
+                                                        <i class="fas fa-check mr-1"></i>Activar
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+                                            {% else %}
+                                            <span class="text-gray-400 text-sm"><i class="fas fa-lock mr-1"></i>Protegido</span>
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-gray-400 text-sm">Tu cuenta</span>
                                         {% endif %}
@@ -140,12 +144,14 @@
                             <select name="role" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                                 <option value="usuario_estudio">Usuario (Colaborador)</option>
                                 <option value="coordinador">Coordinador</option>
+                                {% if is_admin %}
                                 <option value="admin_estudio">Administrador</option>
+                                {% endif %}
                             </select>
                             <p class="text-xs text-gray-500 mt-1">
                                 <strong>Usuario:</strong> Puede generar documentos y ver casos asignados<br>
-                                <strong>Coordinador:</strong> Acceso completo excepto gestion de usuarios<br>
-                                <strong>Admin:</strong> Acceso total incluyendo gestion de usuarios
+                                <strong>Coordinador:</strong> Acceso completo y gestión de usuarios (excepto admins)
+                                {% if is_admin %}<br><strong>Admin:</strong> Acceso total incluyendo gestión de usuarios{% endif %}
                             </p>
                         </div>
                         <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg">

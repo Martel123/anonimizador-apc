@@ -1461,12 +1461,14 @@ def configurar_estudio():
 
 
 @app.route("/admin/usuarios", methods=["GET", "POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin_usuarios():
     tenant = get_current_tenant()
     if not tenant:
         flash("No tienes un estudio asociado.", "error")
         return redirect(url_for("index"))
+    
+    is_admin = current_user.role in ['super_admin', 'admin_estudio']
     
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -1479,7 +1481,8 @@ def admin_usuarios():
         elif User.query.filter_by(email=email).first():
             flash("Ya existe un usuario con ese email.", "error")
         else:
-            if role not in ['admin_estudio', 'usuario_estudio']:
+            allowed_roles = ['admin_estudio', 'coordinador', 'usuario_estudio'] if is_admin else ['coordinador', 'usuario_estudio']
+            if role not in allowed_roles:
                 role = 'usuario_estudio'
             
             user = User(
@@ -1495,11 +1498,11 @@ def admin_usuarios():
             flash(f"Usuario {username} creado exitosamente.", "success")
     
     usuarios = User.query.filter_by(tenant_id=tenant.id).all()
-    return render_template("admin_usuarios.html", usuarios=usuarios, tenant=tenant)
+    return render_template("admin_usuarios.html", usuarios=usuarios, tenant=tenant, is_admin=is_admin)
 
 
 @app.route("/admin/usuario/toggle/<int:user_id>", methods=["POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def toggle_usuario(user_id):
     tenant = get_current_tenant()
     user = User.query.get_or_404(user_id)
@@ -1510,6 +1513,11 @@ def toggle_usuario(user_id):
     
     if user.id == current_user.id:
         flash("No puedes desactivar tu propia cuenta.", "error")
+        return redirect(url_for("admin_usuarios"))
+    
+    is_admin = current_user.role in ['super_admin', 'admin_estudio']
+    if not is_admin and user.role == 'admin_estudio':
+        flash("No puedes modificar usuarios administradores.", "error")
         return redirect(url_for("admin_usuarios"))
     
     user.activo = not user.activo
