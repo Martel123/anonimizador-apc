@@ -76,6 +76,8 @@
                                             <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">Super Admin</span>
                                         {% elif user.role == 'admin_estudio' %}
                                             <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">Admin</span>
+                                        {% elif user.role == 'coordinador' %}
+                                            <span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm">Coordinador</span>
                                         {% else %}
                                             <span class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">Usuario</span>
                                         {% endif %}
@@ -136,9 +138,15 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Rol</label>
                             <select name="role" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                                <option value="usuario_estudio">Usuario</option>
+                                <option value="usuario_estudio">Usuario (Colaborador)</option>
+                                <option value="coordinador">Coordinador</option>
                                 <option value="admin_estudio">Administrador</option>
                             </select>
+                            <p class="text-xs text-gray-500 mt-1">
+                                <strong>Usuario:</strong> Puede generar documentos y ver casos asignados<br>
+                                <strong>Coordinador:</strong> Acceso completo excepto gestion de usuarios<br>
+                                <strong>Admin:</strong> Acceso total incluyendo gestion de usuarios
+                            </p>
                         </div>
                         <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg">
                             <i class="fas fa-plus mr-2"></i>Agregar Usuario

@@ -498,6 +498,18 @@ def admin_estudio_required(f):
     return decorated_function
 
 
+def coordinador_or_admin_required(f):
+    """Permite acceso a coordinadores, admin_estudio y super_admin."""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_super_admin() and not current_user.is_admin_estudio() and not current_user.is_coordinador():
+            flash("Acceso restringido a coordinadores y administradores.", "error")
+            return redirect(url_for("index"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def get_current_tenant():
     if not current_user.is_authenticated:
         return None
@@ -1355,7 +1367,7 @@ def stop_impersonate():
 
 
 @app.route("/admin")
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin():
     tenant = get_current_tenant()
     if not tenant:
@@ -1377,7 +1389,7 @@ def admin():
 
 
 @app.route("/admin/modelos")
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin_modelos():
     """Admin view to see all models from all users in the tenant."""
     tenant = get_current_tenant()
@@ -1396,7 +1408,7 @@ def admin_modelos():
 
 
 @app.route("/admin/estilos")
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin_estilos():
     """Admin view to see all styles from all users in the tenant."""
     tenant = get_current_tenant()
@@ -1414,7 +1426,7 @@ def admin_estilos():
 
 
 @app.route("/configurar_estudio", methods=["GET", "POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def configurar_estudio():
     tenant = get_current_tenant()
     if not tenant:
@@ -1508,7 +1520,7 @@ def toggle_usuario(user_id):
 
 
 @app.route("/admin/convertir", methods=["GET", "POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def convertir_documento():
     tenant = get_current_tenant()
     if not tenant:
@@ -1596,7 +1608,7 @@ def convertir_documento():
 
 
 @app.route("/admin/convertir/descargar/<nombre_archivo>")
-@admin_estudio_required
+@coordinador_or_admin_required
 def descargar_convertido(nombre_archivo):
     tenant = get_current_tenant()
     if not tenant:
@@ -1614,7 +1626,7 @@ def descargar_convertido(nombre_archivo):
 
 
 @app.route("/admin/plantilla", methods=["GET", "POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin_plantilla():
     tenant = get_current_tenant()
     if not tenant:
@@ -1752,7 +1764,7 @@ def admin_plantilla():
 
 
 @app.route("/admin/plantilla/eliminar/<int:plantilla_id>", methods=["POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def eliminar_plantilla(plantilla_id):
     tenant = get_current_tenant()
     plantilla = Plantilla.query.filter_by(id=plantilla_id, tenant_id=tenant.id).first()
@@ -1768,7 +1780,7 @@ def eliminar_plantilla(plantilla_id):
 
 
 @app.route("/admin/estilo", methods=["GET", "POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin_estilo():
     tenant = get_current_tenant()
     if not tenant:
@@ -1848,7 +1860,7 @@ def admin_estilo():
 
 
 @app.route("/admin/estilo/eliminar/<int:estilo_id>", methods=["POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def eliminar_estilo(estilo_id):
     tenant = get_current_tenant()
     estilo = Estilo.query.filter_by(id=estilo_id, tenant_id=tenant.id).first()
@@ -1864,7 +1876,7 @@ def eliminar_estilo(estilo_id):
 
 
 @app.route("/admin/campos/<plantilla_key>", methods=["GET", "POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def admin_campos(plantilla_key):
     tenant = get_current_tenant()
     if not tenant:
@@ -1922,7 +1934,7 @@ def admin_campos(plantilla_key):
 
 
 @app.route("/admin/campo/eliminar/<int:campo_id>", methods=["POST"])
-@admin_estudio_required
+@coordinador_or_admin_required
 def eliminar_campo(campo_id):
     tenant = get_current_tenant()
     campo = CampoPlantilla.query.get_or_404(campo_id)
