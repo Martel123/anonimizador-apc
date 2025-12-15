@@ -79,14 +79,14 @@
                     <span>Tareas</span>
                 </a>
                 <div class="sidebar-submenu">
-                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados'] %}active{% endif %}">
+                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}active{% endif %}">
                         <span class="flex items-center">
                             <i class="fas fa-file-alt w-5 mr-3"></i>
                             <span>Documentos</span>
                         </span>
-                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados'] %}rotate{% endif %}" id="documentos-arrow"></i>
+                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}rotate{% endif %}" id="documentos-arrow"></i>
                     </button>
-                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados'] %}hidden{% endif %} pl-4">
+                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}hidden{% endif %} pl-4">
                         <a href="{{ url_for('generador') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'generador' %}active{% endif %}">
                             <i class="fas fa-magic w-4 mr-3 text-xs"></i>
                             <span>Generar</span>
@@ -107,20 +107,12 @@
                             <i class="fas fa-check-circle w-4 mr-3 text-xs"></i>
                             <span>Terminados</span>
                         </a>
+                        <a href="{{ url_for('revisor_ia') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}active{% endif %}">
+                            <i class="fas fa-search-plus w-4 mr-3 text-xs"></i>
+                            <span>Revisor IA</span>
+                        </a>
                     </div>
                 </div>
-
-                <div class="px-3 mt-6 mb-2">
-                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Herramientas IA</span>
-                </div>
-                <a href="{{ url_for('revisor_ia') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}active{% endif %}">
-                    <i class="fas fa-search-plus w-5 mr-3"></i>
-                    <span>Revisor IA</span>
-                </a>
-                <a href="{{ url_for('anonimizar_documento') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'anonimizar_documento' %}active{% endif %}">
-                    <i class="fas fa-user-secret w-5 mr-3"></i>
-                    <span>Anonimizar</span>
-                </a>
 
                 <div class="px-3 mt-6 mb-2">
                     <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Mi Cuenta</span>
