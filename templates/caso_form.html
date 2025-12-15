@@ -100,26 +100,25 @@
             <p class="text-sm text-gray-500 mb-4">Selecciona los colaboradores que trabajarán en este caso. Solo ellos podrán ver y gestionar el caso.</p>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Equipo Responsable</label>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                        {% for usuario in usuarios %}
-                        <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
-                            <input type="checkbox" name="colaboradores" value="{{ usuario.id }}" class="mr-3 rounded text-blue-600 focus:ring-blue-500">
-                            <div>
-                                <span class="text-sm font-medium text-gray-700">{{ usuario.username }}</span>
-                                <span class="text-xs text-gray-500 block">{{ usuario.email }}</span>
-                            </div>
-                        </label>
-                        {% endfor %}
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Agregar Colaborador</label>
+                    <div class="flex gap-2">
+                        <select id="colaborador-select" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="">Buscar colaborador...</option>
+                            {% for usuario in usuarios %}
+                            <option value="{{ usuario.id }}" data-name="{{ usuario.username }}" data-email="{{ usuario.email }}">{{ usuario.username }} ({{ usuario.email }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" id="add-colaborador-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
+                </div>
+                <div id="colaboradores-list" class="space-y-2">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Responsable Principal (opcional)</label>
-                    <select name="responsable_id" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <select name="responsable_id" id="responsable-select" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="">Sin responsable principal</option>
-                        {% for usuario in usuarios %}
-                        <option value="{{ usuario.id }}">{{ usuario.username }} ({{ usuario.email }})</option>
-                        {% endfor %}
                     </select>
                     <p class="text-xs text-gray-500 mt-1">El responsable principal será marcado con una estrella en el equipo.</p>
                 </div>
@@ -147,4 +146,79 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if not caso %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const colaboradorSelect = document.getElementById('colaborador-select');
+    const addBtn = document.getElementById('add-colaborador-btn');
+    const colaboradoresList = document.getElementById('colaboradores-list');
+    const responsableSelect = document.getElementById('responsable-select');
+    const addedColaboradores = new Set();
+
+    function updateResponsableOptions() {
+        const currentValue = responsableSelect.value;
+        responsableSelect.innerHTML = '<option value="">Sin responsable principal</option>';
+        addedColaboradores.forEach(id => {
+            const option = colaboradorSelect.querySelector(`option[value="${id}"]`);
+            if (option) {
+                const newOpt = document.createElement('option');
+                newOpt.value = id;
+                newOpt.textContent = option.dataset.name + ' (' + option.dataset.email + ')';
+                responsableSelect.appendChild(newOpt);
+            }
+        });
+        if (addedColaboradores.has(currentValue)) {
+            responsableSelect.value = currentValue;
+        }
+    }
+
+    function addColaborador() {
+        const selectedOption = colaboradorSelect.options[colaboradorSelect.selectedIndex];
+        if (!selectedOption.value || addedColaboradores.has(selectedOption.value)) return;
+
+        const id = selectedOption.value;
+        const name = selectedOption.dataset.name;
+        const email = selectedOption.dataset.email;
+
+        addedColaboradores.add(id);
+
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+        item.dataset.id = id;
+        item.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    ${name[0].toUpperCase()}
+                </div>
+                <div>
+                    <p class="font-medium text-sm">${name}</p>
+                    <p class="text-xs text-gray-500">${email}</p>
+                </div>
+            </div>
+            <input type="hidden" name="colaboradores" value="${id}">
+            <button type="button" class="remove-colaborador text-red-400 hover:text-red-600">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        colaboradoresList.appendChild(item);
+        colaboradorSelect.value = '';
+        updateResponsableOptions();
+    }
+
+    addBtn.addEventListener('click', addColaborador);
+
+    colaboradoresList.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-colaborador')) {
+            const item = e.target.closest('[data-id]');
+            addedColaboradores.delete(item.dataset.id);
+            item.remove();
+            updateResponsableOptions();
+        }
+    });
+});
+</script>
+{% endif %}
 {% endblock %}
