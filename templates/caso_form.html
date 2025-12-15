@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="max-w-4xl">
-    <form method="post" class="space-y-6">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
         <div class="bg-white rounded-xl shadow-sm p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">
                 <i class="fas fa-info-circle text-blue-500 mr-2"></i>Información General
@@ -128,6 +128,22 @@
 
         <div class="bg-white rounded-xl shadow-sm p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-paperclip text-orange-500 mr-2"></i>Archivos Adjuntos
+            </h3>
+            <p class="text-sm text-gray-500 mb-3">Puedes adjuntar documentos relacionados al caso (PDF, Word, imágenes, etc.)</p>
+            <div id="archivos-list" class="space-y-2 mb-4"></div>
+            <div class="flex items-center gap-2">
+                <input type="file" id="archivo-input" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.xls,.xlsx,.txt"
+                       class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                <button type="button" id="add-archivo-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                    <i class="fas fa-plus mr-1"></i> Agregar
+                </button>
+            </div>
+            <div id="archivos-container"></div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
                 <i class="fas fa-sticky-note text-yellow-500 mr-2"></i>Notas Adicionales
             </h3>
             <textarea name="notas" rows="4"
@@ -149,6 +165,65 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const archivoInput = document.getElementById('archivo-input');
+    const addArchivoBtn = document.getElementById('add-archivo-btn');
+    const archivosList = document.getElementById('archivos-list');
+    const archivosContainer = document.getElementById('archivos-container');
+    let fileCounter = 0;
+
+    if (addArchivoBtn) {
+        addArchivoBtn.addEventListener('click', function() {
+            const files = archivoInput.files;
+            if (!files.length) return;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                fileCounter++;
+                const fileId = 'file_' + fileCounter;
+
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+                item.dataset.fileId = fileId;
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-file text-gray-400"></i>
+                        <span class="text-sm text-gray-700">${file.name}</span>
+                        <span class="text-xs text-gray-400">(${(file.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                    <button type="button" class="remove-archivo text-red-400 hover:text-red-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                archivosList.appendChild(item);
+
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'file';
+                hiddenInput.name = 'archivos';
+                hiddenInput.style.display = 'none';
+                hiddenInput.dataset.fileId = fileId;
+
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                hiddenInput.files = dt.files;
+                archivosContainer.appendChild(hiddenInput);
+            }
+            archivoInput.value = '';
+        });
+
+        archivosList.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-archivo')) {
+                const item = e.target.closest('[data-file-id]');
+                const fileId = item.dataset.fileId;
+                item.remove();
+                const hiddenInput = archivosContainer.querySelector(`input[data-file-id="${fileId}"]`);
+                if (hiddenInput) hiddenInput.remove();
+            }
+        });
+    }
+});
+</script>
 {% if not caso %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {

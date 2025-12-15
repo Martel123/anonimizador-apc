@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -2124,6 +2124,29 @@ def caso_nuevo():
             )
             db.session.add(assignment)
         
+        archivos = request.files.getlist("archivos")
+        if archivos:
+            attachments_dir = os.path.join("case_attachments", f"tenant_{tenant.id}", f"case_{caso.id}")
+            os.makedirs(attachments_dir, exist_ok=True)
+            
+            for archivo in archivos:
+                if archivo and archivo.filename:
+                    filename = secure_filename(archivo.filename)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    unique_filename = f"{timestamp}_{filename}"
+                    filepath = os.path.join(attachments_dir, unique_filename)
+                    archivo.save(filepath)
+                    
+                    ext = os.path.splitext(filename)[1].lower()
+                    attachment = CaseAttachment(
+                        case_id=caso.id,
+                        nombre=filename,
+                        archivo=filepath,
+                        tipo_archivo=ext,
+                        uploaded_by_id=current_user.id
+                    )
+                    db.session.add(attachment)
+        
         db.session.commit()
         flash("Caso creado exitosamente.", "success")
         return redirect(url_for("caso_detalle", caso_id=caso.id))
@@ -2369,6 +2392,20 @@ def tarea_nueva():
             except ValueError:
                 pass
         
+        archivo = request.files.get("archivo")
+        if archivo and archivo.filename:
+            attachments_dir = os.path.join("task_attachments", f"tenant_{tenant.id}")
+            os.makedirs(attachments_dir, exist_ok=True)
+            
+            filename = secure_filename(archivo.filename)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_filename = f"{timestamp}_{filename}"
+            filepath = os.path.join(attachments_dir, unique_filename)
+            archivo.save(filepath)
+            
+            tarea.archivo = filepath
+            tarea.archivo_nombre = filename
+        
         db.session.add(tarea)
         db.session.commit()
         
@@ -2410,6 +2447,43 @@ def tarea_cambiar_estado(tarea_id):
     
     next_url = request.form.get("next", url_for("tareas"))
     return redirect(next_url)
+
+
+@app.route("/tareas/<int:tarea_id>/archivo")
+@case_access_required
+def descargar_archivo_tarea(tarea_id):
+    """Descargar archivo adjunto de una tarea."""
+    tenant = get_current_tenant()
+    tarea = Task.query.filter_by(id=tarea_id, tenant_id=tenant.id).first_or_404()
+    
+    if not tarea.archivo or not os.path.exists(tarea.archivo):
+        flash("Archivo no encontrado.", "error")
+        return redirect(url_for("tareas"))
+    
+    return send_file(
+        tarea.archivo,
+        as_attachment=True,
+        download_name=tarea.archivo_nombre or os.path.basename(tarea.archivo)
+    )
+
+
+@app.route("/casos/<int:caso_id>/adjunto/<int:attachment_id>")
+@case_access_required
+def descargar_adjunto_caso(caso_id, attachment_id):
+    """Descargar archivo adjunto de un caso."""
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    attachment = CaseAttachment.query.filter_by(id=attachment_id, case_id=caso_id).first_or_404()
+    
+    if not attachment.archivo or not os.path.exists(attachment.archivo):
+        flash("Archivo no encontrado.", "error")
+        return redirect(url_for("caso_detalle", caso_id=caso_id))
+    
+    return send_file(
+        attachment.archivo,
+        as_attachment=True,
+        download_name=attachment.nombre
+    )
 
 
 # ==================== MIS MODELOS (User personal document models) ====================

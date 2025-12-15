@@ -362,6 +362,8 @@ class Task(db.Model):
     fecha_completada = db.Column(db.DateTime)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    archivo = db.Column(db.String(500), nullable=True)
+    archivo_nombre = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -419,6 +421,28 @@ class Task(db.Model):
             'fecha_vencimiento': self.fecha_vencimiento.strftime('%Y-%m-%d') if self.fecha_vencimiento else None,
             'is_overdue': self.is_overdue()
         }
+
+
+class CaseAttachment(db.Model):
+    """Archivos adjuntos de casos."""
+    __tablename__ = 'case_attachments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    nombre = db.Column(db.String(255), nullable=False)
+    archivo = db.Column(db.String(500), nullable=False)
+    tipo_archivo = db.Column(db.String(50))
+    descripcion = db.Column(db.Text)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    case = db.relationship('Case', backref=db.backref('attachments', lazy='dynamic'))
+    uploaded_by = db.relationship('User', backref=db.backref('case_attachments', lazy='dynamic'))
+    
+    def get_extension(self):
+        if self.archivo:
+            return os.path.splitext(self.archivo)[1].lower()
+        return ''
 
 
 class FinishedDocument(db.Model):
