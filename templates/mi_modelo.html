@@ -197,6 +197,78 @@
                 </div>
             </div>
             
+            <div id="tablas-section" class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                    <h4 class="text-sm font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-table text-purple-600 mr-2"></i>
+                        Cuadros / Tablas
+                    </h4>
+                    <p class="text-xs text-gray-500 mt-1">Agrega tablas como cuadros de gastos, cronogramas, etc.</p>
+                </div>
+                <div class="p-4">
+                    <div id="tablas-container" class="space-y-3 mb-4">
+                        {% if modelo and modelo.tablas.count() > 0 %}
+                        {% for tabla in modelo.tablas %}
+                        <div class="p-3 bg-purple-50 rounded-lg border border-purple-200 tabla-row" data-tabla-id="{{ tabla.id }}">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium text-purple-800">{{ tabla.nombre }}</span>
+                                <button type="button" onclick="eliminarTabla({{ tabla.id }})" class="p-1 text-red-500 hover:text-red-700">
+                                    <i class="fas fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                            <div class="text-xs text-gray-600">
+                                <span class="mr-3"><i class="fas fa-columns mr-1"></i>{{ tabla.columnas|length }} columnas</span>
+                                <span><i class="fas fa-list mr-1"></i>{{ tabla.num_filas }} filas</span>
+                            </div>
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                {% for col in tabla.columnas %}
+                                <span class="px-2 py-0.5 bg-white text-purple-700 text-xs rounded border border-purple-200">{{ col }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    
+                    <div id="nueva-tabla-form" class="hidden mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Nombre del Cuadro</label>
+                                <input type="text" id="tabla_nombre" name="tabla_nombre"
+                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                       placeholder="Ej: Cuadro de Gastos Mensuales">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Columnas (separadas por coma)</label>
+                                <input type="text" id="tabla_columnas" name="tabla_columnas"
+                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                       placeholder="Ej: MES, Concepto, Monto S/.">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Numero de Filas</label>
+                                    <input type="number" id="tabla_filas" name="tabla_filas" value="5" min="1" max="50"
+                                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                                </div>
+                                <div class="flex items-end">
+                                    <label class="flex items-center text-sm text-gray-700">
+                                        <input type="checkbox" id="tabla_mostrar_total" name="tabla_mostrar_total" class="mr-2 rounded">
+                                        Mostrar fila de total
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 mt-3">
+                            <button type="button" onclick="cancelarTabla()" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+                        </div>
+                    </div>
+                    
+                    <button type="button" onclick="mostrarFormTabla()" id="btn-agregar-tabla" class="text-sm text-purple-600 hover:text-purple-800 flex items-center">
+                        <i class="fas fa-plus mr-1"></i> Agregar Cuadro/Tabla
+                    </button>
+                </div>
+            </div>
+            
             <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                 <a href="{{ url_for('mis_modelos') }}" class="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium">
                     Cancelar
@@ -786,6 +858,44 @@ function eliminarImagen(imagenId) {
     .catch(error => {
         console.error('Error:', error);
         alert('Error al eliminar la imagen');
+    });
+}
+
+function mostrarFormTabla() {
+    document.getElementById('nueva-tabla-form').classList.remove('hidden');
+    document.getElementById('btn-agregar-tabla').classList.add('hidden');
+}
+
+function cancelarTabla() {
+    document.getElementById('nueva-tabla-form').classList.add('hidden');
+    document.getElementById('btn-agregar-tabla').classList.remove('hidden');
+    document.getElementById('tabla_nombre').value = '';
+    document.getElementById('tabla_columnas').value = '';
+    document.getElementById('tabla_filas').value = '5';
+    document.getElementById('tabla_mostrar_total').checked = false;
+}
+
+function eliminarTabla(tablaId) {
+    if (!confirm('¿Estas seguro de eliminar este cuadro?')) return;
+    
+    fetch(`/api/modelo-tabla/${tablaId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const row = document.querySelector(`.tabla-row[data-tabla-id="${tablaId}"]`);
+            if (row) row.remove();
+        } else {
+            alert(data.error || 'Error al eliminar el cuadro');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al eliminar el cuadro');
     });
 }
 </script>

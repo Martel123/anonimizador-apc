@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -1970,7 +1970,7 @@ def get_campos_plantilla(plantilla_key):
     else:
         campos = []
     
-    return jsonify([{
+    campos_data = [{
         'id': c.id,
         'nombre_campo': c.nombre_campo,
         'etiqueta': c.etiqueta,
@@ -1978,7 +1978,27 @@ def get_campos_plantilla(plantilla_key):
         'requerido': c.requerido,
         'placeholder': c.placeholder or '',
         'opciones': c.opciones.split(',') if c.opciones else []
-    } for c in campos])
+    } for c in campos]
+    
+    tablas_data = []
+    if tenant_id:
+        modelo = Modelo.query.filter_by(key=plantilla_key, tenant_id=tenant_id).first()
+        if modelo:
+            tablas = ModeloTabla.query.filter_by(modelo_id=modelo.id, tenant_id=tenant_id).order_by(ModeloTabla.orden).all()
+            for tabla in tablas:
+                tablas_data.append({
+                    'id': tabla.id,
+                    'nombre': tabla.nombre,
+                    'columnas': tabla.columnas,
+                    'num_filas': tabla.num_filas,
+                    'mostrar_total': tabla.mostrar_total,
+                    'columna_total': tabla.columna_total
+                })
+    
+    return jsonify({
+        'campos': campos_data,
+        'tablas': tablas_data
+    })
 
 
 # ==================== GESTIÓN DE CASOS ====================
@@ -2699,6 +2719,37 @@ def mi_modelo():
             else:
                 flash("Formato de imagen no soportado. Use JPG, PNG, GIF o WebP.", "error")
         
+        tabla_nombre = request.form.get('tabla_nombre', '').strip()
+        tabla_columnas = request.form.get('tabla_columnas', '').strip()
+        if tabla_nombre and tabla_columnas:
+            columnas_list = [c.strip() for c in tabla_columnas.split(',') if c.strip()]
+            if columnas_list:
+                try:
+                    num_filas = int(request.form.get('tabla_filas', 5))
+                    if num_filas < 1:
+                        num_filas = 1
+                    if num_filas > 50:
+                        num_filas = 50
+                except ValueError:
+                    num_filas = 5
+                
+                mostrar_total = request.form.get('tabla_mostrar_total') == 'on'
+                
+                nueva_tabla = ModeloTabla(
+                    modelo_id=modelo.id,
+                    tenant_id=tenant.id,
+                    nombre=tabla_nombre,
+                    columnas=columnas_list,
+                    num_filas=num_filas,
+                    mostrar_total=mostrar_total,
+                    columna_total=columnas_list[-1] if mostrar_total and columnas_list else None,
+                    orden=modelo.tablas.count() if modelo.tablas else 0
+                )
+                db.session.add(nueva_tabla)
+                db.session.commit()
+                flash(f"Cuadro '{tabla_nombre}' agregado al modelo.", "success")
+                return redirect(url_for("mi_modelo", id=modelo.id))
+        
         return redirect(url_for("mis_modelos"))
     
     campos_guardados = []
@@ -2731,6 +2782,24 @@ def eliminar_imagen_modelo(imagen_id):
             logging.error(f"Error deleting image file: {e}")
     
     db.session.delete(imagen)
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/modelo-tabla/<int:tabla_id>", methods=["DELETE"])
+@login_required
+def eliminar_tabla_modelo(tabla_id):
+    tenant = get_current_tenant()
+    tabla = ModeloTabla.query.filter_by(id=tabla_id, tenant_id=tenant.id).first()
+    
+    if not tabla:
+        return jsonify({"success": False, "error": "Cuadro no encontrado"}), 404
+    
+    modelo = Modelo.query.get(tabla.modelo_id)
+    if not modelo or modelo.created_by_id != current_user.id:
+        return jsonify({"success": False, "error": "No tienes permiso"}), 403
+    
+    db.session.delete(tabla)
     db.session.commit()
     return jsonify({"success": True})
 

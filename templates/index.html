@@ -265,15 +265,15 @@
             }
 
             if (camposCache[tipoDoc] !== undefined) {
-                renderizarCampos(camposCache[tipoDoc]);
+                renderizarCampos(camposCache[tipoDoc].campos, camposCache[tipoDoc].tablas);
                 return;
             }
 
             fetch('/api/campos/' + tipoDoc)
                 .then(response => response.json())
-                .then(campos => {
-                    camposCache[tipoDoc] = campos;
-                    renderizarCampos(campos);
+                .then(data => {
+                    camposCache[tipoDoc] = data;
+                    renderizarCampos(data.campos || [], data.tablas || []);
                 })
                 .catch(error => {
                     console.error('Error cargando campos:', error);
@@ -282,12 +282,12 @@
                 });
         }
 
-        function renderizarCampos(campos) {
+        function renderizarCampos(campos, tablas) {
             const camposDinamicos = document.getElementById('camposDinamicos');
             const camposEstaticos = document.getElementById('camposEstaticos');
             const camposContainer = document.getElementById('camposContainer');
 
-            if (campos.length === 0) {
+            if (campos.length === 0 && (!tablas || tablas.length === 0)) {
                 camposDinamicos.classList.add('hidden');
                 camposEstaticos.classList.remove('hidden');
                 return;
@@ -346,6 +346,77 @@
                 `;
                 camposContainer.appendChild(div);
             });
+            
+            if (tablas && tablas.length > 0) {
+                tablas.forEach(tabla => {
+                    const tablaDiv = document.createElement('div');
+                    tablaDiv.className = 'col-span-full mt-4';
+                    
+                    let tablaHtml = `
+                        <div class="border border-purple-200 rounded-lg overflow-hidden">
+                            <div class="bg-purple-50 px-4 py-3 border-b border-purple-200">
+                                <h4 class="text-sm font-semibold text-purple-800">
+                                    <i class="fas fa-table mr-2"></i>${tabla.nombre}
+                                </h4>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                    `;
+                    
+                    tabla.columnas.forEach(col => {
+                        tablaHtml += `<th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase border-b">${col}</th>`;
+                    });
+                    tablaHtml += '</tr></thead><tbody>';
+                    
+                    const tablaNombre = tabla.nombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    
+                    for (let fila = 0; fila < tabla.num_filas; fila++) {
+                        tablaHtml += '<tr class="border-b hover:bg-gray-50">';
+                        tabla.columnas.forEach((col, colIdx) => {
+                            const colNombre = col.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/\./g, '');
+                            const campoKey = `tabla_${tablaNombre}_${fila}_${colNombre}`;
+                            const isNumeric = col.toLowerCase().includes('monto') || col.toLowerCase().includes('total') || col.toLowerCase().includes('s/') || col.toLowerCase().includes('precio');
+                            const inputType = isNumeric ? 'number' : 'text';
+                            tablaHtml += `
+                                <td class="px-2 py-1">
+                                    <input type="${inputType}" name="${campoKey}" 
+                                           class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                                           placeholder="${col}">
+                                </td>
+                            `;
+                        });
+                        tablaHtml += '</tr>';
+                    }
+                    
+                    if (tabla.mostrar_total) {
+                        tablaHtml += '<tr class="bg-purple-50 font-semibold">';
+                        tabla.columnas.forEach((col, colIdx) => {
+                            if (colIdx === 0) {
+                                tablaHtml += `<td class="px-3 py-2 border-t-2 border-purple-300" colspan="1">TOTAL</td>`;
+                            } else if (col === tabla.columna_total) {
+                                const colNombre = col.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/\./g, '');
+                                const campoKey = `tabla_${tablaNombre}_total_${colNombre}`;
+                                tablaHtml += `
+                                    <td class="px-2 py-1 border-t-2 border-purple-300">
+                                        <input type="number" name="${campoKey}" 
+                                               class="w-full px-2 py-1.5 text-sm border border-purple-300 rounded bg-purple-100 font-semibold"
+                                               placeholder="Total">
+                                    </td>
+                                `;
+                            } else {
+                                tablaHtml += `<td class="px-3 py-2 border-t-2 border-purple-300"></td>`;
+                            }
+                        });
+                        tablaHtml += '</tr>';
+                    }
+                    
+                    tablaHtml += '</tbody></table></div></div>';
+                    tablaDiv.innerHTML = tablaHtml;
+                    camposContainer.appendChild(tablaDiv);
+                });
+            }
         }
 
         function submitForPreview() {

@@ -232,6 +232,46 @@ class ImagenModelo(db.Model):
     modelo = db.relationship('Modelo', backref=db.backref('imagenes', lazy='dynamic', cascade='all, delete-orphan'))
 
 
+class ModeloTabla(db.Model):
+    """Tabla/cuadro asociado a un modelo de documento (ej: cuadro de gastos)."""
+    __tablename__ = 'modelo_tablas'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    modelo_id = db.Column(db.Integer, db.ForeignKey('plantillas.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    nombre = db.Column(db.String(200), nullable=False)
+    descripcion = db.Column(db.String(500))
+    columnas = db.Column(db.JSON, nullable=False)
+    num_filas = db.Column(db.Integer, default=5)
+    mostrar_total = db.Column(db.Boolean, default=False)
+    columna_total = db.Column(db.String(100))
+    orden = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    modelo = db.relationship('Modelo', backref=db.backref('tablas', lazy='dynamic', cascade='all, delete-orphan'))
+    
+    def get_campo_key(self, fila_idx, columna_idx):
+        """Genera clave única para un campo de la tabla."""
+        col_name = self.columnas[columna_idx] if columna_idx < len(self.columnas) else f"col{columna_idx}"
+        safe_name = col_name.lower().replace(' ', '_').replace('.', '')
+        tabla_name = self.nombre.lower().replace(' ', '_')
+        return f"tabla_{tabla_name}_{fila_idx}_{safe_name}"
+    
+    def get_all_campos(self):
+        """Retorna todos los campos de la tabla como lista de dicts."""
+        campos = []
+        for fila in range(self.num_filas):
+            for col_idx, col_name in enumerate(self.columnas):
+                campos.append({
+                    'key': self.get_campo_key(fila, col_idx),
+                    'fila': fila,
+                    'columna': col_idx,
+                    'columna_nombre': col_name,
+                    'etiqueta': f"{col_name} (Fila {fila + 1})"
+                })
+        return campos
+
+
 class Case(db.Model):
     """Caso legal - expediente judicial o extrajudicial."""
     __tablename__ = 'cases'
