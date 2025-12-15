@@ -433,6 +433,8 @@ class FinishedDocument(db.Model):
     archivo = db.Column(db.String(500), nullable=False)
     descripcion = db.Column(db.Text)
     tipo_documento = db.Column(db.String(100))
+    numero_expediente = db.Column(db.String(100))
+    plazo_entrega = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -442,3 +444,35 @@ class FinishedDocument(db.Model):
     
     def get_filename(self):
         return os.path.basename(self.archivo) if self.archivo else None
+    
+    def get_priority_status(self):
+        """Returns priority status based on plazo_entrega deadline.
+        Returns: 'urgente' (<=24 hours), 'importante' (24-48 hours), 'vencido' (past), or None
+        """
+        if not self.plazo_entrega:
+            return None
+        
+        now = datetime.utcnow()
+        if self.plazo_entrega < now:
+            return 'vencido'
+        
+        delta = self.plazo_entrega - now
+        hours_remaining = delta.total_seconds() / 3600
+        
+        if hours_remaining <= 24:
+            return 'urgente'
+        elif hours_remaining <= 48:
+            return 'importante'
+        return None
+    
+    def get_days_remaining(self):
+        """Returns number of days until deadline (rounded up for display)."""
+        if not self.plazo_entrega:
+            return None
+        
+        now = datetime.utcnow()
+        delta = self.plazo_entrega - now
+        hours = delta.total_seconds() / 3600
+        if hours < 0:
+            return 0
+        return max(1, int(hours / 24) + (1 if hours % 24 > 0 else 0))

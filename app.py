@@ -2683,6 +2683,15 @@ def subir_documento_terminado():
     case_id = request.form.get('case_id', type=int)
     descripcion = request.form.get('descripcion', '').strip()
     tipo_documento = request.form.get('tipo_documento', '').strip()
+    numero_expediente = request.form.get('numero_expediente', '').strip()
+    plazo_entrega_str = request.form.get('plazo_entrega', '').strip()
+    
+    plazo_entrega = None
+    if plazo_entrega_str:
+        try:
+            plazo_entrega = datetime.strptime(plazo_entrega_str, '%Y-%m-%d')
+        except ValueError:
+            pass
     
     if not archivo or not archivo.filename:
         flash("Debes seleccionar un archivo.", "error")
@@ -2712,7 +2721,9 @@ def subir_documento_terminado():
         nombre=nombre,
         archivo=archivo_path,
         descripcion=descripcion,
-        tipo_documento=tipo_documento
+        tipo_documento=tipo_documento,
+        numero_expediente=numero_expediente if numero_expediente else None,
+        plazo_entrega=plazo_entrega
     )
     db.session.add(documento)
     db.session.commit()
@@ -2796,6 +2807,15 @@ def editar_documento_terminado(doc_id):
             documento.nombre = request.form.get('nombre', documento.nombre).strip()
             documento.descripcion = request.form.get('descripcion', '').strip()
             documento.tipo_documento = request.form.get('tipo_documento', '').strip()
+            documento.numero_expediente = request.form.get('numero_expediente', '').strip() or None
+            plazo_str = request.form.get('plazo_entrega', '').strip()
+            if plazo_str:
+                try:
+                    documento.plazo_entrega = datetime.strptime(plazo_str, '%Y-%m-%d')
+                except ValueError:
+                    pass
+            else:
+                documento.plazo_entrega = None
             case_id = request.form.get('case_id', type=int)
             documento.case_id = case_id if case_id else None
             db.session.commit()

@@ -502,19 +502,49 @@ function showCampoInfo(campo) {
 }
 
 function removeCampo(btn) {
-    btn.closest('.campo-row').remove();
+    const row = btn.closest('.campo-row');
+    const campoIndex = parseInt(row.getAttribute('data-campo-index'));
+    
+    const highlights = document.querySelectorAll(`.placeholder-highlight[data-campo-index="${campoIndex}"]`);
+    highlights.forEach(highlight => {
+        const textContent = highlight.textContent;
+        const textNode = document.createTextNode(textContent);
+        highlight.parentNode.replaceChild(textNode, highlight);
+    });
+    
+    if (camposData && camposData.length > campoIndex) {
+        camposData.splice(campoIndex, 1);
+    }
+    
+    row.remove();
     reindexCampos();
 }
 
 function reindexCampos() {
     const rows = document.querySelectorAll('.campo-row');
+    const colors = ['bg-yellow-200', 'bg-green-200', 'bg-blue-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200'];
+    
     rows.forEach((row, index) => {
+        const oldIndex = parseInt(row.getAttribute('data-campo-index'));
         row.setAttribute('data-campo-index', index);
+        
         const badge = row.querySelector('.w-6.h-6');
         if (badge) {
             badge.textContent = index + 1;
+            colors.forEach(c => badge.classList.remove(c));
+            badge.classList.add(colors[index % colors.length]);
+        }
+        
+        if (oldIndex !== index) {
+            const highlights = document.querySelectorAll(`.placeholder-highlight[data-campo-index="${oldIndex}"]`);
+            highlights.forEach(highlight => {
+                highlight.setAttribute('data-campo-index', index);
+                colors.forEach(c => highlight.classList.remove(c));
+                highlight.classList.add(colors[index % colors.length]);
+            });
         }
     });
+    
     document.getElementById('campos-count').textContent = rows.length;
 }
 
