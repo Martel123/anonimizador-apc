@@ -3929,6 +3929,120 @@ def descargar_anonimizado(nombre):
     return send_from_directory(folder, nombre, as_attachment=True)
 
 
+# ==================== BUSQUEDA POR SIMILITUD ====================
+
+@app.route("/buscar-similares")
+@login_required
+def buscar_similares():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    return render_template("buscar_similares.html")
+
+
+@app.route("/buscar-similares/consultar", methods=["POST"])
+@login_required
+def buscar_similares_consultar():
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No tienes acceso"}), 403
+    
+    consulta = request.form.get("consulta", "").strip()
+    if not consulta:
+        return jsonify({"error": "Escribe una consulta"}), 400
+    
+    # Obtener documentos del tenant para buscar similitudes
+    documentos = FinishedDocument.query.filter_by(
+        tenant_id=tenant.id
+    ).order_by(FinishedDocument.created_at.desc()).limit(100).all()
+    
+    if not documentos:
+        return jsonify({
+            "respuesta": "No hay documentos guardados todavía. Genera o sube documentos para poder buscar similares.",
+            "documentos": []
+        })
+    
+    # Preparar resumen de documentos para la IA
+    docs_info = []
+    for doc in documentos:
+        info = {
+            "id": doc.id,
+            "nombre": doc.nombre_documento or doc.nombre or "Sin nombre",
+            "tipo": doc.tipo_documento or "No especificado",
+            "fecha": doc.created_at.strftime("%d/%m/%Y") if doc.created_at else "",
+            "numero_expediente": doc.numero_expediente or "",
+            "descripcion": (doc.descripcion or "")[:200]
+        }
+        # Añadir fragmento del contenido si está disponible
+        if doc.contenido_texto:
+            info["contenido_fragmento"] = doc.contenido_texto[:500]
+        docs_info.append(info)
+    
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        system_prompt = """Eres un asistente legal experto que ayuda a encontrar documentos similares. 
+El usuario te hará consultas como "muéstrame casos parecidos a demandas de alimentos" o "busco documentos sobre divorcio".
+
+Tu tarea es:
+1. Analizar la consulta del usuario
+2. Buscar en la lista de documentos proporcionada aquellos que sean similares o relevantes
+3. Responder de forma amigable explicando qué encontraste
+4. Devolver los IDs de los documentos relevantes
+
+Responde SIEMPRE en formato JSON con esta estructura:
+{
+    "respuesta": "Texto explicativo para el usuario sobre lo que encontraste",
+    "documentos_ids": [lista de IDs de documentos relevantes, máximo 10]
+}
+
+Si no encuentras documentos relevantes, explica por qué y sugiere qué tipo de documentos podría buscar."""
+
+        docs_json = json.dumps(docs_info, ensure_ascii=False)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Documentos disponibles:\n{docs_json}\n\nConsulta del usuario: {consulta}"}
+            ],
+            temperature=0.3,
+            max_tokens=1000,
+            response_format={"type": "json_object"}
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        
+        # Obtener documentos encontrados
+        docs_ids = result.get("documentos_ids", [])
+        docs_encontrados = []
+        for doc_id in docs_ids:
+            doc = FinishedDocument.query.filter_by(id=doc_id, tenant_id=tenant.id).first()
+            if doc:
+                docs_encontrados.append({
+                    "id": doc.id,
+                    "nombre": doc.nombre_documento or doc.nombre or "Sin nombre",
+                    "tipo": doc.tipo_documento or "No especificado",
+                    "fecha": doc.created_at.strftime("%d/%m/%Y") if doc.created_at else "",
+                    "numero_expediente": doc.numero_expediente or "",
+                    "tiene_archivo": bool(doc.archivo_path)
+                })
+        
+        return jsonify({
+            "respuesta": result.get("respuesta", ""),
+            "documentos": docs_encontrados
+        })
+        
+    except Exception as e:
+        logging.error(f"Error en búsqueda de similares: {e}")
+        return jsonify({
+            "respuesta": "Hubo un error al procesar tu consulta. Por favor intenta de nuevo.",
+            "documentos": []
+        })
+
+
 # ==================== REVISOR IA ====================
 
 CARPETA_REVISIONES = "revisiones_temp"

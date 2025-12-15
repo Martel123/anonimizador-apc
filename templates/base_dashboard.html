@@ -79,14 +79,14 @@
                     <span>Tareas</span>
                 </a>
                 <div class="sidebar-submenu">
-                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}active{% endif %}">
+                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}active{% endif %}">
                         <span class="flex items-center">
                             <i class="fas fa-file-alt w-5 mr-3"></i>
                             <span>Documentos</span>
                         </span>
-                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}rotate{% endif %}" id="documentos-arrow"></i>
+                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}rotate{% endif %}" id="documentos-arrow"></i>
                     </button>
-                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}hidden{% endif %} pl-4">
+                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}hidden{% endif %} pl-4">
                         <a href="{{ url_for('generador') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'generador' %}active{% endif %}">
                             <i class="fas fa-magic w-4 mr-3 text-xs"></i>
                             <span>Generar</span>
@@ -110,6 +110,10 @@
                         <a href="{{ url_for('revisor_ia') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}active{% endif %}">
                             <i class="fas fa-search-plus w-4 mr-3 text-xs"></i>
                             <span>Revisor IA</span>
+                        </a>
+                        <a href="{{ url_for('buscar_similares') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['buscar_similares', 'buscar_similares_consultar'] %}active{% endif %}">
+                            <i class="fas fa-search w-4 mr-3 text-xs"></i>
+                            <span>Buscar Similares</span>
                         </a>
                     </div>
                 </div>
