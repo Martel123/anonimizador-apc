@@ -281,13 +281,135 @@
         const aiForm = document.getElementById('ai-form');
         const aiInput = document.getElementById('ai-input');
         const aiMessages = document.getElementById('ai-messages');
+        
+        const CHAT_STORAGE_KEY = 'ai_chat_data';
+        const WARNING_TIME = 3 * 60 * 1000;
+        const CLOSE_TIME = 5 * 60 * 1000;
+        let warningTimeout = null;
+        let closeTimeout = null;
+        let warningShown = false;
+
+        function getDefaultMessage() {
+            return `<div class="flex items-start space-x-2">
+                <img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0">
+                <div class="bg-white p-3 rounded-lg shadow-sm max-w-[85%]">
+                    <p class="text-sm text-gray-700 text-justify">Hola! Soy tu guia de la plataforma. Preguntame lo que necesites saber, por ejemplo:</p>
+                    <div class="text-sm text-gray-600 mt-3 space-y-2">
+                        <div class="flex"><span class="font-bold mr-2">1.</span><span>Como creo un caso nuevo?</span></div>
+                        <div class="flex"><span class="font-bold mr-2">2.</span><span>Como genero un documento?</span></div>
+                        <div class="flex"><span class="font-bold mr-2">3.</span><span>Donde veo mis documentos?</span></div>
+                        <div class="flex"><span class="font-bold mr-2">4.</span><span>Como agrego usuarios?</span></div>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function saveChatState() {
+            const data = {
+                isOpen: !aiChat.classList.contains('hidden'),
+                messages: aiMessages.innerHTML,
+                lastActivity: Date.now()
+            };
+            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function loadChatState() {
+            const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+            if (!stored) return;
+            
+            try {
+                const data = JSON.parse(stored);
+                const elapsed = Date.now() - data.lastActivity;
+                
+                if (elapsed >= CLOSE_TIME) {
+                    clearChatData();
+                    return;
+                }
+                
+                if (data.messages) {
+                    aiMessages.innerHTML = data.messages;
+                }
+                
+                if (data.isOpen) {
+                    aiChat.classList.remove('hidden');
+                }
+                
+                resetInactivityTimers();
+            } catch (e) {
+                clearChatData();
+            }
+        }
+
+        function clearChatData() {
+            localStorage.removeItem(CHAT_STORAGE_KEY);
+            aiMessages.innerHTML = getDefaultMessage();
+            aiChat.classList.add('hidden');
+            warningShown = false;
+        }
+
+        function showWarningMessage() {
+            if (warningShown) return;
+            warningShown = true;
+            
+            const warningMsg = document.createElement('div');
+            warningMsg.id = 'inactivity-warning';
+            warningMsg.className = 'flex items-start space-x-2';
+            warningMsg.innerHTML = `<img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0">
+                <div class="bg-yellow-50 border border-yellow-200 p-3 rounded-lg shadow-sm max-w-[85%]">
+                    <p class="text-sm text-yellow-800">Terminaste tus dudas? Si no respondes en 2 minutos, cerrare el chat automaticamente.</p>
+                    <div class="flex space-x-2 mt-2">
+                        <button onclick="userStillHere()" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">Sigo aqui</button>
+                        <button onclick="closeAndClearChat()" class="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400">Cerrar chat</button>
+                    </div>
+                </div>`;
+            aiMessages.appendChild(warningMsg);
+            aiMessages.scrollTop = aiMessages.scrollHeight;
+            saveChatState();
+        }
+
+        function userStillHere() {
+            const warning = document.getElementById('inactivity-warning');
+            if (warning) warning.remove();
+            warningShown = false;
+            resetInactivityTimers();
+            saveChatState();
+        }
+
+        function closeAndClearChat() {
+            clearTimeout(warningTimeout);
+            clearTimeout(closeTimeout);
+            clearChatData();
+        }
+
+        function resetInactivityTimers() {
+            clearTimeout(warningTimeout);
+            clearTimeout(closeTimeout);
+            
+            warningTimeout = setTimeout(() => {
+                if (!aiChat.classList.contains('hidden')) {
+                    showWarningMessage();
+                }
+            }, WARNING_TIME);
+            
+            closeTimeout = setTimeout(() => {
+                closeAndClearChat();
+            }, CLOSE_TIME);
+        }
+
+        loadChatState();
+        resetInactivityTimers();
 
         aiToggle.addEventListener('click', () => {
             aiChat.classList.toggle('hidden');
+            saveChatState();
+            if (!aiChat.classList.contains('hidden')) {
+                resetInactivityTimers();
+            }
         });
 
         aiClose.addEventListener('click', () => {
             aiChat.classList.add('hidden');
+            saveChatState();
         });
 
         aiForm.addEventListener('submit', async (e) => {
@@ -295,12 +417,18 @@
             const message = aiInput.value.trim();
             if (!message) return;
 
+            const warning = document.getElementById('inactivity-warning');
+            if (warning) warning.remove();
+            warningShown = false;
+            resetInactivityTimers();
+
             const userMsg = document.createElement('div');
             userMsg.className = 'flex items-start space-x-2 justify-end';
             userMsg.innerHTML = `<div class="bg-blue-600 text-white p-3 rounded-lg max-w-[85%]"><p class="text-sm">${message}</p></div>`;
             aiMessages.appendChild(userMsg);
             aiInput.value = '';
             aiMessages.scrollTop = aiMessages.scrollHeight;
+            saveChatState();
 
             const loadingMsg = document.createElement('div');
             loadingMsg.id = 'ai-loading';
@@ -330,14 +458,19 @@
                 botMsg.innerHTML = `<img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0"><div class="bg-white p-3 rounded-lg shadow-sm max-w-[85%]"><div class="text-sm text-gray-700 text-justify">${formattedResponse}</div></div>`;
                 aiMessages.appendChild(botMsg);
                 aiMessages.scrollTop = aiMessages.scrollHeight;
+                saveChatState();
             } catch (error) {
                 document.getElementById('ai-loading')?.remove();
                 const errorMsg = document.createElement('div');
                 errorMsg.className = 'flex items-start space-x-2';
                 errorMsg.innerHTML = `<img src="{{ url_for('static', filename='images/ai_assistant_robot.png') }}" alt="IA" class="w-6 h-6 rounded-full flex-shrink-0"><div class="bg-red-50 p-3 rounded-lg"><p class="text-sm text-red-600">Ups! Algo salio mal.</p></div>`;
                 aiMessages.appendChild(errorMsg);
+                saveChatState();
             }
         });
+
+        window.userStillHere = userStillHere;
+        window.closeAndClearChat = closeAndClearChat;
     </script>
 
     {% block extra_scripts %}{% endblock %}
