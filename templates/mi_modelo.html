@@ -624,7 +624,7 @@ function addCampo() {
 }
 
 function addCampoArchivo() {
-    const nombreImagen = prompt('Nombre del marcador de imagen (ej: logo, firma, foto):\n\nEste nombre se usara para crear el marcador {{IMAGEN:nombre}} que debes insertar en tu documento Word.');
+    const nombreImagen = prompt('Nombre del marcador de imagen (ej: logo, firma, foto):\n\nEste nombre se usara para crear el marcador \{\{IMAGEN:nombre\}\} que debes insertar en tu documento Word.');
     if (!nombreImagen || !nombreImagen.trim()) return;
     
     const nombreNormalizado = nombreImagen.trim().toLowerCase()
@@ -651,7 +651,7 @@ function addCampoArchivo() {
         </div>
         <div class="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
             <p class="text-xs text-blue-700"><i class="fas fa-info-circle mr-1"></i>Inserta este marcador en tu documento Word donde quieras la imagen:</p>
-            <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">{{IMAGEN:${nombreNormalizado}}}</code>
+            <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">\{\{IMAGEN:${nombreNormalizado}\}\}</code>
         </div>
         <input type="hidden" name="campo_nombre[]" value="${nombreNormalizado}">
         <input type="hidden" name="campo_etiqueta[]" value="Imagen: ${nombreNormalizado}">
@@ -708,7 +708,7 @@ function handleTipoChange(select) {
         const nombreInput = row.querySelector('input[name="campo_nombre[]"]');
         const nombreActual = nombreInput ? nombreInput.value : '';
         
-        const nombreImagen = prompt('Nombre del marcador de imagen (ej: logo, firma, foto):\n\nEste nombre se usara para crear el marcador {{IMAGEN:nombre}} que debes insertar en tu documento Word.', nombreActual);
+        const nombreImagen = prompt('Nombre del marcador de imagen (ej: logo, firma, foto):\n\nEste nombre se usara para crear el marcador \{\{IMAGEN:nombre\}\} que debes insertar en tu documento Word.', nombreActual);
         
         if (!nombreImagen || !nombreImagen.trim()) {
             select.value = 'text';
@@ -734,7 +734,7 @@ function handleTipoChange(select) {
             </div>
             <div class="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
                 <p class="text-xs text-blue-700"><i class="fas fa-info-circle mr-1"></i>Inserta este marcador en tu documento Word donde quieras la imagen:</p>
-                <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">{{IMAGEN:${nombreNormalizado}}}</code>
+                <code class="block mt-1 bg-white px-2 py-1 rounded text-sm font-mono text-blue-800 select-all">\{\{IMAGEN:${nombreNormalizado}\}\}</code>
             </div>
             <input type="hidden" name="campo_nombre[]" value="${nombreNormalizado}">
             <input type="hidden" name="campo_etiqueta[]" value="Imagen: ${nombreNormalizado}">
