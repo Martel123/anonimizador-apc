@@ -779,6 +779,7 @@ def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
     
     import re
     tabla_pattern = re.compile(r'\[\[TABLA:([^\]]+)\]\]')
+    imagen_pattern = re.compile(r'\{\{IMAGEN:([^}]+)\}\}')
     tablas_insertadas = set()
     
     for parrafo in texto.split("\n"):
@@ -795,6 +796,40 @@ def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
                         agregar_tabla_word(doc, tabla_nombre, tabla_data)
                         tablas_insertadas.add(tabla_nombre)
                     break
+            continue
+        
+        imagen_match = imagen_pattern.search(linea)
+        if imagen_match:
+            imagen_key = imagen_match.group(1).strip().lower()
+            imagen_key_norm = imagen_key.replace(' ', '_').replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').replace('ñ', 'n')
+            
+            imagen_path = None
+            if tenant:
+                campo_imagen = CampoPlantilla.query.filter_by(
+                    tenant_id=tenant.id,
+                    tipo='file'
+                ).filter(CampoPlantilla.nombre_campo.ilike(f'%{imagen_key_norm}%')).first()
+                
+                if campo_imagen and campo_imagen.archivo_path:
+                    full_path = os.path.join(CARPETA_IMAGENES_MODELOS, campo_imagen.archivo_path)
+                    if os.path.exists(full_path):
+                        imagen_path = full_path
+            
+            if imagen_path:
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = p.add_run()
+                try:
+                    run.add_picture(imagen_path, width=Cm(8))
+                except Exception as e:
+                    logging.error(f"Error insertando imagen {imagen_key}: {e}")
+                    p.add_run(f"[Imagen: {imagen_key}]")
+            else:
+                p = doc.add_paragraph()
+                run = p.add_run(f"[Imagen: {imagen_key} no encontrada]")
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(10)
+                run.italic = True
             continue
         
         p = doc.add_paragraph()
@@ -2878,6 +2913,7 @@ def mi_modelo():
         campo_tipos = request.form.getlist('campo_tipo[]')
         
         if campo_nombres:
+            campos_anteriores = {c.nombre_campo: c for c in CampoPlantilla.query.filter_by(tenant_id=tenant.id, plantilla_key=modelo.key).all()}
             CampoPlantilla.query.filter_by(tenant_id=tenant.id, plantilla_key=modelo.key).delete()
             
             for i, nombre_campo in enumerate(campo_nombres):
@@ -2885,13 +2921,32 @@ def mi_modelo():
                     etiqueta = campo_etiquetas[i] if i < len(campo_etiquetas) else nombre_campo
                     tipo = campo_tipos[i] if i < len(campo_tipos) else 'text'
                     
+                    archivo_path_campo = None
+                    if tipo == 'file':
+                        campo_archivo = request.files.get(f'campo_archivo_{i}')
+                        if campo_archivo and campo_archivo.filename:
+                            img_ext = os.path.splitext(campo_archivo.filename)[1].lower()
+                            if img_ext in ALLOWED_IMAGE_EXTENSIONS:
+                                campo_folder = os.path.join(CARPETA_IMAGENES_MODELOS, f"campos_{tenant.id}")
+                                os.makedirs(campo_folder, exist_ok=True)
+                                
+                                safe_img_name = secure_filename(campo_archivo.filename)
+                                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                                img_filename = f"{timestamp}_{safe_img_name}"
+                                img_full_path = os.path.join(campo_folder, img_filename)
+                                campo_archivo.save(img_full_path)
+                                archivo_path_campo = f"campos_{tenant.id}/{img_filename}"
+                        elif campo_to_key(nombre_campo) in campos_anteriores:
+                            archivo_path_campo = campos_anteriores[campo_to_key(nombre_campo)].archivo_path
+                    
                     campo = CampoPlantilla(
                         tenant_id=tenant.id,
                         plantilla_key=modelo.key,
                         nombre_campo=campo_to_key(nombre_campo),
                         etiqueta=etiqueta.strip(),
                         tipo=tipo,
-                        orden=i
+                        orden=i,
+                        archivo_path=archivo_path_campo
                     )
                     db.session.add(campo)
             

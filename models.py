@@ -211,6 +211,7 @@ class CampoPlantilla(db.Model):
     orden = db.Column(db.Integer, default=0)
     placeholder = db.Column(db.String(200))
     opciones = db.Column(db.Text)
+    archivo_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
