@@ -123,28 +123,34 @@ def check_and_send_notifications(tenant_id):
             priority = doc.get_priority_status()
             
             if priority == 'urgente' and not doc.sent_urgente_notification:
+                sent_any = False
                 if doc.case:
                     for assignment in doc.case.assignments:
                         if assignment.user and assignment.user.email:
-                            send_notification_email(
+                            if send_notification_email(
                                 assignment.user.email,
                                 f"URGENTE: Documento '{doc.nombre}' vence pronto",
                                 f"<h2>Documento Urgente</h2><p>El documento <strong>{doc.nombre}</strong> tiene plazo de entrega en menos de 24 horas.</p><p>Expediente: {doc.numero_expediente or 'N/A'}</p>"
-                            )
-                doc.sent_urgente_notification = True
-                db.session.commit()
+                            ):
+                                sent_any = True
+                if sent_any:
+                    doc.sent_urgente_notification = True
+                    db.session.commit()
                 
             elif priority == 'importante' and not doc.sent_importante_notification:
+                sent_any = False
                 if doc.case:
                     for assignment in doc.case.assignments:
                         if assignment.user and assignment.user.email:
-                            send_notification_email(
+                            if send_notification_email(
                                 assignment.user.email,
                                 f"Importante: Documento '{doc.nombre}' vence en 2 dias",
                                 f"<h2>Recordatorio Importante</h2><p>El documento <strong>{doc.nombre}</strong> tiene plazo de entrega en menos de 48 horas.</p><p>Expediente: {doc.numero_expediente or 'N/A'}</p>"
-                            )
-                doc.sent_importante_notification = True
-                db.session.commit()
+                            ):
+                                sent_any = True
+                if sent_any:
+                    doc.sent_importante_notification = True
+                    db.session.commit()
     except Exception as e:
         logging.error(f"Error checking notifications: {e}")
 
