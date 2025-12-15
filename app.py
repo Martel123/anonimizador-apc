@@ -1182,8 +1182,25 @@ def procesar_ia():
     
     if campos_dinamicos:
         datos_caso = {}
+        archivos_subidos = {}
         for campo in campos_dinamicos:
-            datos_caso[campo.nombre_campo] = validar_dato(request.form.get(campo.nombre_campo, ""))
+            if campo.tipo == 'file':
+                archivo = request.files.get(campo.nombre_campo)
+                if archivo and archivo.filename:
+                    from werkzeug.utils import secure_filename
+                    import uuid
+                    filename = secure_filename(archivo.filename)
+                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                    upload_folder = os.path.join('archivos_campos', f'tenant_{tenant_id}')
+                    os.makedirs(upload_folder, exist_ok=True)
+                    filepath = os.path.join(upload_folder, unique_filename)
+                    archivo.save(filepath)
+                    datos_caso[campo.nombre_campo] = f"[Archivo: {filename}]"
+                    archivos_subidos[campo.nombre_campo] = filepath
+                else:
+                    datos_caso[campo.nombre_campo] = "[Sin archivo]"
+            else:
+                datos_caso[campo.nombre_campo] = validar_dato(request.form.get(campo.nombre_campo, ""))
     else:
         datos_caso = {
             "invitado": validar_dato(request.form.get("invitado", "")),
@@ -1264,8 +1281,25 @@ def preview():
     
     if campos_dinamicos:
         datos_caso = {}
+        archivos_subidos = {}
         for campo in campos_dinamicos:
-            datos_caso[campo.nombre_campo] = validar_dato(request.form.get(campo.nombre_campo, ""))
+            if campo.tipo == 'file':
+                archivo = request.files.get(campo.nombre_campo)
+                if archivo and archivo.filename:
+                    from werkzeug.utils import secure_filename
+                    import uuid
+                    filename = secure_filename(archivo.filename)
+                    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                    upload_folder = os.path.join('archivos_campos', f'tenant_{tenant_id}')
+                    os.makedirs(upload_folder, exist_ok=True)
+                    filepath = os.path.join(upload_folder, unique_filename)
+                    archivo.save(filepath)
+                    datos_caso[campo.nombre_campo] = f"[Archivo: {filename}]"
+                    archivos_subidos[campo.nombre_campo] = filepath
+                else:
+                    datos_caso[campo.nombre_campo] = "[Sin archivo]"
+            else:
+                datos_caso[campo.nombre_campo] = validar_dato(request.form.get(campo.nombre_campo, ""))
     else:
         datos_caso = {
             "invitado": validar_dato(request.form.get("invitado", "")),

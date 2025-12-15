@@ -91,6 +91,7 @@
                                     <option value="date" {% if campo.tipo == 'date' %}selected{% endif %}>Fecha</option>
                                     <option value="number" {% if campo.tipo == 'number' %}selected{% endif %}>Numero</option>
                                     <option value="email" {% if campo.tipo == 'email' %}selected{% endif %}>Email</option>
+                                    <option value="file" {% if campo.tipo == 'file' %}selected{% endif %}>Archivo</option>
                                 </select>
                             </div>
                             {% endfor %}
@@ -110,6 +111,7 @@
                                     <option value="date">Fecha</option>
                                     <option value="number">Numero</option>
                                     <option value="email">Email</option>
+                                    <option value="file">Archivo</option>
                                 </select>
                             </div>
                             {% endfor %}
@@ -117,82 +119,6 @@
                         <button type="button" onclick="addCampo()" class="text-sm text-blue-600 hover:text-blue-800 flex items-center">
                             <i class="fas fa-plus mr-1"></i> Agregar campo manualmente
                         </button>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="imagenes-section" class="border border-gray-200 rounded-lg overflow-hidden">
-                <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                    <h4 class="text-sm font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-images text-green-600 mr-2"></i>
-                        Imagenes del Documento
-                    </h4>
-                    <p class="text-xs text-gray-500 mt-1">Sube imagenes para incluir en el documento generado</p>
-                </div>
-                <div class="p-4">
-                    <div id="imagenes-container" class="space-y-3 mb-4">
-                        {% if modelo and modelo.imagenes.count() > 0 %}
-                        {% for imagen in modelo.imagenes %}
-                        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg imagen-row" data-imagen-id="{{ imagen.id }}">
-                            <img src="{{ url_for('static', filename='imagenes_modelos/' + (modelo.tenant_id|string) + '/' + imagen.archivo.split('/')[-1]) }}" 
-                                 alt="{{ imagen.nombre }}" class="w-16 h-16 object-cover rounded border">
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-700">{{ imagen.nombre }}</p>
-                                <div class="flex items-center gap-2 mt-1">
-                                    <span class="text-xs text-gray-500">Posicion: {{ imagen.posicion }}</span>
-                                    <span class="text-xs text-gray-500">Ancho: {{ imagen.ancho_cm }}cm</span>
-                                </div>
-                            </div>
-                            <button type="button" onclick="eliminarImagen({{ imagen.id }})" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                        {% endfor %}
-                        {% endif %}
-                    </div>
-                    
-                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-green-400 transition-colors" id="imagen-upload-zone">
-                        <input type="file" id="imagen_archivo" name="imagen_archivo" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden">
-                        <label for="imagen_archivo" class="cursor-pointer block">
-                            <div class="p-3 bg-green-50 rounded-full w-12 h-12 mx-auto mb-3 flex items-center justify-center">
-                                <i class="fas fa-image text-green-600 text-xl"></i>
-                            </div>
-                            <p class="text-sm text-gray-600">Subir imagen</p>
-                            <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP (max 5MB)</p>
-                        </label>
-                    </div>
-                    
-                    <div id="nueva-imagen-form" class="hidden mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div class="flex items-start gap-4">
-                            <img id="imagen-preview" src="" alt="Preview" class="w-20 h-20 object-cover rounded border">
-                            <div class="flex-1 space-y-3">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
-                                    <input type="text" name="imagen_nombre" id="imagen_nombre"
-                                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                           placeholder="Descripcion de la imagen">
-                                </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Posicion</label>
-                                        <select name="imagen_posicion" id="imagen_posicion" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                                            <option value="header">Encabezado</option>
-                                            <option value="footer">Pie de pagina</option>
-                                            <option value="inline" selected>En linea (cuerpo)</option>
-                                            <option value="firma">Zona de firma</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-700 mb-1">Ancho (cm)</label>
-                                        <input type="number" name="imagen_ancho" id="imagen_ancho" value="5" min="1" max="18" step="0.5"
-                                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex justify-end gap-2 mt-3">
-                            <button type="button" onclick="cancelarImagen()" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -644,6 +570,7 @@ function addCampo() {
             <option value="date">Fecha</option>
             <option value="number">Numero</option>
             <option value="email">Email</option>
+            <option value="file">Archivo</option>
         </select>
     `;
     container.appendChild(row);

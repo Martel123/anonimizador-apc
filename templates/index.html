@@ -105,7 +105,7 @@
             </div>
             {% endif %}
 
-            <form id="documentForm" action="{{ url_for('procesar_ia') }}" method="POST" class="space-y-8">
+            <form id="documentForm" action="{{ url_for('procesar_ia') }}" method="POST" enctype="multipart/form-data" class="space-y-8">
                 <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
                     <h3 class="text-xl font-medium text-gray-900 mb-6">Tipo de Documento</h3>
                     <div>
@@ -341,6 +341,27 @@
                             placeholder="${campo.placeholder}"
                             class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">`;
                         break;
+                    case 'file':
+                        inputHtml = `
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                                <input type="file" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
+                                    accept=".jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.pdf"
+                                    class="hidden" onchange="previewFile(this, '${campo.nombre_campo}')">
+                                <label for="${campo.nombre_campo}" class="cursor-pointer block">
+                                    <div class="p-3 bg-blue-50 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                                        <i class="fas fa-cloud-upload-alt text-blue-600 text-xl"></i>
+                                    </div>
+                                    <p class="text-sm text-gray-600">Haz clic para subir archivo</p>
+                                    <p class="text-xs text-gray-400 mt-1">JPG, PNG, Word, PDF (max 10MB)</p>
+                                </label>
+                                <div id="preview_${campo.nombre_campo}" class="hidden mt-3 p-2 bg-green-50 rounded-lg">
+                                    <p class="text-sm text-green-700 flex items-center justify-center">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span id="filename_${campo.nombre_campo}"></span>
+                                    </p>
+                                </div>
+                            </div>`;
+                        break;
                     default:
                         inputHtml = `<input type="text" name="${campo.nombre_campo}" id="${campo.nombre_campo}" ${requiredAttr}
                             placeholder="${campo.placeholder}"
@@ -425,6 +446,19 @@
                     tablaDiv.innerHTML = tablaHtml;
                     camposContainer.appendChild(tablaDiv);
                 });
+            }
+        }
+
+        function previewFile(input, fieldName) {
+            const previewDiv = document.getElementById('preview_' + fieldName);
+            const filenameSpan = document.getElementById('filename_' + fieldName);
+            
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                filenameSpan.textContent = file.name;
+                previewDiv.classList.remove('hidden');
+            } else {
+                previewDiv.classList.add('hidden');
             }
         }
 
