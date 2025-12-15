@@ -564,7 +564,7 @@ def cargar_estilos(carpeta_estilos, tenant_id=None):
     return "\n\n---\n\n".join(estilos)
 
 
-def construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos=None):
+def construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos=None, datos_tablas=None):
     datos_str = ""
     if campos_dinamicos and len(campos_dinamicos) > 0:
         for campo in campos_dinamicos:
@@ -578,6 +578,20 @@ def construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos=None):
 - Argumento 2: {datos_caso.get('argumento2', '{{FALTA_DATO}}')}
 - Argumento 3: {datos_caso.get('argumento3', '{{FALTA_DATO}}')}
 - Conclusión: {datos_caso.get('conclusion', '{{FALTA_DATO}}')}"""
+    
+    tablas_str = ""
+    if datos_tablas:
+        for tabla_nombre, tabla_info in datos_tablas.items():
+            tablas_str += f"\n\n[TABLA: {tabla_nombre}]\n"
+            columnas = tabla_info.get('columnas', [])
+            filas = tabla_info.get('filas', [])
+            if columnas:
+                tablas_str += "| " + " | ".join(columnas) + " |\n"
+                tablas_str += "|" + "|".join(["---"] * len(columnas)) + "|\n"
+            for fila in filas:
+                tablas_str += "| " + " | ".join([str(fila.get(col, '')) for col in columnas]) + " |\n"
+            if tabla_info.get('total'):
+                tablas_str += f"TOTAL: {tabla_info['total']}\n"
     
     prompt = f"""Eres un abogado experto del estudio jurídico especializado en derecho de familia.
 
@@ -594,7 +608,7 @@ PLANTILLA BASE:
 ══════════════════════════════════════════════════════════════
 DATOS DEL CASO:
 ══════════════════════════════════════════════════════════════
-{datos_str}
+{datos_str}{tablas_str}
 
 ══════════════════════════════════════════════════════════════
 INSTRUCCIONES:
@@ -606,7 +620,10 @@ INSTRUCCIONES:
 5. Si falta un dato, conserva {{{{FALTA_DATO}}}}.
 6. Montos en números y letras: S/1,000.00 (MIL CON 00/100 SOLES).
 7. Usa mayúsculas para énfasis en términos legales.
-8. Redacta el documento completo sin explicaciones adicionales."""
+8. Redacta el documento completo sin explicaciones adicionales.
+9. Si hay tablas de datos (gastos, honorarios, etc.), incluye la tabla formateada en el documento usando el formato:
+   [[TABLA:{{'tabla_nombre'}}]]
+   La tabla será insertada automáticamente en esa ubicación."""
     return prompt
 
 
@@ -639,7 +656,81 @@ def get_tenant_logo_path(tenant):
     return None
 
 
-def guardar_docx(texto, nombre_archivo, tenant=None):
+def agregar_tabla_word(doc, tabla_nombre, tabla_data):
+    """Add a formatted table to the Word document."""
+    from docx.shared import Inches
+    from docx.oxml.ns import nsdecls
+    from docx.oxml import parse_xml
+    
+    columnas = tabla_data.get('columnas', [])
+    filas = tabla_data.get('filas', [])
+    total = tabla_data.get('total')
+    mostrar_total = tabla_data.get('mostrar_total', False)
+    
+    if not columnas or not filas:
+        return
+    
+    p_titulo = doc.add_paragraph()
+    run_titulo = p_titulo.add_run(tabla_nombre.upper())
+    run_titulo.bold = True
+    run_titulo.font.name = 'Times New Roman'
+    run_titulo.font.size = Pt(11)
+    p_titulo.paragraph_format.space_before = Pt(12)
+    p_titulo.paragraph_format.space_after = Pt(6)
+    
+    num_filas = len(filas) + 1
+    if mostrar_total and total:
+        num_filas += 1
+    
+    table = doc.add_table(rows=num_filas, cols=len(columnas))
+    table.style = 'Table Grid'
+    
+    header_row = table.rows[0]
+    for i, col in enumerate(columnas):
+        cell = header_row.cells[i]
+        cell.text = col
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(10)
+        shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="E6E6E6"/>')
+        cell._tc.get_or_add_tcPr().append(shading_elm)
+    
+    for row_idx, fila in enumerate(filas):
+        row = table.rows[row_idx + 1]
+        for col_idx, col in enumerate(columnas):
+            cell = row.cells[col_idx]
+            cell.text = str(fila.get(col, ''))
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.font.name = 'Times New Roman'
+                    run.font.size = Pt(10)
+    
+    if mostrar_total and total:
+        total_row = table.rows[-1]
+        total_row.cells[0].text = 'TOTAL'
+        for paragraph in total_row.cells[0].paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(10)
+        
+        total_row.cells[-1].text = str(total)
+        for paragraph in total_row.cells[-1].paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(10)
+        
+        for cell in total_row.cells:
+            shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F0F0F0"/>')
+            cell._tc.get_or_add_tcPr().append(shading_elm)
+    
+    doc.add_paragraph()
+
+
+def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
     doc = Document()
     
     sections = doc.sections
@@ -686,9 +777,24 @@ def guardar_docx(texto, nombre_archivo, tenant=None):
                           'OTRAS PERSONAS CON DERECHO ALIMENTARIO']
     encabezados = ['SEÑOR JUEZ', 'SEÑORA JUEZ', 'SEÑOR:', 'SEÑORA:', 'PRESENTE']
     
+    import re
+    tabla_pattern = re.compile(r'\[\[TABLA:([^\]]+)\]\]')
+    tablas_insertadas = set()
+    
     for parrafo in texto.split("\n"):
         linea = parrafo.strip()
         if not linea:
+            continue
+        
+        tabla_match = tabla_pattern.search(linea)
+        if tabla_match and datos_tablas:
+            tabla_ref = tabla_match.group(1).strip()
+            for tabla_nombre, tabla_data in datos_tablas.items():
+                if tabla_nombre.lower() in tabla_ref.lower() or tabla_ref.lower() in tabla_nombre.lower():
+                    if tabla_nombre not in tablas_insertadas:
+                        agregar_tabla_word(doc, tabla_nombre, tabla_data)
+                        tablas_insertadas.add(tabla_nombre)
+                    break
             continue
         
         p = doc.add_paragraph()
@@ -725,6 +831,11 @@ def guardar_docx(texto, nombre_archivo, tenant=None):
         
         p.paragraph_format.line_spacing = 1.5
     
+    if datos_tablas:
+        for tabla_nombre, tabla_data in datos_tablas.items():
+            if tabla_nombre not in tablas_insertadas:
+                agregar_tabla_word(doc, tabla_nombre, tabla_data)
+    
     folder = get_resultados_folder(tenant)
     ruta = os.path.join(folder, nombre_archivo)
     doc.save(ruta)
@@ -735,6 +846,66 @@ def validar_dato(valor):
     if not valor or valor.strip() == "":
         return "{{FALTA_DATO}}"
     return valor.strip()
+
+
+def extraer_datos_tablas(form_data, tipo_documento, tenant_id):
+    """Extract table data from form submission based on model tables."""
+    datos_tablas = {}
+    
+    if not tenant_id:
+        return datos_tablas
+    
+    modelo_db = Modelo.query.filter_by(key=tipo_documento, tenant_id=tenant_id).first()
+    if not modelo_db:
+        return datos_tablas
+    
+    tablas = ModeloTabla.query.filter_by(modelo_id=modelo_db.id, tenant_id=tenant_id).all()
+    
+    def normalize_field_name(text):
+        text = text.lower().replace(' ', '_')
+        text = text.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+        text = text.replace('ñ', 'n')
+        text = ''.join(c for c in text if c.isalnum() or c == '_')
+        text = text.replace('.', '')
+        return text
+    
+    for tabla in tablas:
+        tabla_nombre = normalize_field_name(tabla.nombre)
+        
+        columnas = tabla.columnas if tabla.columnas else []
+        filas = []
+        
+        for fila_idx in range(tabla.num_filas):
+            fila_data = {}
+            fila_has_data = False
+            
+            for col in columnas:
+                col_nombre = normalize_field_name(col)
+                
+                campo_key = f"tabla_{tabla_nombre}_{fila_idx}_{col_nombre}"
+                valor = form_data.get(campo_key, '').strip()
+                fila_data[col] = valor
+                if valor:
+                    fila_has_data = True
+            
+            if fila_has_data:
+                filas.append(fila_data)
+        
+        total_valor = None
+        if tabla.mostrar_total and tabla.columna_total:
+            col_total_nombre = normalize_field_name(tabla.columna_total)
+            campo_total_key = f"tabla_{tabla_nombre}_total_{col_total_nombre}"
+            total_valor = form_data.get(campo_total_key, '').strip()
+        
+        if filas:
+            datos_tablas[tabla.nombre] = {
+                'columnas': columnas,
+                'filas': filas,
+                'total': total_valor,
+                'mostrar_total': tabla.mostrar_total
+            }
+    
+    return datos_tablas
 
 
 @app.context_processor
@@ -1024,9 +1195,11 @@ def procesar_ia():
             "conclusion": validar_dato(request.form.get("conclusion", ""))
         }
     
+    datos_tablas = extraer_datos_tablas(request.form, tipo_documento, tenant_id)
+    
     plantilla = cargar_plantilla(modelo["plantilla"], tenant_id)
     estilos = cargar_estilos(modelo["carpeta_estilos"], tenant_id)
-    prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None)
+    prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None, datos_tablas)
     
     texto_generado = generar_con_ia(prompt)
     
@@ -1037,7 +1210,7 @@ def procesar_ia():
     fecha_actual = datetime.now()
     nombre_archivo = f"{tipo_documento}_{fecha_actual.strftime('%Y%m%d_%H%M%S')}.docx"
     
-    guardar_docx(texto_generado, nombre_archivo, tenant)
+    guardar_docx(texto_generado, nombre_archivo, tenant, datos_tablas)
     
     demandante_campo = datos_caso.get("demandante1") or datos_caso.get("nombre_demandante") or datos_caso.get("demandante") or "Sin nombre"
     if demandante_campo == "{{FALTA_DATO}}":
@@ -1104,9 +1277,11 @@ def preview():
             "conclusion": validar_dato(request.form.get("conclusion", ""))
         }
     
+    datos_tablas = extraer_datos_tablas(request.form, tipo_documento, tenant_id)
+    
     plantilla = cargar_plantilla(modelo["plantilla"], tenant_id)
     estilos = cargar_estilos(modelo["carpeta_estilos"], tenant_id)
-    prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None)
+    prompt = construir_prompt(plantilla, estilos, datos_caso, campos_dinamicos if campos_dinamicos else None, datos_tablas)
     
     texto_generado = generar_con_ia(prompt)
     
@@ -1117,6 +1292,7 @@ def preview():
     return render_template("preview.html", 
                           texto=texto_generado, 
                           datos_caso=datos_caso,
+                          datos_tablas=datos_tablas,
                           tipo_documento=tipo_documento,
                           modelo=modelo)
 
@@ -1151,10 +1327,16 @@ def guardar_desde_preview():
     except:
         datos_caso = {}
     
+    datos_tablas_str = request.form.get("datos_tablas", "{}")
+    try:
+        datos_tablas = json.loads(datos_tablas_str)
+    except:
+        datos_tablas = {}
+    
     fecha_actual = datetime.now()
     nombre_archivo = f"{tipo_documento}_{fecha_actual.strftime('%Y%m%d_%H%M%S')}.docx"
     
-    guardar_docx(texto_editado, nombre_archivo, tenant)
+    guardar_docx(texto_editado, nombre_archivo, tenant, datos_tablas if datos_tablas else None)
     
     demandante_campo = datos_caso.get("demandante1") or datos_caso.get("nombre_demandante") or datos_caso.get("demandante") or "Sin nombre"
     if demandante_campo == "{{FALTA_DATO}}":

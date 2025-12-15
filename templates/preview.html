@@ -42,6 +42,7 @@
             <form action="{{ url_for('guardar_desde_preview') }}" method="POST">
                 <input type="hidden" name="tipo_documento" value="{{ tipo_documento }}">
                 <input type="hidden" name="datos_caso" value="{{ datos_caso | tojson | e }}">
+                <input type="hidden" name="datos_tablas" value="{{ datos_tablas | tojson | e if datos_tablas else '{}' }}">
 
                 <div class="bg-white rounded-lg shadow-md p-6 md:p-8 mb-6">
                     <div class="flex justify-between items-center mb-4">

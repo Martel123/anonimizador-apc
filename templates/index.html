@@ -251,6 +251,15 @@
 
     <script>
         let camposCache = {};
+        
+        function normalizeFieldName(text) {
+            return text.toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i').replace(/ó/g, 'o').replace(/ú/g, 'u')
+                .replace(/ñ/g, 'n')
+                .replace(/[^a-z0-9_]/g, '')
+                .replace(/\./g, '');
+        }
 
         function cargarCampos() {
             const tipoDoc = document.getElementById('tipo_documento').value;
@@ -370,12 +379,12 @@
                     });
                     tablaHtml += '</tr></thead><tbody>';
                     
-                    const tablaNombre = tabla.nombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    const tablaNombre = normalizeFieldName(tabla.nombre);
                     
                     for (let fila = 0; fila < tabla.num_filas; fila++) {
                         tablaHtml += '<tr class="border-b hover:bg-gray-50">';
                         tabla.columnas.forEach((col, colIdx) => {
-                            const colNombre = col.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/\./g, '');
+                            const colNombre = normalizeFieldName(col);
                             const campoKey = `tabla_${tablaNombre}_${fila}_${colNombre}`;
                             const isNumeric = col.toLowerCase().includes('monto') || col.toLowerCase().includes('total') || col.toLowerCase().includes('s/') || col.toLowerCase().includes('precio');
                             const inputType = isNumeric ? 'number' : 'text';
@@ -396,7 +405,7 @@
                             if (colIdx === 0) {
                                 tablaHtml += `<td class="px-3 py-2 border-t-2 border-purple-300" colspan="1">TOTAL</td>`;
                             } else if (col === tabla.columna_total) {
-                                const colNombre = col.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/\./g, '');
+                                const colNombre = normalizeFieldName(col);
                                 const campoKey = `tabla_${tablaNombre}_total_${colNombre}`;
                                 tablaHtml += `
                                     <td class="px-2 py-1 border-t-2 border-purple-300">
