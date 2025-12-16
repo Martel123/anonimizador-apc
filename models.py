@@ -37,6 +37,7 @@ class Tenant(db.Model):
     ciudad = db.Column(db.String(100))
     areas_practica = db.Column(db.Text)
     activo = db.Column(db.Boolean, default=True)
+    subscription_status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -104,6 +105,10 @@ class User(UserMixin, db.Model):
     twofa_backup_codes_hashed = db.Column(db.JSON)
     twofa_last_verified_at = db.Column(db.DateTime)
     twofa_required = db.Column(db.Boolean, default=False)
+    
+    password_set = db.Column(db.Boolean, default=True)
+    first_login_completed = db.Column(db.Boolean, default=True)
+    onboarding_completed = db.Column(db.Boolean, default=True)
     
     documents = db.relationship('DocumentRecord', backref='user', lazy='dynamic')
     
@@ -728,6 +733,233 @@ class TwoFALog(db.Model):
         )
         db.session.add(log)
         return log
+
+
+class PricingConfig(db.Model):
+    """Configuración de precios dinámicos (editable por super_admin)."""
+    __tablename__ = 'pricing_config'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False)
+    value = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(300))
+    activo = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    
+    updated_by = db.relationship('User', foreign_keys=[updated_by_id])
+    
+    @classmethod
+    def get_value(cls, key, default=None):
+        """Obtiene un valor de configuración."""
+        config = cls.query.filter_by(key=key, activo=True).first()
+        return config.value if config else default
+    
+    @classmethod
+    def set_value(cls, key, value, description=None, user_id=None):
+        """Establece o actualiza un valor de configuración."""
+        config = cls.query.filter_by(key=key).first()
+        if config:
+            config.value = value
+            config.updated_by_id = user_id
+            if description:
+                config.description = description
+        else:
+            config = cls(key=key, value=value, description=description, updated_by_id=user_id)
+            db.session.add(config)
+        db.session.commit()
+        return config
+    
+    @classmethod
+    def get_pricing(cls):
+        """Obtiene todos los precios como diccionario."""
+        configs = cls.query.filter_by(activo=True).all()
+        return {c.key: c.value for c in configs}
+    
+    @classmethod
+    def init_defaults(cls):
+        """Inicializa valores por defecto si no existen."""
+        defaults = [
+            ('price_per_seat', '69.00', 'Precio por usuario/mes en USD'),
+            ('currency', 'USD', 'Moneda por defecto'),
+            ('currency_symbol', '$', 'Símbolo de moneda'),
+            ('min_seats', '1', 'Mínimo de asientos'),
+            ('max_seats', '100', 'Máximo de asientos'),
+            ('trial_days', '14', 'Días de prueba gratis'),
+            ('platform_name', 'LegalDoc Pro', 'Nombre de la plataforma'),
+        ]
+        for key, value, desc in defaults:
+            if not cls.query.filter_by(key=key).first():
+                db.session.add(cls(key=key, value=value, description=desc))
+        db.session.commit()
+
+
+class PricingAddon(db.Model):
+    """Addons/complementos opcionales."""
+    __tablename__ = 'pricing_addons'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    precio = db.Column(db.Numeric(10, 2), nullable=False)
+    currency = db.Column(db.String(3), default='USD')
+    tipo = db.Column(db.String(20), default='monthly')  # monthly, one_time
+    activo = db.Column(db.Boolean, default=True)
+    orden = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CheckoutSession(db.Model):
+    """Sesión de checkout/compra pendiente."""
+    __tablename__ = 'checkout_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(100), unique=True, nullable=False)
+    
+    # Datos del estudio
+    nombre_estudio = db.Column(db.String(200), nullable=False)
+    admin_nombre = db.Column(db.String(100), nullable=False)
+    admin_email = db.Column(db.String(120), nullable=False)
+    
+    # Configuración de compra
+    seats = db.Column(db.Integer, nullable=False)
+    addons = db.Column(db.JSON)  # Lista de addon IDs
+    subtotal = db.Column(db.Numeric(10, 2))
+    total_amount = db.Column(db.Numeric(10, 2), nullable=False)
+    currency = db.Column(db.String(3), default='USD')
+    
+    # Estado
+    status = db.Column(db.String(20), default='pending')
+    # pending, pending_payment, paid, expired, cancelled, failed
+    
+    # Integración Izipay
+    izipay_order_id = db.Column(db.String(100))
+    izipay_transaction_id = db.Column(db.String(100))
+    izipay_form_token = db.Column(db.Text)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+    paid_at = db.Column(db.DateTime)
+    
+    # Resultado
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'))
+    error_message = db.Column(db.Text)
+    
+    tenant = db.relationship('Tenant', backref='checkout_session')
+    
+    def is_expired(self):
+        if self.expires_at:
+            return datetime.utcnow() > self.expires_at
+        return False
+
+
+class Subscription(db.Model):
+    """Suscripción activa de un tenant."""
+    __tablename__ = 'subscriptions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), unique=True, nullable=False)
+    
+    # Configuración de asientos
+    seats_purchased = db.Column(db.Integer, nullable=False)
+    seats_used = db.Column(db.Integer, default=1)
+    
+    # Estado
+    status = db.Column(db.String(20), default='active')
+    # active, past_due, suspended, cancelled, trial
+    
+    # Facturación
+    plan_type = db.Column(db.String(20), default='monthly')  # monthly, yearly
+    price_per_seat = db.Column(db.Numeric(10, 2))
+    currency = db.Column(db.String(3), default='USD')
+    
+    # Período actual
+    current_period_start = db.Column(db.DateTime)
+    current_period_end = db.Column(db.DateTime)
+    trial_ends_at = db.Column(db.DateTime)
+    
+    # Integración de pagos
+    izipay_customer_id = db.Column(db.String(100))
+    izipay_subscription_id = db.Column(db.String(100))
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    cancelled_at = db.Column(db.DateTime)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('subscription', uselist=False))
+    
+    def can_add_user(self):
+        """Verifica si se puede agregar un usuario más."""
+        return self.seats_used < self.seats_purchased
+    
+    def add_user(self):
+        """Incrementa el contador de usuarios usados."""
+        if self.can_add_user():
+            self.seats_used += 1
+            db.session.commit()
+            return True
+        return False
+    
+    def remove_user(self):
+        """Decrementa el contador de usuarios usados."""
+        if self.seats_used > 0:
+            self.seats_used -= 1
+            db.session.commit()
+            return True
+        return False
+    
+    def is_active(self):
+        """Verifica si la suscripción está activa."""
+        return self.status in ['active', 'trial']
+
+
+class ActivationToken(db.Model):
+    """Tokens para activar cuenta / establecer contraseña."""
+    __tablename__ = 'activation_tokens'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    token = db.Column(db.String(100), unique=True, nullable=False)
+    tipo = db.Column(db.String(20), default='set_password')
+    # set_password, magic_link, password_reset
+    
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
+    used_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='activation_tokens')
+    
+    def is_valid(self):
+        """Verifica si el token es válido."""
+        if self.used:
+            return False
+        if datetime.utcnow() > self.expires_at:
+            return False
+        return True
+    
+    def mark_used(self):
+        """Marca el token como usado."""
+        self.used = True
+        self.used_at = datetime.utcnow()
+        db.session.commit()
+    
+    @classmethod
+    def create_token(cls, user_id, tipo='set_password', hours=48):
+        """Crea un nuevo token de activación."""
+        from datetime import timedelta
+        token = secrets.token_urlsafe(32)
+        activation = cls(
+            user_id=user_id,
+            token=token,
+            tipo=tipo,
+            expires_at=datetime.utcnow() + timedelta(hours=hours)
+        )
+        db.session.add(activation)
+        db.session.commit()
+        return activation
 
 
 class EstiloDocumento(db.Model):
