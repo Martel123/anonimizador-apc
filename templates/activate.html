@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Establecer Contraseña | LegalDoc Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full mx-4">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center h-16 w-16 bg-blue-100 rounded-full mb-4">
+                <i class="fas fa-key text-blue-600 text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900">Establece tu contraseña</h1>
+            <p class="text-gray-600 mt-2">
+                Hola <strong>{{ user.username }}</strong>, crea una contraseña segura para tu cuenta.
+            </p>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <form action="{{ url_for('activate_set_password', token=token) }}" method="POST">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Nueva contraseña
+                    </label>
+                    <div class="relative">
+                        <input type="password" name="password" id="password" required minlength="8"
+                               placeholder="Mínimo 8 caracteres"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12">
+                        <button type="button" onclick="togglePassword('password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-eye" id="password-icon"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Confirmar contraseña
+                    </label>
+                    <div class="relative">
+                        <input type="password" name="password_confirm" id="password_confirm" required minlength="8"
+                               placeholder="Repite tu contraseña"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12">
+                        <button type="button" onclick="togglePassword('password_confirm')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-eye" id="password_confirm-icon"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <p class="text-sm text-gray-600 font-medium mb-2">Tu contraseña debe:</p>
+                    <ul class="text-sm text-gray-500 space-y-1">
+                        <li class="flex items-center" id="req-length">
+                            <i class="fas fa-circle text-gray-300 mr-2 text-xs"></i>
+                            Tener al menos 8 caracteres
+                        </li>
+                        <li class="flex items-center" id="req-match">
+                            <i class="fas fa-circle text-gray-300 mr-2 text-xs"></i>
+                            Coincidir en ambos campos
+                        </li>
+                    </ul>
+                </div>
+                
+                <button type="submit" id="submit-btn" disabled
+                        class="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors">
+                    <i class="fas fa-check mr-2"></i>Establecer contraseña
+                </button>
+            </form>
+        </div>
+        
+        <p class="text-center text-sm text-gray-500 mt-6">
+            <i class="fas fa-lock mr-1"></i>Tu información está protegida con encriptación de extremo a extremo
+        </p>
+    </div>
+    
+    <script>
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-icon');
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+        
+        function validateForm() {
+            const password = document.getElementById('password').value;
+            const confirm = document.getElementById('password_confirm').value;
+            const submitBtn = document.getElementById('submit-btn');
+            
+            const reqLength = document.getElementById('req-length');
+            const reqMatch = document.getElementById('req-match');
+            
+            const hasLength = password.length >= 8;
+            const hasMatch = password === confirm && confirm.length > 0;
+            
+            // Update requirement indicators
+            reqLength.querySelector('i').className = hasLength ? 'fas fa-check-circle text-green-500 mr-2 text-xs' : 'fas fa-circle text-gray-300 mr-2 text-xs';
+            reqMatch.querySelector('i').className = hasMatch ? 'fas fa-check-circle text-green-500 mr-2 text-xs' : 'fas fa-circle text-gray-300 mr-2 text-xs';
+            
+            // Enable/disable submit
+            submitBtn.disabled = !(hasLength && hasMatch);
+        }
+        
+        document.getElementById('password').addEventListener('input', validateForm);
+        document.getElementById('password_confirm').addEventListener('input', validateForm);
+    </script>
+</body>
+</html>

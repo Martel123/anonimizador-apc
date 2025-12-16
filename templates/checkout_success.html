@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Registro Exitoso! | {{ platform_name }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+        .success-animation {
+            animation: successPulse 2s ease-in-out infinite;
+        }
+        @keyframes successPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <a href="{{ url_for('index') }}" class="flex items-center">
+                    <i class="fas fa-balance-scale text-blue-600 text-2xl mr-3"></i>
+                    <span class="text-xl font-bold text-gray-900">{{ platform_name }}</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 py-16">
+        <div class="text-center">
+            <div class="success-animation inline-block mb-8">
+                <div class="h-24 w-24 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <i class="fas fa-check-circle text-green-500 text-5xl"></i>
+                </div>
+            </div>
+            
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">
+                ¡Tu estudio ha sido creado!
+            </h1>
+            
+            <p class="text-lg text-gray-600 mb-8">
+                Hemos enviado un email a <strong class="text-gray-900">{{ checkout.admin_email }}</strong> 
+                con un enlace para establecer tu contraseña.
+            </p>
+            
+            <div class="bg-white rounded-xl shadow-lg p-8 mb-8">
+                <h2 class="text-xl font-semibold text-gray-900 mb-6">Resumen de tu cuenta</h2>
+                
+                <div class="space-y-4 text-left">
+                    <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                        <span class="text-gray-600">Estudio</span>
+                        <span class="font-medium text-gray-900">{{ checkout.nombre_estudio }}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                        <span class="text-gray-600">Administrador</span>
+                        <span class="font-medium text-gray-900">{{ checkout.admin_nombre }}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                        <span class="text-gray-600">Usuarios incluidos</span>
+                        <span class="font-medium text-gray-900">{{ checkout.seats }}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                        <span class="text-gray-600">Plan</span>
+                        <span class="font-medium text-green-600">
+                            <i class="fas fa-gift mr-1"></i>Prueba gratis ({{ trial_days }} días)
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-blue-50 rounded-xl p-6 mb-8">
+                <h3 class="font-semibold text-blue-900 mb-3">
+                    <i class="fas fa-envelope mr-2"></i>Próximos pasos
+                </h3>
+                <ol class="text-left text-blue-800 space-y-2">
+                    <li class="flex items-start">
+                        <span class="h-6 w-6 bg-blue-200 rounded-full flex items-center justify-center mr-3 mt-0.5 text-sm font-bold">1</span>
+                        <span>Revisa tu correo electrónico</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="h-6 w-6 bg-blue-200 rounded-full flex items-center justify-center mr-3 mt-0.5 text-sm font-bold">2</span>
+                        <span>Haz clic en el enlace para establecer tu contraseña</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="h-6 w-6 bg-blue-200 rounded-full flex items-center justify-center mr-3 mt-0.5 text-sm font-bold">3</span>
+                        <span>Configura la seguridad de tu cuenta (2FA)</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="h-6 w-6 bg-blue-200 rounded-full flex items-center justify-center mr-3 mt-0.5 text-sm font-bold">4</span>
+                        <span>¡Comienza a usar la plataforma!</span>
+                    </li>
+                </ol>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="{{ url_for('login') }}" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Ir a iniciar sesión
+                </a>
+                <a href="{{ url_for('index') }}" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors">
+                    <i class="fas fa-home mr-2"></i>Volver al inicio
+                </a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

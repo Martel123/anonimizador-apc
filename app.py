@@ -978,7 +978,345 @@ def inject_tenant():
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return render_template("landing.html")
+    
+    # Initialize pricing defaults if needed
+    PricingConfig.init_defaults()
+    
+    # Get pricing data
+    pricing = {
+        'price_per_seat': float(PricingConfig.get_value('price_per_seat', '69.00')),
+        'currency': PricingConfig.get_value('currency', 'USD'),
+        'currency_symbol': PricingConfig.get_value('currency_symbol', '$'),
+        'trial_days': int(PricingConfig.get_value('trial_days', '14')),
+        'platform_name': PricingConfig.get_value('platform_name', 'LegalDoc Pro'),
+    }
+    
+    # Get active addons
+    addons = PricingAddon.query.filter_by(activo=True).order_by(PricingAddon.orden).all()
+    
+    return render_template("landing.html", pricing=pricing, addons=addons)
+
+
+@app.route("/demo")
+def demo():
+    """Demo page with cost simulator."""
+    # Initialize pricing defaults if needed
+    PricingConfig.init_defaults()
+    
+    pricing = {
+        'price_per_seat': float(PricingConfig.get_value('price_per_seat', '69.00')),
+        'currency': PricingConfig.get_value('currency', 'USD'),
+        'currency_symbol': PricingConfig.get_value('currency_symbol', '$'),
+        'trial_days': int(PricingConfig.get_value('trial_days', '14')),
+        'platform_name': PricingConfig.get_value('platform_name', 'LegalDoc Pro'),
+        'min_seats': int(PricingConfig.get_value('min_seats', '1')),
+        'max_seats': int(PricingConfig.get_value('max_seats', '100')),
+    }
+    
+    addons = PricingAddon.query.filter_by(activo=True).order_by(PricingAddon.orden).all()
+    
+    return render_template("demo.html", pricing=pricing, addons=addons)
+
+
+@app.route("/checkout/start")
+def checkout_start():
+    """Start checkout process."""
+    PricingConfig.init_defaults()
+    
+    pricing = {
+        'price_per_seat': float(PricingConfig.get_value('price_per_seat', '69.00')),
+        'currency': PricingConfig.get_value('currency', 'USD'),
+        'currency_symbol': PricingConfig.get_value('currency_symbol', '$'),
+        'trial_days': int(PricingConfig.get_value('trial_days', '14')),
+        'platform_name': PricingConfig.get_value('platform_name', 'LegalDoc Pro'),
+        'min_seats': int(PricingConfig.get_value('min_seats', '1')),
+        'max_seats': int(PricingConfig.get_value('max_seats', '100')),
+    }
+    
+    addons = PricingAddon.query.filter_by(activo=True).order_by(PricingAddon.orden).all()
+    
+    return render_template("checkout_start.html", pricing=pricing, addons=addons)
+
+
+@app.route("/checkout/create-session", methods=["POST"])
+def checkout_create_session():
+    """Create a checkout session and process trial signup."""
+    from datetime import timedelta
+    import secrets
+    import re
+    from email_validator import validate_email, EmailNotValidError
+    
+    nombre_estudio = request.form.get("nombre_estudio", "").strip()
+    admin_nombre = request.form.get("admin_nombre", "").strip()
+    admin_email = request.form.get("admin_email", "").strip().lower()
+    seats = request.form.get("seats", type=int, default=1)
+    addon_ids = request.form.getlist("addons")
+    
+    # Basic validation
+    if not nombre_estudio or not admin_nombre or not admin_email:
+        flash("Por favor completa todos los campos requeridos.", "error")
+        return redirect(url_for('checkout_start'))
+    
+    # Validate email format
+    try:
+        validate_email(admin_email)
+    except EmailNotValidError:
+        flash("Por favor ingresa un email válido.", "error")
+        return redirect(url_for('checkout_start'))
+    
+    # Get pricing config
+    PricingConfig.init_defaults()
+    min_seats = int(PricingConfig.get_value('min_seats', '1'))
+    max_seats = int(PricingConfig.get_value('max_seats', '100'))
+    price_per_seat = float(PricingConfig.get_value('price_per_seat', '69.00'))
+    trial_days = int(PricingConfig.get_value('trial_days', '14'))
+    
+    # Validate seat bounds
+    if seats < min_seats or seats > max_seats:
+        seats = max(min_seats, min(seats, max_seats))
+    
+    # Check if email already exists
+    existing_user = User.query.filter_by(email=admin_email).first()
+    if existing_user:
+        flash("Este email ya está registrado. Por favor inicia sesión.", "error")
+        return redirect(url_for('login'))
+    
+    # Calculate total with validated addons
+    subtotal = seats * price_per_seat
+    addons_total = 0
+    selected_addons = []
+    
+    if addon_ids:
+        try:
+            addon_int_ids = [int(aid) for aid in addon_ids]
+            addons = PricingAddon.query.filter(
+                PricingAddon.id.in_(addon_int_ids), 
+                PricingAddon.activo == True
+            ).all()
+            for addon in addons:
+                addons_total += float(addon.precio)
+                selected_addons.append({'id': addon.id, 'nombre': addon.nombre, 'precio': float(addon.precio)})
+        except (ValueError, TypeError):
+            pass
+    
+    total_amount = subtotal + addons_total
+    
+    try:
+        # Create checkout session
+        session_id = secrets.token_urlsafe(32)
+        checkout = CheckoutSession(
+            session_id=session_id,
+            nombre_estudio=nombre_estudio,
+            admin_nombre=admin_nombre,
+            admin_email=admin_email,
+            seats=seats,
+            addons=selected_addons,
+            subtotal=subtotal,
+            total_amount=total_amount,
+            currency=PricingConfig.get_value('currency', 'USD'),
+            status='pending',
+            expires_at=datetime.utcnow() + timedelta(hours=24)
+        )
+        db.session.add(checkout)
+        
+        # Generate slug from studio name
+        slug_base = re.sub(r'[^a-z0-9]+', '-', nombre_estudio.lower()).strip('-')
+        if not slug_base:
+            slug_base = 'estudio'
+        slug = slug_base
+        counter = 1
+        while Tenant.query.filter_by(slug=slug).first():
+            slug = f"{slug_base}-{counter}"
+            counter += 1
+        
+        # Create tenant
+        tenant = Tenant(
+            nombre=nombre_estudio,
+            slug=slug,
+            subscription_status='trial',
+            activo=True
+        )
+        db.session.add(tenant)
+        db.session.flush()
+        
+        # Create admin user with temporary password
+        temp_password = secrets.token_urlsafe(16)
+        user = User(
+            username=admin_nombre,
+            email=admin_email,
+            role='admin_estudio',
+            tenant_id=tenant.id,
+            password_set=False,
+            first_login_completed=False,
+            onboarding_completed=False,
+            activo=True
+        )
+        user.set_password(temp_password)
+        db.session.add(user)
+        db.session.flush()
+        
+        # Create subscription
+        subscription = Subscription(
+            tenant_id=tenant.id,
+            seats_purchased=seats,
+            seats_used=1,
+            status='trial',
+            plan_type='monthly',
+            price_per_seat=price_per_seat,
+            currency=PricingConfig.get_value('currency', 'USD'),
+            current_period_start=datetime.utcnow(),
+            trial_ends_at=datetime.utcnow() + timedelta(days=trial_days)
+        )
+        db.session.add(subscription)
+        
+        # Update checkout session
+        checkout.status = 'trial_started'
+        checkout.tenant_id = tenant.id
+        
+        # Create activation token for password setup
+        activation_token = secrets.token_urlsafe(32)
+        activation = ActivationToken(
+            user_id=user.id,
+            token=activation_token,
+            tipo='set_password',
+            expires_at=datetime.utcnow() + timedelta(hours=48)
+        )
+        db.session.add(activation)
+        
+        db.session.commit()
+        
+        # Send activation email (after commit)
+        activation_url = url_for('activate_account', token=activation_token, _external=True)
+        platform_name = PricingConfig.get_value('platform_name', 'LegalDoc Pro')
+        email_html = f'''
+        <h2>¡Bienvenido a {platform_name}!</h2>
+        <p>Hola {admin_nombre},</p>
+        <p>Tu estudio <strong>{nombre_estudio}</strong> ha sido creado exitosamente.</p>
+        <p>Tu prueba gratis de {trial_days} días comienza ahora.</p>
+        <p>Para acceder a tu cuenta, primero debes establecer tu contraseña:</p>
+        <p><a href="{activation_url}" style="display:inline-block;padding:12px 24px;background-color:#3B82F6;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">Establecer mi contraseña</a></p>
+        <p>Este enlace expira en 48 horas.</p>
+        <p>Saludos,<br>El equipo de {platform_name}</p>
+        '''
+        send_notification_email(admin_email, f"Activa tu cuenta en {platform_name}", email_html)
+        
+        return redirect(url_for('checkout_success', session_id=session_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error creating checkout session: {e}")
+        flash("Ocurrió un error al procesar tu registro. Por favor intenta de nuevo.", "error")
+        return redirect(url_for('checkout_start'))
+
+
+@app.route("/checkout/success")
+def checkout_success():
+    """Show checkout success page."""
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return redirect(url_for('index'))
+    
+    checkout = CheckoutSession.query.filter_by(session_id=session_id).first()
+    if not checkout:
+        return redirect(url_for('index'))
+    
+    PricingConfig.init_defaults()
+    platform_name = PricingConfig.get_value('platform_name', 'LegalDoc Pro')
+    trial_days = int(PricingConfig.get_value('trial_days', '14'))
+    
+    return render_template("checkout_success.html", 
+                          checkout=checkout, 
+                          platform_name=platform_name,
+                          trial_days=trial_days)
+
+
+@app.route("/activate/<token>")
+def activate_account(token):
+    """Show password setup page for activation token."""
+    activation = ActivationToken.query.filter_by(token=token).first()
+    
+    if not activation:
+        flash("Enlace de activación inválido.", "error")
+        return redirect(url_for('login'))
+    
+    if not activation.is_valid():
+        flash("Este enlace de activación ha expirado o ya fue usado.", "error")
+        return redirect(url_for('login'))
+    
+    return render_template("activate.html", token=token, user=activation.user)
+
+
+@app.route("/activate/<token>/set-password", methods=["POST"])
+def activate_set_password(token):
+    """Set password for activated account."""
+    activation = ActivationToken.query.filter_by(token=token).first()
+    
+    if not activation or not activation.is_valid():
+        flash("Enlace de activación inválido o expirado.", "error")
+        return redirect(url_for('login'))
+    
+    password = request.form.get("password", "")
+    password_confirm = request.form.get("password_confirm", "")
+    
+    if len(password) < 8:
+        flash("La contraseña debe tener al menos 8 caracteres.", "error")
+        return redirect(url_for('activate_account', token=token))
+    
+    if password != password_confirm:
+        flash("Las contraseñas no coinciden.", "error")
+        return redirect(url_for('activate_account', token=token))
+    
+    # Set password
+    user = activation.user
+    user.set_password(password)
+    user.password_set = True
+    activation.mark_used()
+    
+    db.session.commit()
+    
+    # Log in the user
+    login_user(user)
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    
+    flash("¡Contraseña establecida exitosamente!", "success")
+    
+    # If 2FA is required, redirect to setup
+    if user.twofa_required and not user.twofa_enabled:
+        return redirect(url_for('setup_2fa'))
+    
+    # If onboarding not completed, redirect there
+    if not user.onboarding_completed:
+        return redirect(url_for('onboarding'))
+    
+    return redirect(url_for('dashboard'))
+
+
+@app.route("/onboarding")
+@login_required
+def onboarding():
+    """Onboarding wizard for new users."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return redirect(url_for('dashboard'))
+    
+    subscription = Subscription.query.filter_by(tenant_id=tenant.id).first()
+    
+    return render_template("onboarding.html", 
+                          tenant=tenant, 
+                          subscription=subscription)
+
+
+@app.route("/onboarding/complete", methods=["POST"])
+@login_required
+def onboarding_complete():
+    """Mark onboarding as complete."""
+    current_user.onboarding_completed = True
+    current_user.first_login_completed = True
+    db.session.commit()
+    
+    flash("¡Bienvenido a la plataforma!", "success")
+    return redirect(url_for('dashboard'))
 
 
 @app.route("/dashboard")

@@ -1,0 +1,111 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Bienvenido - Onboarding{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-8">
+    <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center h-20 w-20 bg-blue-100 rounded-full mb-4">
+            <i class="fas fa-rocket text-blue-600 text-3xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">¡Bienvenido a tu estudio!</h1>
+        <p class="text-lg text-gray-600">
+            {{ tenant.nombre }} está listo. Aquí tienes los primeros pasos para comenzar.
+        </p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
+        <div class="p-6 border-b border-gray-100">
+            <h2 class="text-xl font-semibold text-gray-900">Tu plan</h2>
+        </div>
+        <div class="p-6">
+            {% if subscription %}
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <span class="text-gray-600">Estado:</span>
+                    <span class="ml-2 px-3 py-1 rounded-full text-sm font-medium 
+                        {% if subscription.status == 'trial' %}bg-green-100 text-green-800
+                        {% elif subscription.status == 'active' %}bg-blue-100 text-blue-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {% if subscription.status == 'trial' %}Período de prueba
+                        {% elif subscription.status == 'active' %}Activo
+                        {% else %}{{ subscription.status }}{% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Usuarios:</span>
+                    <span class="ml-2 font-semibold">{{ subscription.seats_used }} / {{ subscription.seats_purchased }}</span>
+                </div>
+            </div>
+            {% if subscription.trial_ends_at %}
+            <div class="bg-yellow-50 rounded-lg p-4">
+                <p class="text-yellow-800">
+                    <i class="fas fa-clock mr-2"></i>
+                    Tu prueba gratis termina el {{ subscription.trial_ends_at.strftime('%d/%m/%Y') }}
+                </p>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
+        <div class="p-6 border-b border-gray-100">
+            <h2 class="text-xl font-semibold text-gray-900">Primeros pasos</h2>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="flex items-start p-4 bg-gray-50 rounded-lg">
+                <div class="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <i class="fas fa-check text-green-600"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900">Cuenta creada</h3>
+                    <p class="text-sm text-gray-600">Tu cuenta de administrador está configurada</p>
+                </div>
+            </div>
+            
+            <a href="{{ url_for('admin_configurar') }}" class="flex items-start p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div class="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <i class="fas fa-cog text-blue-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900">Configura tu estudio</h3>
+                    <p class="text-sm text-gray-600">Agrega logo, datos de contacto y personaliza tu espacio</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400 mt-3"></i>
+            </a>
+            
+            <a href="{{ url_for('admin_usuarios') }}" class="flex items-start p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div class="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <i class="fas fa-users text-purple-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900">Invita a tu equipo</h3>
+                    <p class="text-sm text-gray-600">Agrega usuarios para que puedan generar documentos</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400 mt-3"></i>
+            </a>
+            
+            <a href="{{ url_for('admin_modelos') }}" class="flex items-start p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div class="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <i class="fas fa-file-alt text-orange-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900">Crea tus plantillas</h3>
+                    <p class="text-sm text-gray-600">Configura modelos de documentos para tu estudio</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400 mt-3"></i>
+            </a>
+        </div>
+    </div>
+
+    <form action="{{ url_for('onboarding_complete') }}" method="POST" class="text-center">
+        <button type="submit" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors shadow-lg">
+            <i class="fas fa-arrow-right mr-2"></i>Ir al Dashboard
+        </button>
+        <p class="text-sm text-gray-500 mt-3">
+            Puedes volver a estos pasos desde el panel de administración
+        </p>
+    </form>
+</div>
+{% endblock %}
