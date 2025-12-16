@@ -1,0 +1,151 @@
+Implementa un módulo de Configuración de Apariencia para la plataforma, con el objetivo de permitir branding y comodidad visual, manteniendo consistencia, rendimiento y control.
+
+1️⃣ Principio rector (NO NEGOCIABLE)
+
+La configuración de diseño debe ser:
+
+cerrada y controlada
+
+sin permitir cambios estructurales
+
+sin romper el layout existente
+
+No se permite personalización libre del dashboard.
+
+2️⃣ Configuración de Apariencia por ESTUDIO
+
+Crear una sección:
+Configuración → Apariencia del Estudio
+
+Visible solo para:
+
+admin
+
+super_admin
+
+Permitir configurar:
+
+A) Branding
+
+Subir logo del estudio
+
+Previsualización inmediata
+
+B) Colores del estudio
+
+Color primario (botones, links, highlights)
+
+Color secundario (badges, estados, indicadores)
+
+Los colores deben:
+
+validarse (contraste mínimo)
+
+aplicarse mediante variables CSS globales
+
+Ejemplo:
+
+--primary-color
+--secondary-color
+
+3️⃣ Tema visual (por USUARIO)
+
+En:
+Configuración → Preferencias del Usuario
+
+Permitir:
+
+Modo claro / modo oscuro
+
+Guardar preferencia por usuario
+
+Usar modo claro como default
+
+El cambio debe:
+
+ser inmediato
+
+no requerir recarga completa
+
+4️⃣ Estilo visual de DOCUMENTOS (NO del dashboard)
+
+Agregar una sección:
+Configuración → Estilo de Documentos
+
+Permitir elegir:
+
+Fuente (lista cerrada: Times New Roman, Arial, Calibri)
+
+Tamaño base
+
+Interlineado
+
+Márgenes estándar
+
+Estas configuraciones:
+
+aplican solo a documentos generados
+
+NO afectan la UI
+
+se integran con modelos y generación IA
+
+5️⃣ Densidad visual (opcional)
+
+En preferencias de usuario:
+
+Normal (default)
+
+Compacta
+
+Afecta únicamente:
+
+altura de cards
+
+tablas
+
+listas
+
+6️⃣ Restricciones explícitas (IMPORTANTE)
+
+NO permitir:
+
+cambio de layout
+
+drag & drop de widgets
+
+cambio de tipografías del dashboard
+
+tamaños arbitrarios
+
+configuración por componente
+
+El diseño debe mantenerse consistente y predecible.
+
+7️⃣ Persistencia y performance
+
+Guardar configuraciones en base de datos
+
+Cachear valores de apariencia
+
+Aplicar estilos sin afectar tiempos de carga
+
+8️⃣ Criterio de éxito
+
+La implementación es correcta solo si:
+
+Cada estudio tiene identidad visual propia
+
+El dashboard sigue viéndose limpio y profesional
+
+No se rompe ningún layout existente
+
+El rendimiento no se ve afectado
+
+Antes de implementar, explica:
+
+estructura de datos
+
+cómo se aplican los estilos
+
+cómo se protegen los permisos

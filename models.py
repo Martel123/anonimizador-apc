@@ -27,6 +27,8 @@ class Tenant(db.Model):
     nombre = db.Column(db.String(200), nullable=False)
     slug = db.Column(db.String(100), unique=True, nullable=False)
     logo_path = db.Column(db.String(255))
+    color_primario = db.Column(db.String(7), default='#3B82F6')
+    color_secundario = db.Column(db.String(7), default='#10B981')
     resolucion_directoral = db.Column(db.String(255))
     direccion = db.Column(db.String(300))
     telefono = db.Column(db.String(100))
@@ -93,6 +95,9 @@ class User(UserMixin, db.Model):
     activo = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    
+    tema_preferido = db.Column(db.String(10), default='claro')
+    densidad_visual = db.Column(db.String(10), default='normal')
     
     twofa_enabled = db.Column(db.Boolean, default=False)
     twofa_secret_encrypted = db.Column(db.String(500))
@@ -723,3 +728,38 @@ class TwoFALog(db.Model):
         )
         db.session.add(log)
         return log
+
+
+class EstiloDocumento(db.Model):
+    """Configuración de estilo de documentos por tenant."""
+    __tablename__ = 'estilos_documento'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False, unique=True)
+    fuente = db.Column(db.String(50), default='Times New Roman')
+    tamano_base = db.Column(db.Integer, default=12)
+    interlineado = db.Column(db.Float, default=1.5)
+    margen_superior = db.Column(db.Float, default=2.5)
+    margen_inferior = db.Column(db.Float, default=2.5)
+    margen_izquierdo = db.Column(db.Float, default=3.0)
+    margen_derecho = db.Column(db.Float, default=2.5)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('estilo_documento', uselist=False))
+    
+    FUENTES_PERMITIDAS = [
+        ('Times New Roman', 'Times New Roman'),
+        ('Arial', 'Arial'),
+        ('Calibri', 'Calibri')
+    ]
+    
+    @classmethod
+    def get_or_create(cls, tenant_id):
+        """Obtiene el estilo del tenant o crea uno con valores por defecto."""
+        estilo = cls.query.filter_by(tenant_id=tenant_id).first()
+        if not estilo:
+            estilo = cls(tenant_id=tenant_id)
+            db.session.add(estilo)
+            db.session.commit()
+        return estilo

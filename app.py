@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento
 import qrcode
 from io import BytesIO
 import base64
@@ -737,12 +737,30 @@ def agregar_tabla_word(doc, tabla_nombre, tabla_data):
 def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
     doc = Document()
     
+    estilo_doc = None
+    font_name = 'Times New Roman'
+    font_size = 12
+    line_spacing = 1.5
+    
+    if tenant:
+        estilo_doc = EstiloDocumento.query.filter_by(tenant_id=tenant.id).first()
+        if estilo_doc:
+            font_name = estilo_doc.fuente
+            font_size = estilo_doc.tamano_base
+            line_spacing = estilo_doc.interlineado
+    
     sections = doc.sections
     for section in sections:
-        section.top_margin = Cm(3.5)
-        section.bottom_margin = Cm(2.5)
-        section.left_margin = Cm(3)
-        section.right_margin = Cm(2.5)
+        if estilo_doc:
+            section.top_margin = Cm(estilo_doc.margen_superior)
+            section.bottom_margin = Cm(estilo_doc.margen_inferior)
+            section.left_margin = Cm(estilo_doc.margen_izquierdo)
+            section.right_margin = Cm(estilo_doc.margen_derecho)
+        else:
+            section.top_margin = Cm(3.5)
+            section.bottom_margin = Cm(2.5)
+            section.left_margin = Cm(3)
+            section.right_margin = Cm(2.5)
         
         logo_path = get_tenant_logo_path(tenant)
         if logo_path and os.path.exists(logo_path):
@@ -838,8 +856,8 @@ def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
         
         p = doc.add_paragraph()
         run = p.add_run(linea)
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(12)
+        run.font.name = font_name
+        run.font.size = Pt(font_size)
         
         es_titulo_principal = any(linea.upper().startswith(t.upper()) for t in titulos_principales)
         es_titulo_secundario = any(linea.upper().startswith(t.upper()) for t in titulos_secundarios)
@@ -847,7 +865,7 @@ def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
         
         if es_titulo_principal:
             run.bold = True
-            run.font.size = Pt(12)
+            run.font.size = Pt(font_size)
             p.paragraph_format.space_before = Pt(18)
             p.paragraph_format.space_after = Pt(6)
         elif es_titulo_secundario:
@@ -868,7 +886,8 @@ def guardar_docx(texto, nombre_archivo, tenant=None, datos_tablas=None):
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             p.paragraph_format.first_line_indent = Cm(1.25)
         
-        p.paragraph_format.line_spacing = 1.5
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+        p.paragraph_format.line_spacing = line_spacing
     
     if datos_tablas:
         for tabla_nombre, tabla_data in datos_tablas.items():
@@ -1998,6 +2017,90 @@ def configurar_estudio():
         return redirect(url_for("admin"))
     
     return render_template("configurar_estudio.html", tenant=tenant)
+
+
+@app.route("/configurar_apariencia", methods=["GET", "POST"])
+@admin_estudio_required
+def configurar_apariencia():
+    """Configura colores y branding del estudio."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    if request.method == "POST":
+        color_primario = request.form.get("color_primario", "").strip()
+        color_secundario = request.form.get("color_secundario", "").strip()
+        
+        if color_primario and len(color_primario) == 7 and color_primario.startswith('#'):
+            tenant.color_primario = color_primario.upper()
+        if color_secundario and len(color_secundario) == 7 and color_secundario.startswith('#'):
+            tenant.color_secundario = color_secundario.upper()
+        
+        if 'logo' in request.files:
+            file = request.files['logo']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                tenant_folder = os.path.join("static", "tenants", tenant.slug)
+                os.makedirs(tenant_folder, exist_ok=True)
+                filepath = os.path.join(tenant_folder, filename)
+                file.save(filepath)
+                tenant.logo_path = filename
+        
+        db.session.commit()
+        flash("Apariencia del estudio actualizada.", "success")
+        return redirect(url_for("configurar_apariencia"))
+    
+    return render_template("configurar_apariencia.html", tenant=tenant)
+
+
+@app.route("/estilos_documentos", methods=["GET", "POST"])
+@admin_estudio_required
+def estilos_documentos():
+    """Configura el estilo de los documentos generados."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    estilo = EstiloDocumento.get_or_create(tenant.id)
+    
+    if request.method == "POST":
+        estilo.fuente = request.form.get("fuente", "Times New Roman")
+        estilo.tamano_base = int(request.form.get("tamano_base", 12))
+        estilo.interlineado = float(request.form.get("interlineado", 1.5))
+        estilo.margen_superior = float(request.form.get("margen_superior", 2.5))
+        estilo.margen_inferior = float(request.form.get("margen_inferior", 2.5))
+        estilo.margen_izquierdo = float(request.form.get("margen_izquierdo", 3.0))
+        estilo.margen_derecho = float(request.form.get("margen_derecho", 2.5))
+        
+        db.session.commit()
+        flash("Estilo de documentos actualizado.", "success")
+        return redirect(url_for("estilos_documentos"))
+    
+    return render_template("estilos_documentos.html", 
+                         estilo=estilo, 
+                         fuentes_permitidas=EstiloDocumento.FUENTES_PERMITIDAS)
+
+
+@app.route("/preferencias_usuario", methods=["GET", "POST"])
+@login_required
+def preferencias_usuario():
+    """Configura preferencias visuales del usuario."""
+    if request.method == "POST":
+        tema = request.form.get("tema_preferido", "claro")
+        densidad = request.form.get("densidad_visual", "normal")
+        
+        if tema in ['claro', 'oscuro']:
+            current_user.tema_preferido = tema
+        if densidad in ['normal', 'compacta']:
+            current_user.densidad_visual = densidad
+        
+        db.session.commit()
+        flash("Preferencias actualizadas.", "success")
+        return redirect(url_for("preferencias_usuario"))
+    
+    return render_template("preferencias_usuario.html")
 
 
 @app.route("/admin/usuarios", methods=["GET", "POST"])

@@ -1,0 +1,170 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Estilo de Documentos{% endblock %}
+
+{% block page_title %}Estilo de Documentos{% endblock %}
+{% block page_subtitle %}Configura el formato de los documentos generados{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p class="text-sm text-blue-800">
+            <i class="fas fa-info-circle mr-2"></i>
+            Estas configuraciones se aplican unicamente a los documentos generados (Word), no afectan la interfaz de la plataforma.
+        </p>
+    </div>
+
+    <form method="POST" class="space-y-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-font mr-2 text-blue-600"></i>
+                    Tipografia
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Fuente</label>
+                        <select name="fuente" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            {% for value, label in fuentes_permitidas %}
+                            <option value="{{ value }}" {% if estilo.fuente == value %}selected{% endif %} style="font-family: '{{ value }}'">
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Tamano Base (pt)</label>
+                        <select name="tamano_base" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="10" {% if estilo.tamano_base == 10 %}selected{% endif %}>10 pt</option>
+                            <option value="11" {% if estilo.tamano_base == 11 %}selected{% endif %}>11 pt</option>
+                            <option value="12" {% if estilo.tamano_base == 12 %}selected{% endif %}>12 pt (Recomendado)</option>
+                            <option value="14" {% if estilo.tamano_base == 14 %}selected{% endif %}>14 pt</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-text-height mr-2 text-blue-600"></i>
+                    Espaciado
+                </h3>
+            </div>
+            <div class="p-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Interlineado</label>
+                    <select name="interlineado" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="1.0" {% if estilo.interlineado == 1.0 %}selected{% endif %}>Sencillo (1.0)</option>
+                        <option value="1.15" {% if estilo.interlineado == 1.15 %}selected{% endif %}>1.15</option>
+                        <option value="1.5" {% if estilo.interlineado == 1.5 %}selected{% endif %}>1.5 (Recomendado)</option>
+                        <option value="2.0" {% if estilo.interlineado == 2.0 %}selected{% endif %}>Doble (2.0)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-expand mr-2 text-blue-600"></i>
+                    Margenes (cm)
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Superior</label>
+                        <input type="number" name="margen_superior" value="{{ estilo.margen_superior }}" 
+                               step="0.5" min="1" max="5"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Inferior</label>
+                        <input type="number" name="margen_inferior" value="{{ estilo.margen_inferior }}" 
+                               step="0.5" min="1" max="5"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Izquierdo</label>
+                        <input type="number" name="margen_izquierdo" value="{{ estilo.margen_izquierdo }}" 
+                               step="0.5" min="1" max="5"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Derecho</label>
+                        <input type="number" name="margen_derecho" value="{{ estilo.margen_derecho }}" 
+                               step="0.5" min="1" max="5"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+                <p class="mt-4 text-xs text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Valores recomendados para documentos legales: Superior 2.5cm, Inferior 2.5cm, Izquierdo 3cm, Derecho 2.5cm
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-eye mr-2 text-blue-600"></i>
+                    Vista Previa
+                </h3>
+            </div>
+            <div class="p-6">
+                <div id="document-preview" class="border border-gray-300 rounded-lg p-8 bg-white max-w-lg mx-auto shadow-inner" 
+                     style="font-family: '{{ estilo.fuente }}'; font-size: {{ estilo.tamano_base }}pt; line-height: {{ estilo.interlineado }};">
+                    <p class="text-center font-bold mb-4" style="font-size: {{ estilo.tamano_base + 2 }}pt;">DOCUMENTO EJEMPLO</p>
+                    <p class="text-justify mb-3">
+                        Este es un ejemplo de como se vera el texto en sus documentos generados. 
+                        La fuente, tamano e interlineado se aplicaran automaticamente.
+                    </p>
+                    <p class="text-justify">
+                        Los margenes configurados se reflejaran en el documento Word exportado, 
+                        no en esta vista previa de la plataforma.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end space-x-4">
+            <a href="{{ url_for('admin') }}" class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancelar
+            </a>
+            <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-save mr-2"></i>
+                Guardar Configuracion
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fuenteSelect = document.querySelector('select[name="fuente"]');
+    const tamanoSelect = document.querySelector('select[name="tamano_base"]');
+    const interlineadoSelect = document.querySelector('select[name="interlineado"]');
+    const preview = document.getElementById('document-preview');
+    const previewTitle = preview.querySelector('p.text-center');
+
+    function updatePreview() {
+        const fuente = fuenteSelect.value;
+        const tamano = parseInt(tamanoSelect.value);
+        const interlineado = parseFloat(interlineadoSelect.value);
+
+        preview.style.fontFamily = `'${fuente}'`;
+        preview.style.fontSize = `${tamano}pt`;
+        preview.style.lineHeight = interlineado;
+        previewTitle.style.fontSize = `${tamano + 2}pt`;
+    }
+
+    fuenteSelect.addEventListener('change', updatePreview);
+    tamanoSelect.addEventListener('change', updatePreview);
+    interlineadoSelect.addEventListener('change', updatePreview);
+});
+</script>
+{% endblock %}

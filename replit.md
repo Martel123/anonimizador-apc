@@ -59,6 +59,8 @@ Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múlti
 - `nombre`: Nombre del estudio
 - `slug`: Identificador URL único
 - `logo_path`: Ruta al logo
+- `color_primario`: Color primario del estudio (hex, ej: #3B82F6)
+- `color_secundario`: Color secundario del estudio (hex, ej: #10B981)
 - `resolucion_directoral`: Número de autorización
 - `direccion`: Dirección física
 - `telefono`: Número de teléfono
@@ -73,6 +75,9 @@ Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múlti
 - `role`: 'super_admin', 'admin_estudio', 'usuario_estudio'
 - `tenant_id`: FK a tenants (null para super_admin)
 - `activo`: Estado del usuario
+- `tema_preferido`: Tema visual ('claro' o 'oscuro')
+- `densidad_visual`: Densidad de la interfaz ('normal' o 'compacta')
+- `twofa_enabled`, `twofa_secret_encrypted`: Campos para 2FA
 - `created_at`, `last_login`
 
 #### document_records (Documentos)
@@ -95,6 +100,13 @@ Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múlti
 #### campos_plantilla
 - Campos dinámicos detectados automáticamente o agregados manualmente
 - `tenant_id` para aislamiento
+
+#### estilos_documento
+- `id`, `tenant_id`: FK a tenants
+- `fuente`: Fuente para documentos (Times New Roman, Arial, Calibri)
+- `tamano_base`: Tamaño de fuente en puntos (10, 11, 12, 14)
+- `interlineado`: Espaciado entre líneas (1.0, 1.15, 1.5, 2.0)
+- `margen_superior`, `margen_inferior`, `margen_izquierdo`, `margen_derecho`: Márgenes en cm
 
 ## Sistema de Roles y Permisos
 
