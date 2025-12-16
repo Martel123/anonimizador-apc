@@ -1,71 +1,308 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Preview del Documento - Estudio Jurídico</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Roboto', sans-serif; }
-    </style>
-</head>
-<body class="bg-gray-50 min-h-screen">
-    <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-medium text-gray-800">Estudio Jurídico</h1>
-            <nav class="flex items-center space-x-4">
-                <a href="{{ url_for('index') }}" class="text-gray-600 hover:text-gray-900 text-sm font-medium">
-                    Volver al Formulario
-                </a>
-            </nav>
-        </div>
-    </header>
+{% extends "base_dashboard.html" %}
 
-    <main class="pt-20 pb-12 px-4 md:px-8">
-        <div class="max-w-6xl mx-auto">
-            <div class="mb-8">
-                <h2 class="text-3xl font-medium text-gray-900 mb-2">Preview del Documento</h2>
-                <p class="text-gray-600">{{ modelo.nombre }}</p>
-            </div>
+{% block title %}Preview del Documento{% endblock %}
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="mb-6 p-4 rounded-lg {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
-                            {{ message }}
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-6">
+        <nav class="flex items-center text-sm text-gray-500 mb-4">
+            <a href="{{ url_for('index') }}" class="hover:text-blue-600">Inicio</a>
+            <svg class="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+            <span class="text-gray-700">Preview del Documento</span>
+        </nav>
+        <h1 class="text-2xl font-semibold text-gray-900">Vista Previa y Edición</h1>
+        <p class="text-gray-600 mt-1">{{ modelo.nombre }}</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-6 p-4 rounded-lg {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form action="{{ url_for('guardar_desde_preview') }}" method="POST" id="previewForm">
+        <input type="hidden" name="tipo_documento" value="{{ tipo_documento }}">
+        <input type="hidden" name="datos_caso" value="{{ datos_caso | tojson | e }}">
+        <input type="hidden" name="datos_tablas" value="{{ datos_tablas | tojson | e if datos_tablas else '{}' }}">
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-file-alt text-blue-600"></i>
                         </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <form action="{{ url_for('guardar_desde_preview') }}" method="POST">
-                <input type="hidden" name="tipo_documento" value="{{ tipo_documento }}">
-                <input type="hidden" name="datos_caso" value="{{ datos_caso | tojson | e }}">
-                <input type="hidden" name="datos_tablas" value="{{ datos_tablas | tojson | e if datos_tablas else '{}' }}">
-
-                <div class="bg-white rounded-lg shadow-md p-6 md:p-8 mb-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-medium text-gray-900">Contenido del Documento</h3>
-                        <span class="text-sm text-gray-500">Puedes editar el texto antes de guardar</span>
+                        <div>
+                            <h3 class="font-medium text-gray-900">Contenido del Documento</h3>
+                            <p class="text-sm text-gray-500">Puedes editar el texto antes de guardar</p>
+                        </div>
                     </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="btnUndo" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors" title="Deshacer">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button type="button" id="btnRedo" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors" title="Rehacer">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                        <button type="button" id="btnFullscreen" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors" title="Pantalla completa">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6" id="editorContainer">
+                <div class="relative">
                     <textarea name="texto_editado" id="texto_editado"
-                        rows="25"
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-mono text-sm resize-y">{{ texto }}</textarea>
+                        rows="30"
+                        class="w-full px-5 py-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-mono text-sm resize-y bg-gray-50 leading-relaxed"
+                        style="min-height: 500px;">{{ texto }}</textarea>
+                    <div id="charCount" class="absolute bottom-3 right-3 text-xs text-gray-400 bg-white px-2 py-1 rounded">
+                        <span id="charCountNum">0</span> caracteres
+                    </div>
                 </div>
-
-                <div class="flex flex-col md:flex-row gap-4 justify-center">
-                    <a href="{{ url_for('index') }}"
-                        class="h-12 px-8 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center">
-                        Cancelar y Volver
-                    </a>
-                    <button type="submit"
-                        class="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-                        Guardar y Descargar Documento
-                    </button>
+                
+                <div class="mt-4 flex flex-wrap gap-2 text-sm text-gray-500">
+                    <span class="flex items-center gap-1">
+                        <i class="fas fa-keyboard text-gray-400"></i>
+                        <kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Ctrl</kbd>+<kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Z</kbd> Deshacer
+                    </span>
+                    <span class="flex items-center gap-1 ml-4">
+                        <kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Ctrl</kbd>+<kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Y</kbd> Rehacer
+                    </span>
+                    <span class="flex items-center gap-1 ml-4">
+                        <kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Ctrl</kbd>+<kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-xs">F</kbd> Buscar
+                    </span>
                 </div>
-            </form>
+            </div>
         </div>
-    </main>
-</body>
-</html>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h4 class="font-medium text-gray-900 mb-4 flex items-center gap-2">
+                <i class="fas fa-search text-gray-400"></i>
+                Buscar y Reemplazar
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Buscar texto</label>
+                    <input type="text" id="searchText" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Texto a buscar...">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Reemplazar con</label>
+                    <input type="text" id="replaceText" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Nuevo texto...">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button type="button" id="btnFindNext" class="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                    <i class="fas fa-search mr-1"></i> Buscar siguiente
+                </button>
+                <button type="button" id="btnReplace" class="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                    <i class="fas fa-exchange-alt mr-1"></i> Reemplazar
+                </button>
+                <button type="button" id="btnReplaceAll" class="px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors">
+                    <i class="fas fa-sync mr-1"></i> Reemplazar todo
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-4 justify-between items-center bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center gap-3 text-sm text-gray-600">
+                <i class="fas fa-info-circle text-blue-500"></i>
+                <span>El documento se guardará en tu historial y podrás descargarlo inmediatamente.</span>
+            </div>
+            <div class="flex gap-3">
+                <a href="{{ url_for('index') }}"
+                    class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-times"></i>
+                    Cancelar
+                </a>
+                <button type="submit"
+                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-download"></i>
+                    Guardar y Descargar
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    #editorContainer.fullscreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        background: white;
+        padding: 20px;
+        overflow: auto;
+    }
+    
+    #editorContainer.fullscreen #texto_editado {
+        height: calc(100vh - 150px) !important;
+        min-height: calc(100vh - 150px) !important;
+    }
+    
+    .highlight-match {
+        background-color: #fef08a;
+        border-radius: 2px;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.getElementById('texto_editado');
+    const charCountNum = document.getElementById('charCountNum');
+    const searchText = document.getElementById('searchText');
+    const replaceText = document.getElementById('replaceText');
+    const editorContainer = document.getElementById('editorContainer');
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    
+    let undoStack = [textarea.value];
+    let redoStack = [];
+    let lastSavedState = textarea.value;
+    
+    function updateCharCount() {
+        charCountNum.textContent = textarea.value.length.toLocaleString();
+    }
+    updateCharCount();
+    
+    function saveState() {
+        if (textarea.value !== undoStack[undoStack.length - 1]) {
+            undoStack.push(textarea.value);
+            redoStack = [];
+            if (undoStack.length > 50) undoStack.shift();
+        }
+    }
+    
+    textarea.addEventListener('input', function() {
+        updateCharCount();
+    });
+    
+    textarea.addEventListener('blur', saveState);
+    
+    document.getElementById('btnUndo').addEventListener('click', function() {
+        if (undoStack.length > 1) {
+            redoStack.push(undoStack.pop());
+            textarea.value = undoStack[undoStack.length - 1];
+            updateCharCount();
+        }
+    });
+    
+    document.getElementById('btnRedo').addEventListener('click', function() {
+        if (redoStack.length > 0) {
+            const state = redoStack.pop();
+            undoStack.push(state);
+            textarea.value = state;
+            updateCharCount();
+        }
+    });
+    
+    btnFullscreen.addEventListener('click', function() {
+        editorContainer.classList.toggle('fullscreen');
+        const icon = btnFullscreen.querySelector('i');
+        if (editorContainer.classList.contains('fullscreen')) {
+            icon.classList.remove('fa-expand');
+            icon.classList.add('fa-compress');
+        } else {
+            icon.classList.remove('fa-compress');
+            icon.classList.add('fa-expand');
+        }
+    });
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && editorContainer.classList.contains('fullscreen')) {
+            editorContainer.classList.remove('fullscreen');
+            btnFullscreen.querySelector('i').classList.remove('fa-compress');
+            btnFullscreen.querySelector('i').classList.add('fa-expand');
+        }
+    });
+    
+    let lastFoundIndex = -1;
+    
+    document.getElementById('btnFindNext').addEventListener('click', function() {
+        const search = searchText.value;
+        if (!search) return;
+        
+        const text = textarea.value;
+        const startPos = lastFoundIndex + 1;
+        let index = text.indexOf(search, startPos);
+        
+        if (index === -1 && startPos > 0) {
+            index = text.indexOf(search, 0);
+        }
+        
+        if (index !== -1) {
+            textarea.focus();
+            textarea.setSelectionRange(index, index + search.length);
+            lastFoundIndex = index;
+            
+            const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight);
+            const lines = text.substring(0, index).split('\n').length;
+            textarea.scrollTop = (lines - 5) * lineHeight;
+        } else {
+            alert('Texto no encontrado');
+            lastFoundIndex = -1;
+        }
+    });
+    
+    document.getElementById('btnReplace').addEventListener('click', function() {
+        const search = searchText.value;
+        const replace = replaceText.value;
+        if (!search) return;
+        
+        saveState();
+        
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+        
+        if (selectedText === search) {
+            textarea.value = textarea.value.substring(0, start) + replace + textarea.value.substring(end);
+            textarea.setSelectionRange(start, start + replace.length);
+            updateCharCount();
+        } else {
+            document.getElementById('btnFindNext').click();
+        }
+    });
+    
+    document.getElementById('btnReplaceAll').addEventListener('click', function() {
+        const search = searchText.value;
+        const replace = replaceText.value;
+        if (!search) return;
+        
+        saveState();
+        
+        const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        const count = (textarea.value.match(regex) || []).length;
+        
+        if (count > 0) {
+            textarea.value = textarea.value.replace(regex, replace);
+            updateCharCount();
+            alert(`Se reemplazaron ${count} coincidencias`);
+        } else {
+            alert('No se encontraron coincidencias');
+        }
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (textarea.value !== lastSavedState) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+    
+    document.getElementById('previewForm').addEventListener('submit', function() {
+        lastSavedState = textarea.value;
+    });
+});
+</script>
+{% endblock %}
