@@ -1,0 +1,195 @@
+🔐💳 PROMPT — LANDING → CHECKOUT → ACTIVACIÓN → SUPER_ADMIN SIN PAGO + CONTROL DE PRECIOS
+
+Implementa el flujo comercial completo de la plataforma SaaS legal, incluyendo landing pública, checkout, activación de cuentas, onboarding seguro y un rol super_admin con control total, cumpliendo estrictamente lo siguiente:
+
+A) Landing pública (páginas de marketing)
+1️⃣ Página de inicio /
+
+Página pública de presentación del producto.
+
+Mostrar:
+
+descripción general
+
+beneficios
+
+sección “Planes / Precios”
+
+Los precios NO deben estar hardcodeados.
+
+Los valores deben leerse dinámicamente desde base de datos.
+
+2️⃣ Widget de planes / precios
+
+Mostrar qué incluye la plataforma.
+
+Mostrar precio base por persona (ejemplo: USD 69 / persona / mes).
+
+Estos valores deben venir de una tabla PricingConfig.
+
+3️⃣ Página /demo
+
+Mostrar funciones interactivas de la plataforma.
+
+Incluir simulador de costos:
+
+el usuario elige número de personas (asientos)
+
+puede elegir addons (si existen)
+
+el sistema calcula el total estimado mensual en tiempo real
+
+El simulador debe usar los precios dinámicos de PricingConfig.
+
+Botón “Conseguir ahora” → redirige a /checkout/start
+
+B) Checkout / compra
+4️⃣ Página /checkout/start
+
+Antes de redirigir a la pasarela de pago, pedir:
+
+Datos del estudio jurídico / empresa
+
+Datos del administrador principal:
+
+nombre
+
+email
+
+Número de asientos seleccionados
+
+Addons (si aplica)
+
+❗ IMPORTANTE:
+
+NO pedir contraseña en esta etapa
+
+Crear un CheckoutSession en BD con estado pending_payment
+
+5️⃣ Pago
+
+Redirigir a checkout externo seguro (Stripe recomendado; arquitectura compatible con Izipay).
+
+El frontend no confirma pagos.
+
+El backend solo cambia estado mediante webhooks del proveedor.
+
+C) Confirmación y creación automática de cuenta
+6️⃣ Webhook de pago exitoso
+
+Cuando el proveedor confirme el pago:
+
+Crear el Tenant / Estudio
+
+Crear el usuario admin con el email indicado
+
+Asignar:
+
+seats_purchased = N
+
+seats_used = 1
+
+Activar suscripción (subscription_status = active)
+
+7️⃣ Página /checkout/success
+
+Mostrar:
+
+“Pago confirmado correctamente”
+
+Botón “Accede a tu cuenta”
+
+Al hacer clic:
+
+enviar magic link o pantalla de crear contraseña (set password con token)
+
+D) Primer ingreso obligatorio (seguridad + onboarding)
+8️⃣ Primer login del admin
+
+Forzar configuración de 2FA (Google Authenticator – TOTP) antes de entrar al dashboard.
+
+9️⃣ Wizard inicial
+
+Pantalla para crear/invitar usuarios.
+
+Mostrar contador:
+
+“Asientos usados X / N”
+
+Bloquear creación si excede el número comprado.
+
+E) Enforzamiento de límites
+
+El backend debe validar siempre:
+
+no permitir crear usuarios si seats_used >= seats_purchased
+
+Nunca confiar solo en el frontend.
+
+F) Super_admin (MUY IMPORTANTE)
+
+Implementa un rol super_admin con estas reglas:
+
+El super_admin:
+
+NO paga
+
+NO pasa por checkout
+
+NO ve landing de precios ni planes
+
+ingresa directamente a la plataforma
+
+El super_admin puede:
+
+crear estudios manualmente
+
+asignar cualquier cantidad de asientos
+
+crear usuarios ilimitados
+
+ver todas las empresas y usuarios
+
+G) Control de precios por super_admin
+
+Implementa un Panel del sistema exclusivo para super_admin:
+
+Ruta ejemplo: /system/pricing
+
+Permitir:
+
+editar precio por persona
+
+activar/desactivar addons
+
+cambiar moneda
+
+Los cambios:
+
+se guardan en BD (PricingConfig)
+
+se reflejan automáticamente en:
+
+landing
+
+simulador de costos
+
+checkout
+
+H) Entregables obligatorios
+
+Antes de implementar código, explica:
+
+las rutas completas del flujo
+
+los modelos de BD necesarios
+
+cómo se protege el webhook
+
+cómo funciona el magic link / set password
+
+cómo se fuerza el 2FA
+
+cómo el super_admin modifica precios sin redeploy
+
+NO asumas el stack. Primero identifícalo y adapta la solución.
