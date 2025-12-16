@@ -1,0 +1,108 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Activar 2FA{% endblock %}
+{% block page_title %}Activar Google Authenticator{% endblock %}
+{% block page_subtitle %}Configura la autenticacion de dos factores{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-800{% elif category == 'warning' %}bg-yellow-100 text-yellow-800{% else %}bg-green-100 text-green-800{% endif %}">
+                    <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'warning' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} mr-2"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <h3 class="text-lg font-semibold">
+                <i class="fas fa-qrcode mr-2"></i>
+                Paso 1: Escanea el codigo QR
+            </h3>
+        </div>
+
+        <div class="p-6">
+            <div class="text-center mb-6">
+                <div class="inline-block p-4 bg-white border-4 border-gray-200 rounded-xl shadow-inner">
+                    <img src="data:image/png;base64,{{ qr_code }}" alt="Codigo QR" class="w-48 h-48">
+                </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <p class="text-sm text-gray-600 mb-2">
+                    <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+                    Si no puedes escanear el QR, ingresa este codigo manualmente:
+                </p>
+                <div class="flex items-center justify-center space-x-2">
+                    <code class="px-4 py-2 bg-white border border-gray-300 rounded-lg font-mono text-lg tracking-wider">
+                        {{ secret }}
+                    </code>
+                    <button onclick="copySecret()" class="p-2 text-gray-500 hover:text-gray-700 transition-colors" title="Copiar">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 pt-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-keyboard mr-2 text-blue-600"></i>
+                    Paso 2: Ingresa el codigo de 6 digitos
+                </h4>
+                <form action="{{ url_for('activar_2fa') }}" method="POST">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Codigo de Google Authenticator
+                        </label>
+                        <input type="text" 
+                               name="codigo" 
+                               pattern="[0-9]{6}" 
+                               maxlength="6" 
+                               required 
+                               autofocus
+                               class="w-full px-4 py-3 text-center text-2xl font-mono tracking-widest border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="000000">
+                        <p class="text-sm text-gray-500 mt-2">
+                            Abre tu app y escribe el codigo de 6 digitos que aparece
+                        </p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <a href="{{ url_for('seguridad') }}" class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg text-center transition-colors">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Cancelar
+                        </a>
+                        <button type="submit" class="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                            <i class="fas fa-check mr-2"></i>
+                            Verificar y Activar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+        <h5 class="font-medium text-yellow-800 mb-2">
+            <i class="fas fa-lightbulb mr-2"></i>
+            Consejos
+        </h5>
+        <ul class="text-sm text-yellow-700 space-y-1 list-disc list-inside">
+            <li>Asegurate de que la hora de tu telefono este sincronizada</li>
+            <li>El codigo cambia cada 30 segundos</li>
+            <li>Despues de activar, guardaras codigos de respaldo</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+function copySecret() {
+    const secret = "{{ secret }}";
+    navigator.clipboard.writeText(secret).then(() => {
+        alert('Codigo secreto copiado!');
+    });
+}
+</script>
+{% endblock %}

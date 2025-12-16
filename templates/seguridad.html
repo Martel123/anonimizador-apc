@@ -1,0 +1,169 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Seguridad{% endblock %}
+{% block page_title %}Seguridad{% endblock %}
+{% block page_subtitle %}Configuracion de autenticacion de dos factores{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-800{% elif category == 'warning' %}bg-yellow-100 text-yellow-800{% else %}bg-green-100 text-green-800{% endif %}">
+                    <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'warning' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} mr-2"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-shield-alt text-blue-600 mr-2"></i>
+                Autenticacion de Dos Factores (2FA)
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">
+                Protege tu cuenta con un codigo adicional de Google Authenticator
+            </p>
+        </div>
+
+        <div class="p-6">
+            <div class="flex items-start space-x-4 mb-6">
+                <div class="flex-shrink-0">
+                    {% if current_user.twofa_enabled %}
+                        <div class="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+                        </div>
+                    {% else %}
+                        <div class="h-12 w-12 bg-gray-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-lock-open text-gray-400 text-2xl"></i>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="flex-1">
+                    <h4 class="text-lg font-medium text-gray-900">
+                        Estado: 
+                        {% if current_user.twofa_enabled %}
+                            <span class="text-green-600">Activado</span>
+                        {% else %}
+                            <span class="text-gray-500">Desactivado</span>
+                        {% endif %}
+                    </h4>
+                    <p class="text-sm text-gray-600 mt-1">
+                        {% if current_user.twofa_enabled %}
+                            Tu cuenta esta protegida con autenticacion de dos factores.
+                            {% if backup_codes_count > 0 %}
+                                Tienes {{ backup_codes_count }} codigos de respaldo disponibles.
+                            {% else %}
+                                <span class="text-yellow-600">No tienes codigos de respaldo. Considera regenerarlos.</span>
+                            {% endif %}
+                        {% else %}
+                            Activa la autenticacion de dos factores para mayor seguridad.
+                            {% if requires_2fa %}
+                                <span class="text-red-600 font-medium">Tu rol requiere 2FA obligatoriamente.</span>
+                            {% endif %}
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {% if not current_user.twofa_enabled %}
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <h5 class="font-medium text-blue-800 mb-2">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Como funciona
+                    </h5>
+                    <ol class="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                        <li>Descarga Google Authenticator en tu telefono</li>
+                        <li>Escanea el codigo QR que te mostraremos</li>
+                        <li>Ingresa el codigo de 6 digitos para verificar</li>
+                        <li>Guarda tus codigos de respaldo en un lugar seguro</li>
+                    </ol>
+                </div>
+
+                <a href="{{ url_for('activar_2fa') }}" class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                    <i class="fas fa-lock mr-2"></i>
+                    Activar Google Authenticator
+                </a>
+            {% else %}
+                <div class="space-y-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h5 class="font-medium text-gray-800 mb-3">
+                            <i class="fas fa-key mr-2"></i>
+                            Codigos de Respaldo
+                        </h5>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Usa estos codigos si pierdes acceso a tu app de autenticacion. Cada codigo funciona una sola vez.
+                        </p>
+                        <form action="{{ url_for('regenerar_backup_codes') }}" method="POST" class="flex items-end space-x-3">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Confirma tu contrasena</label>
+                                <input type="password" name="password" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Tu contrasena">
+                            </div>
+                            <button type="submit" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Regenerar Codigos
+                            </button>
+                        </form>
+                    </div>
+
+                    {% if not requires_2fa %}
+                    <div class="bg-red-50 rounded-lg p-4">
+                        <h5 class="font-medium text-red-800 mb-3">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            Desactivar 2FA
+                        </h5>
+                        <p class="text-sm text-red-600 mb-3">
+                            Esto reducira la seguridad de tu cuenta. Solo hazlo si es absolutamente necesario.
+                        </p>
+                        <form action="{{ url_for('desactivar_2fa') }}" method="POST" class="flex items-end space-x-3" onsubmit="return confirm('¿Estas seguro de que quieres desactivar la autenticacion de dos factores?');">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium text-red-700 mb-1">Confirma tu contrasena</label>
+                                <input type="password" name="password" required class="w-full px-3 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Tu contrasena">
+                            </div>
+                            <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors">
+                                <i class="fas fa-unlock mr-2"></i>
+                                Desactivar 2FA
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p class="text-sm text-yellow-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Tu rol ({{ current_user.role }}) requiere autenticacion de dos factores obligatoriamente. No puedes desactivarla.
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-6 bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-mobile-alt text-blue-600 mr-2"></i>
+                Apps Compatibles
+            </h3>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <i class="fab fa-google text-2xl text-red-500"></i>
+                    <span class="font-medium text-gray-800">Google Authenticator</span>
+                </div>
+                <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <i class="fas fa-mobile-alt text-2xl text-purple-500"></i>
+                    <span class="font-medium text-gray-800">Authy</span>
+                </div>
+                <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <i class="fab fa-microsoft text-2xl text-blue-500"></i>
+                    <span class="font-medium text-gray-800">Microsoft Authenticator</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

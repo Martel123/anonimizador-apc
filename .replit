@@ -35,3 +35,8 @@ externalPort = 80
 
 [agent]
 integrations = ["resend:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+TWOFA_ENCRYPTION_KEY = "7wanZ8x3uY5eDpF2_nMXXC9aKSm8LY5Z0I4IewsJWig="

@@ -26,6 +26,7 @@
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">2FA</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                             </tr>
@@ -56,6 +57,21 @@
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4">
+                                    {% if user.twofa_enabled %}
+                                        <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                            <i class="fas fa-shield-alt mr-1"></i>Activo
+                                        </span>
+                                    {% elif user.requires_2fa() %}
+                                        <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>Pendiente
+                                        </span>
+                                    {% else %}
+                                        <span class="px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">
+                                            <i class="fas fa-minus mr-1"></i>Opcional
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4">
                                     {% if user.activo %}
                                         <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                                             <i class="fas fa-check-circle mr-1"></i>Activo
@@ -67,6 +83,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4">
+                                    <div class="flex flex-wrap gap-2">
                                     {% if user.id != current_user.id %}
                                         {% if is_admin or user.role != 'admin_estudio' %}
                                         <form method="POST" action="{{ url_for('toggle_usuario', user_id=user.id) }}" class="inline">
@@ -78,12 +95,20 @@
                                                 {% endif %}
                                             </button>
                                         </form>
+                                        {% if user.twofa_enabled %}
+                                        <form method="POST" action="{{ url_for('reset_2fa_usuario', user_id=user.id) }}" class="inline" onsubmit="return confirm('¿Resetear 2FA para {{ user.username }}? El usuario tendra que configurarlo nuevamente.');">
+                                            <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+                                                <i class="fas fa-unlock-alt mr-1"></i>Reset 2FA
+                                            </button>
+                                        </form>
+                                        {% endif %}
                                         {% else %}
                                         <span class="text-gray-400 text-sm"><i class="fas fa-lock mr-1"></i>Protegido</span>
                                         {% endif %}
                                     {% else %}
                                         <span class="text-gray-400 text-sm">Tu cuenta</span>
                                     {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}

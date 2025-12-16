@@ -125,6 +125,13 @@
                     <i class="fas fa-chart-bar w-5 mr-3"></i>
                     <span>Mis Estadisticas</span>
                 </a>
+                <a href="{{ url_for('seguridad') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['seguridad', 'activar_2fa', 'mostrar_backup_codes'] %}active{% endif %}">
+                    <i class="fas fa-shield-alt w-5 mr-3"></i>
+                    <span>Seguridad</span>
+                    {% if current_user.requires_2fa() and not current_user.twofa_enabled %}
+                    <span class="ml-auto bg-yellow-500 text-yellow-900 text-xs px-2 py-0.5 rounded-full">!</span>
+                    {% endif %}
+                </a>
 
                 {% if current_user.is_admin_estudio() or current_user.is_super_admin() or current_user.is_coordinador() %}
                 <div class="px-3 mt-6 mb-2">

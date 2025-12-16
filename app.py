@@ -16,7 +16,10 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog
+import qrcode
+from io import BytesIO
+import base64
 import uuid
 
 logging.basicConfig(level=logging.DEBUG)
@@ -1092,6 +1095,20 @@ def login():
         
         user = User.query.filter_by(email=email, activo=True).first()
         if user and user.check_password(password):
+            if user.twofa_enabled:
+                session['pending_2fa_user_id'] = user.id
+                next_page = request.args.get('next')
+                if next_page:
+                    session['next_after_2fa'] = next_page
+                return redirect(url_for('verificar_2fa'))
+            
+            if user.requires_2fa() and not user.twofa_enabled:
+                user.last_login = datetime.utcnow()
+                db.session.commit()
+                login_user(user)
+                flash("Tu rol requiere autenticación de dos factores. Por favor configúrala ahora.", "warning")
+                return redirect(url_for('activar_2fa'))
+            
             user.last_login = datetime.utcnow()
             db.session.commit()
             login_user(user)
@@ -1183,9 +1200,256 @@ def registro_estudio():
 def logout():
     if 'impersonate_tenant_id' in session:
         del session['impersonate_tenant_id']
+    if 'pending_2fa_user_id' in session:
+        del session['pending_2fa_user_id']
     logout_user()
     flash("Sesión cerrada correctamente.", "success")
     return redirect(url_for('index'))
+
+
+@app.route("/seguridad")
+@login_required
+def seguridad():
+    """Security settings page for 2FA management."""
+    requires_2fa = current_user.requires_2fa()
+    backup_codes_count = len(current_user.twofa_backup_codes_hashed) if current_user.twofa_backup_codes_hashed else 0
+    return render_template("seguridad.html", 
+                          requires_2fa=requires_2fa,
+                          backup_codes_count=backup_codes_count)
+
+
+@app.route("/seguridad/activar_2fa", methods=["GET", "POST"])
+@login_required
+def activar_2fa():
+    """Setup 2FA for the user."""
+    if current_user.twofa_enabled:
+        flash("Ya tienes la autenticación de dos factores activada.", "info")
+        return redirect(url_for('seguridad'))
+    
+    if request.method == "POST":
+        codigo = request.form.get("codigo", "").strip()
+        
+        if not codigo:
+            flash("Ingresa el código de 6 dígitos.", "error")
+            return redirect(url_for('activar_2fa'))
+        
+        if current_user.verify_totp(codigo):
+            current_user.twofa_enabled = True
+            current_user.twofa_last_verified_at = datetime.utcnow()
+            backup_codes = current_user.generate_backup_codes()
+            
+            TwoFALog.log_event(
+                user_id=current_user.id,
+                event_type='setup',
+                success=True,
+                ip=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', '')[:500]
+            )
+            db.session.commit()
+            
+            session['show_backup_codes'] = backup_codes
+            return redirect(url_for('mostrar_backup_codes'))
+        else:
+            TwoFALog.log_event(
+                user_id=current_user.id,
+                event_type='setup',
+                success=False,
+                ip=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', '')[:500],
+                details='Invalid TOTP code during setup'
+            )
+            db.session.commit()
+            flash("Código incorrecto. Verifica que el código coincida con tu app.", "error")
+            return redirect(url_for('activar_2fa'))
+    
+    current_user.generate_totp_secret()
+    db.session.commit()
+    
+    totp_uri = current_user.get_totp_uri()
+    qr = qrcode.make(totp_uri)
+    buffer = BytesIO()
+    qr.save(buffer, format='PNG')
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+    
+    secret = current_user.get_totp_secret()
+    
+    return render_template("activar_2fa.html", 
+                          qr_code=qr_base64, 
+                          secret=secret)
+
+
+@app.route("/seguridad/backup_codes")
+@login_required
+def mostrar_backup_codes():
+    """Show backup codes after 2FA setup."""
+    backup_codes = session.pop('show_backup_codes', None)
+    if not backup_codes:
+        flash("No hay códigos de respaldo para mostrar.", "info")
+        return redirect(url_for('seguridad'))
+    
+    return render_template("backup_codes.html", backup_codes=backup_codes)
+
+
+@app.route("/seguridad/regenerar_backup", methods=["POST"])
+@login_required
+def regenerar_backup_codes():
+    """Regenerate backup codes."""
+    if not current_user.twofa_enabled:
+        flash("Primero debes activar la autenticación de dos factores.", "error")
+        return redirect(url_for('seguridad'))
+    
+    password = request.form.get("password", "")
+    if not current_user.check_password(password):
+        flash("Contraseña incorrecta.", "error")
+        return redirect(url_for('seguridad'))
+    
+    backup_codes = current_user.generate_backup_codes()
+    
+    TwoFALog.log_event(
+        user_id=current_user.id,
+        event_type='regenerate_backup',
+        success=True,
+        ip=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500]
+    )
+    db.session.commit()
+    
+    session['show_backup_codes'] = backup_codes
+    return redirect(url_for('mostrar_backup_codes'))
+
+
+@app.route("/seguridad/desactivar_2fa", methods=["POST"])
+@login_required
+def desactivar_2fa():
+    """Disable 2FA for the user."""
+    if not current_user.twofa_enabled:
+        flash("La autenticación de dos factores no está activada.", "info")
+        return redirect(url_for('seguridad'))
+    
+    if current_user.requires_2fa():
+        flash("Tu rol requiere autenticación de dos factores. No puedes desactivarla.", "error")
+        return redirect(url_for('seguridad'))
+    
+    password = request.form.get("password", "")
+    if not current_user.check_password(password):
+        flash("Contraseña incorrecta.", "error")
+        return redirect(url_for('seguridad'))
+    
+    current_user.disable_2fa()
+    
+    TwoFALog.log_event(
+        user_id=current_user.id,
+        event_type='disable',
+        success=True,
+        ip=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500]
+    )
+    db.session.commit()
+    
+    flash("Autenticación de dos factores desactivada.", "success")
+    return redirect(url_for('seguridad'))
+
+
+@app.route("/verificar_2fa", methods=["GET", "POST"])
+def verificar_2fa():
+    """Second step of login: verify 2FA code."""
+    if 'pending_2fa_user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user_id = session['pending_2fa_user_id']
+    user = User.query.get(user_id)
+    
+    if not user:
+        session.pop('pending_2fa_user_id', None)
+        return redirect(url_for('login'))
+    
+    failed_attempts = TwoFALog.count_recent_failures(user_id)
+    if failed_attempts >= 5:
+        flash("Demasiados intentos fallidos. Intenta de nuevo en 15 minutos.", "error")
+        return render_template("verificar_2fa.html", locked=True)
+    
+    if request.method == "POST":
+        codigo = request.form.get("codigo", "").strip().replace(" ", "").replace("-", "")
+        use_backup = request.form.get("use_backup") == "1"
+        
+        if not codigo:
+            flash("Ingresa un código.", "error")
+            return render_template("verificar_2fa.html", locked=False)
+        
+        success = False
+        event_type = 'verify_attempt'
+        
+        if use_backup:
+            codigo = codigo.upper()
+            if "-" not in codigo and len(codigo) == 8:
+                codigo = f"{codigo[:4]}-{codigo[4:]}"
+            success = user.verify_backup_code(codigo)
+            event_type = 'backup_used'
+        else:
+            success = user.verify_totp(codigo)
+        
+        TwoFALog.log_event(
+            user_id=user_id,
+            event_type=event_type,
+            success=success,
+            ip=request.remote_addr,
+            user_agent=request.headers.get('User-Agent', '')[:500]
+        )
+        
+        if success:
+            user.twofa_last_verified_at = datetime.utcnow()
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            
+            session.pop('pending_2fa_user_id', None)
+            login_user(user)
+            
+            flash("Sesión iniciada correctamente.", "success")
+            next_page = session.pop('next_after_2fa', None)
+            return redirect(next_page or url_for('index'))
+        else:
+            db.session.commit()
+            remaining = 5 - failed_attempts - 1
+            flash(f"Código incorrecto. Te quedan {remaining} intentos.", "error")
+            return render_template("verificar_2fa.html", locked=False)
+    
+    return render_template("verificar_2fa.html", locked=False)
+
+
+@app.route("/admin/reset_2fa/<int:user_id>", methods=["POST"])
+@coordinador_or_admin_required
+def reset_2fa_usuario(user_id):
+    """Reset 2FA for a user in the same tenant."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    target_user = User.query.get_or_404(user_id)
+    
+    if not current_user.is_super_admin():
+        if target_user.tenant_id != tenant.id:
+            flash("No puedes modificar usuarios de otro estudio.", "error")
+            return redirect(url_for("admin_usuarios"))
+        if target_user.is_super_admin():
+            flash("No puedes resetear 2FA de un super administrador.", "error")
+            return redirect(url_for("admin_usuarios"))
+    
+    target_user.disable_2fa()
+    
+    TwoFALog.log_event(
+        user_id=target_user.id,
+        event_type='reset',
+        success=True,
+        ip=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500],
+        reset_by_id=current_user.id,
+        details=f'Reset by {current_user.email}'
+    )
+    db.session.commit()
+    
+    flash(f"2FA reseteado para {target_user.username}. El usuario deberá configurarlo nuevamente.", "success")
+    return redirect(url_for("admin_usuarios"))
 
 
 @app.route("/procesar_ia", methods=["POST"])

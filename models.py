@@ -1,10 +1,15 @@
 import os
+import secrets
+import hashlib
 from datetime import datetime
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.security import generate_password_hash, check_password_hash
+from cryptography.fernet import Fernet
+import pyotp
+import base64
 
 
 class Base(DeclarativeBase):
@@ -57,6 +62,25 @@ class Tenant(db.Model):
         return lines
 
 
+_cached_encryption_key = None
+
+def get_encryption_key():
+    """Get encryption key for 2FA secrets. Key must be set in environment."""
+    global _cached_encryption_key
+    if _cached_encryption_key is not None:
+        return _cached_encryption_key
+    
+    key = os.environ.get('TWOFA_ENCRYPTION_KEY')
+    if not key:
+        raise ValueError("TWOFA_ENCRYPTION_KEY environment variable must be set for 2FA functionality")
+    
+    if isinstance(key, str):
+        key = key.encode()
+    
+    _cached_encryption_key = key
+    return key
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     
@@ -69,6 +93,12 @@ class User(UserMixin, db.Model):
     activo = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    
+    twofa_enabled = db.Column(db.Boolean, default=False)
+    twofa_secret_encrypted = db.Column(db.String(500))
+    twofa_backup_codes_hashed = db.Column(db.JSON)
+    twofa_last_verified_at = db.Column(db.DateTime)
+    twofa_required = db.Column(db.Boolean, default=False)
     
     documents = db.relationship('DocumentRecord', backref='user', lazy='dynamic')
     
@@ -106,6 +136,72 @@ class User(UserMixin, db.Model):
     @property
     def is_admin(self):
         return self.role in ['super_admin', 'admin_estudio']
+    
+    def requires_2fa(self):
+        """Check if user role requires 2FA."""
+        return self.role in ['super_admin', 'admin_estudio']
+    
+    def generate_totp_secret(self):
+        """Generate and encrypt a new TOTP secret."""
+        secret = pyotp.random_base32()
+        fernet = Fernet(get_encryption_key())
+        self.twofa_secret_encrypted = fernet.encrypt(secret.encode()).decode()
+        return secret
+    
+    def get_totp_secret(self):
+        """Decrypt and return the TOTP secret."""
+        if not self.twofa_secret_encrypted:
+            return None
+        try:
+            fernet = Fernet(get_encryption_key())
+            return fernet.decrypt(self.twofa_secret_encrypted.encode()).decode()
+        except Exception:
+            return None
+    
+    def get_totp_uri(self, issuer="Plataforma Legal"):
+        """Generate provisioning URI for QR code."""
+        secret = self.get_totp_secret()
+        if not secret:
+            return None
+        totp = pyotp.TOTP(secret)
+        return totp.provisioning_uri(name=self.email, issuer_name=issuer)
+    
+    def verify_totp(self, code):
+        """Verify a TOTP code."""
+        secret = self.get_totp_secret()
+        if not secret:
+            return False
+        totp = pyotp.TOTP(secret)
+        return totp.verify(code, valid_window=1)
+    
+    def generate_backup_codes(self, count=8):
+        """Generate backup codes and store hashed versions."""
+        codes = []
+        hashed_codes = []
+        for _ in range(count):
+            code = f"{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
+            codes.append(code)
+            hashed = hashlib.sha256(code.encode()).hexdigest()
+            hashed_codes.append(hashed)
+        self.twofa_backup_codes_hashed = hashed_codes
+        return codes
+    
+    def verify_backup_code(self, code):
+        """Verify and consume a backup code."""
+        if not self.twofa_backup_codes_hashed:
+            return False
+        code_hash = hashlib.sha256(code.strip().upper().encode()).hexdigest()
+        if code_hash in self.twofa_backup_codes_hashed:
+            self.twofa_backup_codes_hashed.remove(code_hash)
+            return True
+        return False
+    
+    def disable_2fa(self):
+        """Disable 2FA for this user."""
+        self.twofa_enabled = False
+        self.twofa_secret_encrypted = None
+        self.twofa_backup_codes_hashed = None
+        self.twofa_last_verified_at = None
 
 
 class DocumentRecord(db.Model):
@@ -582,3 +678,48 @@ class ReviewIssue(db.Model):
     recomendacion = db.Column(db.Text)
     orden = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TwoFALog(db.Model):
+    """Log de intentos y eventos de 2FA para auditoría y rate limiting."""
+    __tablename__ = 'twofa_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)  # verify_attempt, setup, disable, reset, backup_used
+    success = db.Column(db.Boolean, default=False)
+    ip_address = db.Column(db.String(50))
+    user_agent = db.Column(db.String(500))
+    reset_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    details = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('twofa_logs', lazy='dynamic'))
+    reset_by = db.relationship('User', foreign_keys=[reset_by_id])
+    
+    @classmethod
+    def count_recent_failures(cls, user_id, minutes=15):
+        """Count recent failed 2FA attempts for rate limiting."""
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+        return cls.query.filter(
+            cls.user_id == user_id,
+            cls.event_type == 'verify_attempt',
+            cls.success == False,
+            cls.created_at >= cutoff
+        ).count()
+    
+    @classmethod
+    def log_event(cls, user_id, event_type, success=True, ip=None, user_agent=None, reset_by_id=None, details=None):
+        """Log a 2FA event."""
+        log = cls(
+            user_id=user_id,
+            event_type=event_type,
+            success=success,
+            ip_address=ip,
+            user_agent=user_agent,
+            reset_by_id=reset_by_id,
+            details=details
+        )
+        db.session.add(log)
+        return log

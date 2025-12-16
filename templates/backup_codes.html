@@ -1,0 +1,113 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Codigos de Respaldo{% endblock %}
+{% block page_title %}Codigos de Respaldo{% endblock %}
+{% block page_subtitle %}Guardalos en un lugar seguro{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-600 to-green-700 text-white">
+            <h3 class="text-lg font-semibold">
+                <i class="fas fa-check-circle mr-2"></i>
+                Autenticacion de Dos Factores Activada
+            </h3>
+        </div>
+
+        <div class="p-6">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <h4 class="font-medium text-yellow-800 mb-2">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Importante: Guarda estos codigos
+                </h4>
+                <p class="text-sm text-yellow-700">
+                    Si pierdes tu telefono o no puedes acceder a Google Authenticator, 
+                    necesitaras uno de estos codigos para entrar a tu cuenta. 
+                    <strong>Cada codigo solo se puede usar una vez.</strong>
+                </p>
+            </div>
+
+            <div class="bg-gray-900 rounded-lg p-6 mb-6">
+                <div class="grid grid-cols-2 gap-3">
+                    {% for code in backup_codes %}
+                    <div class="bg-gray-800 px-4 py-2 rounded font-mono text-green-400 text-center text-lg">
+                        {{ code }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex space-x-3 mb-6">
+                <button onclick="copyAllCodes()" class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors">
+                    <i class="fas fa-copy mr-2"></i>
+                    Copiar Todos
+                </button>
+                <button onclick="printCodes()" class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors">
+                    <i class="fas fa-print mr-2"></i>
+                    Imprimir
+                </button>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h5 class="font-medium text-blue-800 mb-2">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Sugerencias de donde guardarlos
+                </h5>
+                <ul class="text-sm text-blue-700 space-y-1 list-disc list-inside">
+                    <li>En un gestor de contrasenas (1Password, LastPass, etc.)</li>
+                    <li>Impreso en papel, guardado en lugar seguro</li>
+                    <li>En una nota encriptada en tu telefono</li>
+                </ul>
+            </div>
+
+            <a href="{{ url_for('seguridad') }}" class="block w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-center transition-colors">
+                <i class="fas fa-check mr-2"></i>
+                He Guardado Mis Codigos, Continuar
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyAllCodes() {
+    const codes = [{% for code in backup_codes %}"{{ code }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+    const text = codes.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Codigos copiados al portapapeles!');
+    });
+}
+
+function printCodes() {
+    const codes = [{% for code in backup_codes %}"{{ code }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Codigos de Respaldo - Plataforma Legal</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 40px; }
+                h1 { font-size: 24px; margin-bottom: 20px; }
+                .codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+                .code { background: #f3f4f6; padding: 15px; font-family: monospace; font-size: 18px; text-align: center; border-radius: 8px; }
+                .warning { background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+            </style>
+        </head>
+        <body>
+            <h1>Codigos de Respaldo - Autenticacion de Dos Factores</h1>
+            <div class="warning">
+                <strong>IMPORTANTE:</strong> Guarda estos codigos en un lugar seguro. Cada codigo solo se puede usar una vez.
+            </div>
+            <div class="codes">
+                ${codes.map(code => `<div class="code">${code}</div>`).join('')}
+            </div>
+            <p style="margin-top: 20px; color: #666; font-size: 12px;">
+                Generado el ${new Date().toLocaleDateString()} - {{ current_user.email }}
+            </p>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+</script>
+{% endblock %}
