@@ -1,0 +1,101 @@
+Implementa un rol especial llamado super_admin, que represente al dueño del sistema y tenga control total sobre todas las empresas (tenants) y usuarios.
+
+1️⃣ Creación del super_admin (OBLIGATORIO)
+
+El rol super_admin NO puede crearse ni asignarse desde la UI.
+
+Debe crearse solo mediante un script administrativo (seed_super_admin.py) o mediante modificación directa en base de datos.
+
+El script debe:
+
+Crear un usuario con:
+
+email predefinido (ejemplo: marcelo@apcjuridica.com)
+
+password hasheado
+
+rol = super_admin
+
+Evitar duplicados (si el usuario ya existe, no recrearlo).
+
+Garantizar que solo exista un super_admin activo a la vez.
+
+2️⃣ Inicio de sesión
+
+El super_admin inicia sesión desde el mismo login que todos los usuarios.
+
+No existe login separado ni página externa.
+
+Una vez logueado, el sistema debe detectar su rol y habilitar funcionalidades adicionales.
+
+3️⃣ Panel exclusivo del sistema
+
+Al super_admin debe mostrársele un menú adicional llamado “Panel del sistema”.
+
+Este panel debe vivir bajo rutas protegidas /system/*, por ejemplo:
+
+/system/empresas
+
+/system/usuarios
+
+/system/planes
+
+/system/logs
+
+/system/health
+
+4️⃣ Middleware de autorización (CRÍTICO)
+
+Implementa un middleware/guard que:
+
+Bloquee todo acceso a /system/* si el usuario NO es super_admin.
+
+Devuelva 403 Forbidden para admins, coordinadores o usuarios normales.
+
+5️⃣ Permisos del super_admin
+
+El super_admin puede:
+
+Ver y administrar todas las empresas
+
+Ver y administrar todos los usuarios
+
+Acceder a métricas globales del sistema
+
+Acceder a logs y estado general
+
+El super_admin NO debe interferir con la lógica interna de cada empresa salvo a nivel administrativo.
+
+6️⃣ Cambio de super_admin (SUCESIÓN)
+
+El cambio de super_admin NO debe poder hacerse desde la UI.
+
+Debe realizarse únicamente:
+
+mediante un script administrativo (ej. change_super_admin.py)
+
+o modificación directa en base de datos.
+
+El sistema debe asegurar:
+
+que el antiguo super_admin pierda acceso inmediatamente a /system/*
+
+que el nuevo super_admin obtenga acceso completo
+
+7️⃣ Seguridad (NO NEGOCIABLE)
+
+Nunca exponer el rol super_admin en formularios, selects o endpoints públicos.
+
+Nunca permitir que un admin normal se asigne ese rol.
+
+Registrar en logs cualquier intento de acceso no autorizado a /system/*.
+
+8️⃣ Entregables esperados
+
+Script seed_super_admin.py
+
+(Opcional) script change_super_admin.py
+
+Middleware de protección para /system/*
+
+Menú condicional “Panel del sistema” visible solo para super_admin
