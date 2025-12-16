@@ -1618,6 +1618,30 @@ def stop_impersonate():
     return redirect(url_for('super_admin'))
 
 
+@app.route("/super_admin/eliminar_estudio/<int:tenant_id>", methods=["POST"])
+@super_admin_required
+def eliminar_estudio(tenant_id):
+    tenant = Tenant.query.get_or_404(tenant_id)
+    nombre = tenant.nombre
+    
+    User.query.filter_by(tenant_id=tenant_id).delete()
+    DocumentRecord.query.filter_by(tenant_id=tenant_id).delete()
+    FinishedDocument.query.filter_by(tenant_id=tenant_id).delete()
+    Plantilla.query.filter_by(tenant_id=tenant_id).delete()
+    Estilo.query.filter_by(tenant_id=tenant_id).delete()
+    CampoPlantilla.query.filter_by(tenant_id=tenant_id).delete()
+    Modelo.query.filter_by(tenant_id=tenant_id).delete()
+    Case.query.filter_by(tenant_id=tenant_id).delete()
+    Task.query.filter_by(tenant_id=tenant_id).delete()
+    ReviewSession.query.filter_by(tenant_id=tenant_id).delete()
+    
+    db.session.delete(tenant)
+    db.session.commit()
+    
+    flash(f"Estudio '{nombre}' eliminado correctamente junto con todos sus datos.", "success")
+    return redirect(url_for('super_admin'))
+
+
 @app.route("/admin")
 @coordinador_or_admin_required
 def admin():

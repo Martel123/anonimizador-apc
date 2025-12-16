@@ -126,10 +126,18 @@
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4">
-                                <a href="{{ url_for('impersonate_tenant', tenant_id=item.tenant.id) }}" 
-                                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm inline-flex items-center">
-                                    <i class="fas fa-eye mr-2"></i>Ver como
-                                </a>
+                                <div class="flex space-x-2">
+                                    <a href="{{ url_for('impersonate_tenant', tenant_id=item.tenant.id) }}" 
+                                       class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm inline-flex items-center">
+                                        <i class="fas fa-eye mr-1"></i>Ver
+                                    </a>
+                                    <form action="{{ url_for('eliminar_estudio', tenant_id=item.tenant.id) }}" method="POST" 
+                                          onsubmit="return confirm('¿Estas seguro de eliminar el estudio {{ item.tenant.nombre }}? Esta accion eliminara TODOS los usuarios, documentos y datos del estudio. Esta accion NO se puede deshacer.');">
+                                        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm inline-flex items-center">
+                                            <i class="fas fa-trash mr-1"></i>Eliminar
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
