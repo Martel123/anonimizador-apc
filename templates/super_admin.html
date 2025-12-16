@@ -21,6 +21,9 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <span class="text-sm">{{ current_user.email }}</span>
+                    <a href="{{ url_for('system_pricing') }}" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-dollar-sign mr-2"></i>Precios
+                    </a>
                     <a href="{{ url_for('index') }}" class="bg-indigo-700 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm">
                         <i class="fas fa-home mr-2"></i>Inicio
                     </a>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración de Precios - Super Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-indigo-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-shield-alt text-2xl"></i>
+                    <span class="text-xl font-bold">Super Admin</span>
+                    <span class="text-indigo-300">/ Precios</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('super_admin') }}" class="bg-indigo-700 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-arrow-left mr-2"></i>Volver
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Salir
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'error' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                    <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %} mr-2"></i>
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-500 to-purple-600">
+                    <h2 class="text-xl font-bold text-white">
+                        <i class="fas fa-cog mr-2"></i>Configuración General de Precios
+                    </h2>
+                </div>
+                <form method="POST" action="{{ url_for('system_pricing') }}" class="p-6 space-y-4">
+                    <input type="hidden" name="action" value="update_config">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la Plataforma</label>
+                            <input type="text" name="platform_name" value="{{ config.get('platform_name', 'LegalDoc Pro') }}" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                            <select name="currency" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="USD" {% if config.get('currency') == 'USD' %}selected{% endif %}>USD - Dólar Americano</option>
+                                <option value="PEN" {% if config.get('currency') == 'PEN' %}selected{% endif %}>PEN - Sol Peruano</option>
+                                <option value="EUR" {% if config.get('currency') == 'EUR' %}selected{% endif %}>EUR - Euro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Símbolo de Moneda</label>
+                            <input type="text" name="currency_symbol" value="{{ config.get('currency_symbol', '$') }}" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Precio por Usuario/Mes</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 text-gray-500">{{ config.get('currency_symbol', '$') }}</span>
+                                <input type="number" step="0.01" name="price_per_seat" value="{{ config.get('price_per_seat', '69.00') }}" 
+                                       class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mínimo de Usuarios</label>
+                            <input type="number" name="min_seats" value="{{ config.get('min_seats', '1') }}" min="1"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Máximo de Usuarios</label>
+                            <input type="number" name="max_seats" value="{{ config.get('max_seats', '100') }}" min="1"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Días de Prueba</label>
+                            <input type="number" name="trial_days" value="{{ config.get('trial_days', '14') }}" min="0"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="pt-4">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg transition duration-200">
+                            <i class="fas fa-save mr-2"></i>Guardar Configuración
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-emerald-500 to-teal-600">
+                    <h2 class="text-xl font-bold text-white">
+                        <i class="fas fa-puzzle-piece mr-2"></i>Nuevo Complemento (Addon)
+                    </h2>
+                </div>
+                <form method="POST" action="{{ url_for('system_pricing') }}" class="p-6 space-y-4">
+                    <input type="hidden" name="action" value="create_addon">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Complemento</label>
+                        <input type="text" name="addon_nombre" required placeholder="Ej: Almacenamiento Extra"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                        <textarea name="addon_descripcion" rows="2" placeholder="Describe el complemento..."
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 text-gray-500">{{ config.get('currency_symbol', '$') }}</span>
+                                <input type="number" step="0.01" name="addon_precio" required min="0"
+                                       class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                            <select name="addon_tipo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                                <option value="monthly">Mensual</option>
+                                <option value="one_time">Único</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-4 rounded-lg transition duration-200">
+                            <i class="fas fa-plus mr-2"></i>Agregar Complemento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-list mr-2"></i>Complementos Disponibles
+                </h2>
+            </div>
+            
+            {% if addons %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for addon in addons %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                    <div class="bg-emerald-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-puzzle-piece text-emerald-600"></i>
+                                    </div>
+                                    <span class="font-medium text-gray-900">{{ addon.nombre }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600">{{ addon.descripcion or '-' }}</td>
+                            <td class="px-6 py-4">
+                                <span class="text-lg font-semibold text-gray-900">{{ config.get('currency_symbol', '$') }}{{ addon.precio }}</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full {% if addon.tipo == 'monthly' %}bg-blue-100 text-blue-800{% else %}bg-purple-100 text-purple-800{% endif %}">
+                                    {{ 'Mensual' if addon.tipo == 'monthly' else 'Único' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full {% if addon.activo %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ 'Activo' if addon.activo else 'Inactivo' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex space-x-2">
+                                    <button onclick="toggleEditForm({{ addon.id }})" class="text-sm px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
+                                        <i class="fas fa-edit mr-1"></i>Editar
+                                    </button>
+                                    <form method="POST" action="{{ url_for('system_pricing') }}" class="inline">
+                                        <input type="hidden" name="action" value="toggle_addon">
+                                        <input type="hidden" name="addon_id" value="{{ addon.id }}">
+                                        <button type="submit" class="text-sm px-3 py-1 rounded {% if addon.activo %}bg-yellow-100 text-yellow-700 hover:bg-yellow-200{% else %}bg-green-100 text-green-700 hover:bg-green-200{% endif %}">
+                                            <i class="fas {% if addon.activo %}fa-pause{% else %}fa-play{% endif %} mr-1"></i>
+                                            {{ 'Desactivar' if addon.activo else 'Activar' }}
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('system_pricing') }}" class="inline" onsubmit="return confirm('¿Eliminar este complemento?')">
+                                        <input type="hidden" name="action" value="delete_addon">
+                                        <input type="hidden" name="addon_id" value="{{ addon.id }}">
+                                        <button type="submit" class="text-sm px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200">
+                                            <i class="fas fa-trash mr-1"></i>Eliminar
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr id="edit-form-{{ addon.id }}" class="hidden bg-blue-50">
+                            <td colspan="6" class="px-6 py-4">
+                                <form method="POST" action="{{ url_for('system_pricing') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                                    <input type="hidden" name="action" value="update_addon">
+                                    <input type="hidden" name="addon_id" value="{{ addon.id }}">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Nombre</label>
+                                        <input type="text" name="edit_nombre" value="{{ addon.nombre }}" required
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Descripción</label>
+                                        <input type="text" name="edit_descripcion" value="{{ addon.descripcion or '' }}"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Precio</label>
+                                        <input type="number" step="0.01" name="edit_precio" value="{{ addon.precio }}" required min="0"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+                                        <select name="edit_tipo" class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                                            <option value="monthly" {% if addon.tipo == 'monthly' %}selected{% endif %}>Mensual</option>
+                                            <option value="one_time" {% if addon.tipo == 'one_time' %}selected{% endif %}>Único</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button type="submit" class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                            <i class="fas fa-save mr-1"></i>Guardar
+                                        </button>
+                                        <button type="button" onclick="toggleEditForm({{ addon.id }})" class="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded hover:bg-gray-400">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-gray-500">
+                <i class="fas fa-puzzle-piece text-4xl mb-4 text-gray-300"></i>
+                <p>No hay complementos configurados.</p>
+                <p class="text-sm">Usa el formulario de arriba para agregar uno.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="mt-8 bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-history mr-2"></i>Historial de Cambios
+                </h2>
+            </div>
+            <div class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Configuración</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Última Actualización</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Por</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            {% for item in config_list %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-2 font-medium text-gray-900">{{ item.key }}</td>
+                                <td class="px-4 py-2 text-gray-600">{{ item.value }}</td>
+                                <td class="px-4 py-2 text-gray-500">{{ item.updated_at.strftime('%d/%m/%Y %H:%M') if item.updated_at else '-' }}</td>
+                                <td class="px-4 py-2 text-gray-500">{{ item.updated_by.email if item.updated_by else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleEditForm(addonId) {
+            const form = document.getElementById('edit-form-' + addonId);
+            if (form) {
+                form.classList.toggle('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

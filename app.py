@@ -2263,6 +2263,93 @@ def eliminar_estudio(tenant_id):
     return redirect(url_for('super_admin'))
 
 
+@app.route("/system/pricing", methods=["GET", "POST"])
+@super_admin_required
+def system_pricing():
+    """Panel de super admin para gestionar precios y addons."""
+    if request.method == "POST":
+        action = request.form.get("action")
+        
+        if action == "update_config":
+            configs = [
+                ('platform_name', request.form.get('platform_name', 'LegalDoc Pro')),
+                ('currency', request.form.get('currency', 'USD')),
+                ('currency_symbol', request.form.get('currency_symbol', '$')),
+                ('price_per_seat', request.form.get('price_per_seat', '69.00')),
+                ('min_seats', request.form.get('min_seats', '1')),
+                ('max_seats', request.form.get('max_seats', '100')),
+                ('trial_days', request.form.get('trial_days', '14')),
+            ]
+            for key, value in configs:
+                PricingConfig.set_value(key, value, user_id=current_user.id)
+            flash("Configuración de precios actualizada.", "success")
+        
+        elif action == "create_addon":
+            nombre = request.form.get('addon_nombre', '').strip()
+            descripcion = request.form.get('addon_descripcion', '').strip()
+            precio = request.form.get('addon_precio', '0')
+            tipo = request.form.get('addon_tipo', 'monthly')
+            
+            if nombre:
+                addon = PricingAddon(
+                    nombre=nombre,
+                    descripcion=descripcion,
+                    precio=float(precio),
+                    tipo=tipo,
+                    currency=PricingConfig.get_value('currency', 'USD')
+                )
+                db.session.add(addon)
+                db.session.commit()
+                flash(f"Complemento '{nombre}' creado.", "success")
+            else:
+                flash("El nombre del complemento es requerido.", "error")
+        
+        elif action == "toggle_addon":
+            addon_id = request.form.get('addon_id')
+            addon = PricingAddon.query.get(addon_id)
+            if addon:
+                addon.activo = not addon.activo
+                db.session.commit()
+                estado = "activado" if addon.activo else "desactivado"
+                flash(f"Complemento '{addon.nombre}' {estado}.", "success")
+        
+        elif action == "delete_addon":
+            addon_id = request.form.get('addon_id')
+            addon = PricingAddon.query.get(addon_id)
+            if addon:
+                nombre = addon.nombre
+                db.session.delete(addon)
+                db.session.commit()
+                flash(f"Complemento '{nombre}' eliminado.", "success")
+        
+        elif action == "update_addon":
+            addon_id = request.form.get('addon_id')
+            addon = PricingAddon.query.get(addon_id)
+            if addon:
+                addon.nombre = request.form.get('edit_nombre', addon.nombre).strip()
+                addon.descripcion = request.form.get('edit_descripcion', '').strip()
+                try:
+                    addon.precio = float(request.form.get('edit_precio', addon.precio))
+                except ValueError:
+                    flash("El precio debe ser un número válido.", "error")
+                    return redirect(url_for('system_pricing'))
+                addon.tipo = request.form.get('edit_tipo', addon.tipo)
+                addon.currency = request.form.get('edit_currency', addon.currency)
+                db.session.commit()
+                flash(f"Complemento '{addon.nombre}' actualizado.", "success")
+        
+        return redirect(url_for('system_pricing'))
+    
+    config = PricingConfig.get_pricing()
+    config_list = PricingConfig.query.order_by(PricingConfig.key).all()
+    addons = PricingAddon.query.order_by(PricingAddon.orden, PricingAddon.id).all()
+    
+    return render_template("system/pricing.html",
+                          config=config,
+                          config_list=config_list,
+                          addons=addons)
+
+
 @app.route("/admin")
 @coordinador_or_admin_required
 def admin():
