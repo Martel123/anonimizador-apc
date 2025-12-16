@@ -1173,7 +1173,7 @@ def registro_estudio():
         
         login_user(user)
         flash(f"Estudio '{nombre_estudio}' creado exitosamente. Eres el administrador.", "success")
-        return redirect(url_for('configurar_estudio'))
+        return redirect(url_for('index'))
     
     return render_template("registro_estudio.html")
 
