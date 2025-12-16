@@ -1,0 +1,204 @@
+PROMPT — Implementación de Google Authenticator (2FA)
+
+Implementa autenticación en dos factores (2FA) usando TOTP compatible con Google Authenticator / Authy / Microsoft Authenticator.
+
+1️⃣ Cambios en base de datos
+
+Agregar al modelo de usuario los siguientes campos:
+
+twofa_enabled (boolean)
+
+twofa_secret_encrypted (string, encriptado)
+
+twofa_backup_codes_hashed (array de strings hasheados)
+
+twofa_last_verified_at (datetime)
+
+twofa_required (boolean, para forzar 2FA por rol o empresa)
+
+2️⃣ Activación de 2FA (Setup)
+
+Crear un flujo “Activar Google Authenticator”:
+
+Generar un secreto TOTP único por usuario.
+
+Mostrar un QR Code (otpauth://) para escanear.
+
+Pedir al usuario ingresar el código de 6 dígitos.
+
+Si el código es válido:
+
+Guardar el secreto encriptado.
+
+Marcar twofa_enabled = true.
+
+Generar 8–10 códigos de recuperación de un solo uso:
+
+Mostrar una sola vez.
+
+Guardarlos hasheados en BD.
+
+3️⃣ Login con 2FA
+
+Si el usuario tiene twofa_enabled = true, después del email/password:
+
+Solicitar código TOTP de 6 dígitos o un backup code.
+
+Validar el código con tolerancia de tiempo.
+
+Invalidar backup codes cuando se usen.
+
+4️⃣ Políticas por rol (OBLIGATORIO)
+
+super_admin → 2FA obligatorio.
+
+admin → 2FA obligatorio.
+
+coordinador / usuario → opcional.
+
+Preparar lógica para que una empresa pueda forzar 2FA a todos sus usuarios en el futuro.
+
+5️⃣ Recuperación / Reset de 2FA
+
+Un usuario NO puede quitar su 2FA sin verificación.
+
+Admin puede resetear 2FA de usuarios de su empresa.
+
+Super_admin puede resetear 2FA de cualquier usuario.
+
+Registrar auditoría del reset.
+
+6️⃣ Seguridad adicional
+
+Encriptar el secreto TOTP en BD.
+
+Hashear backup codes.
+
+Rate limit para intentos de código.
+
+Registrar intentos fallidos.
+
+7️⃣ UI
+
+Pantalla “Seguridad”:
+
+Estado de 2FA (activo/inactivo)
+
+Botón “Activar / Desactivar”
+
+Botón “Regenerar códigos de recuperación”
+
+Antes de programar, describe brevemente:
+
+Endpoints necesarios
+
+Flujo de login
+
+Manejo de errores
+
+🧠 AHORA: ¿CÓMO FUNCIONA ESTO EN LA VIDA REAL? (EJEMPLO)
+
+Imagina este escenario real en tu plataforma.
+
+👤 PERSONA: un abogado (usuario normal)
+📌 Paso 1: entra a su perfil
+
+Va a Configuración → Seguridad
+
+Ve un botón: “Activar Google Authenticator”
+
+📌 Paso 2: activa el Authenticator
+
+La plataforma le muestra un QR
+
+Abre Google Authenticator en su celular
+
+Escanea el QR
+
+La app empieza a generar códigos tipo:
+
+482 193
+
+
+Él escribe ese código en la web
+
+La plataforma valida → ✅ correcto
+
+👉 En este momento:
+
+el secreto queda guardado
+
+2FA queda activo
+
+📌 Paso 3: descarga códigos de recuperación
+
+La plataforma le muestra algo como:
+
+Códigos de recuperación (guárdalos):
+- 9F2K-LQ8A
+- MZ3P-71QX
+- 8RPL-22WA
+...
+
+
+⚠️ Se le dice:
+
+“Guárdalos en un lugar seguro. Cada uno se puede usar una sola vez.”
+
+🔑 LOGIN NORMAL (DÍA A DÍA)
+Antes:
+
+Email + contraseña → entra
+
+Ahora:
+
+Email + contraseña
+
+Pantalla extra:
+
+“Ingresa el código de Google Authenticator”
+
+Abre su celular
+
+Escribe el código de 6 dígitos
+
+Entra ✅
+
+⏱️ Esto toma 5 segundos.
+
+🚨 ¿QUÉ PASA SI PIERDE EL CELULAR?
+Caso A: tiene backup codes
+
+Usa uno
+
+Entra
+
+Puede regenerar Authenticator
+
+Caso B: no tiene backup codes
+
+Contacta al admin de su estudio
+
+El admin hace “Resetear 2FA”
+
+El usuario vuelve a activar
+
+Caso C: es el admin
+
+El super_admin (tú) hace el reset
+
+👑 TU CASO (super_admin)
+
+Tú SIEMPRE tendrás 2FA obligatorio
+
+Sin Authenticator:
+
+no puedes entrar
+
+Esto protege:
+
+todas las empresas
+
+todos los documentos
+
+todo el sistema
