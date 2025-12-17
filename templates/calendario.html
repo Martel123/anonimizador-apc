@@ -139,7 +139,7 @@
                 <div class="calendar-day {% if day.other_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
                     <div class="day-number">{{ day.day }}</div>
                     {% for task in day.tasks[:3] %}
-                    <a href="{{ url_for('tarea_editar', tarea_id=task.id) }}" class="task-item block task-{% if task.estado == 'completado' %}completado{% else %}{{ task.prioridad }}{% endif %}">
+                    <a href="{{ url_for('tarea_detalle', tarea_id=task.id) }}" class="task-item block task-{% if task.estado == 'completado' %}completado{% else %}{{ task.prioridad }}{% endif %}">
                         {{ task.titulo }}
                     </a>
                     {% endfor %}
@@ -189,7 +189,7 @@
             {% if upcoming_tasks %}
             <div class="space-y-3">
                 {% for task in upcoming_tasks %}
-                <a href="{{ url_for('tarea_editar', tarea_id=task.id) }}" class="block p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                <a href="{{ url_for('tarea_detalle', tarea_id=task.id) }}" class="block p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
                     <div class="font-medium text-sm text-gray-800 truncate">{{ task.titulo }}</div>
                     {% if task.fecha_vencimiento %}
                     <div class="text-xs text-gray-500 mt-1">
@@ -231,7 +231,7 @@
             {% if overdue_tasks %}
             <div class="space-y-2">
                 {% for task in overdue_tasks %}
-                <a href="{{ url_for('tarea_editar', tarea_id=task.id) }}" class="block p-2 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors">
+                <a href="{{ url_for('tarea_detalle', tarea_id=task.id) }}" class="block p-2 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors">
                     <div class="font-medium text-sm text-red-800 truncate">{{ task.titulo }}</div>
                     <div class="text-xs text-red-600">
                         Venció: {{ task.fecha_vencimiento.strftime('%d/%m/%Y') }}
