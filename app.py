@@ -1230,6 +1230,127 @@ def checkout_success():
                           trial_days=trial_days)
 
 
+@app.route("/api/culqi/charge", methods=["POST"])
+def culqi_create_charge():
+    """Create a charge using Culqi token. Amount is calculated server-side for security."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    token_id = data.get('token_id')
+    session_id = data.get('session_id')
+    
+    if not token_id or not session_id:
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+    
+    # Load checkout session from database - amount is calculated server-side
+    checkout = CheckoutSession.query.filter_by(session_id=session_id).first()
+    if not checkout:
+        logging.warning(f"Invalid checkout session attempted: {session_id}")
+        return jsonify({'success': False, 'error': 'Sesión de pago inválida'}), 400
+    
+    if checkout.status == 'paid':
+        return jsonify({'success': False, 'error': 'Esta sesión ya fue pagada'}), 400
+    
+    if checkout.status not in ['pending', 'trial']:
+        return jsonify({'success': False, 'error': 'Estado de sesión inválido'}), 400
+    
+    # Get server-side values (never trust client for amounts)
+    PricingConfig.init_defaults()
+    currency = PricingConfig.get_value('currency', 'PEN')
+    platform_name = PricingConfig.get_value('platform_name', 'LegalDoc Pro')
+    
+    amount_cents = int(checkout.total_amount * 100)  # Convert to cents
+    email = checkout.admin_email
+    description = f'Suscripción {platform_name} - {checkout.nombre_estudio}'
+    
+    culqi_private_key = os.environ.get('CULQI_PRIVATE_KEY')
+    if not culqi_private_key:
+        logging.error("CULQI_PRIVATE_KEY not configured")
+        return jsonify({'success': False, 'error': 'Payment not configured'}), 500
+    
+    try:
+        headers = {
+            'Authorization': f'Bearer {culqi_private_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        charge_data = {
+            'amount': amount_cents,
+            'currency_code': currency,
+            'email': email,
+            'source_id': token_id,
+            'description': description
+        }
+        
+        logging.info(f"Creating Culqi charge for session {session_id}: {amount_cents} {currency}")
+        
+        response = requests.post(
+            'https://api.culqi.com/v2/charges',
+            headers=headers,
+            json=charge_data
+        )
+        
+        result = response.json()
+        
+        if response.status_code in [200, 201]:
+            charge_id = result.get('id')
+            
+            checkout.culqi_charge_id = charge_id
+            checkout.culqi_token_id = token_id
+            checkout.status = 'paid'
+            checkout.paid_at = datetime.utcnow()
+            
+            if checkout.tenant:
+                checkout.tenant.subscription_status = 'active'
+                subscription = Subscription.query.filter_by(tenant_id=checkout.tenant_id).first()
+                if subscription:
+                    subscription.status = 'active'
+            
+            db.session.commit()
+            logging.info(f"Culqi charge successful: {charge_id} for session {session_id}")
+            
+            return jsonify({
+                'success': True,
+                'charge_id': charge_id,
+                'message': 'Pago procesado exitosamente'
+            })
+        else:
+            error_message = result.get('user_message', result.get('merchant_message', 'Error procesando pago'))
+            logging.error(f"Culqi charge failed for session {session_id}: {result}")
+            return jsonify({'success': False, 'error': error_message}), 400
+            
+    except Exception as e:
+        logging.error(f"Error creating Culqi charge for session {session_id}: {e}")
+        return jsonify({'success': False, 'error': 'Error procesando el pago'}), 500
+
+
+@app.route("/checkout/payment/<session_id>")
+def checkout_payment(session_id):
+    """Show payment form for a checkout session."""
+    checkout = CheckoutSession.query.filter_by(session_id=session_id).first()
+    if not checkout:
+        flash("Sesión de checkout no encontrada.", "error")
+        return redirect(url_for('checkout_start'))
+    
+    if checkout.status == 'paid':
+        return redirect(url_for('checkout_success', session_id=session_id))
+    
+    culqi_public_key = os.environ.get('CULQI_PUBLIC_KEY', '')
+    
+    PricingConfig.init_defaults()
+    pricing = {
+        'currency': PricingConfig.get_value('currency', 'PEN'),
+        'currency_symbol': PricingConfig.get_value('currency_symbol', 'S/'),
+        'platform_name': PricingConfig.get_value('platform_name', 'LegalDoc Pro'),
+    }
+    
+    return render_template("checkout_payment.html",
+                          checkout=checkout,
+                          pricing=pricing,
+                          culqi_public_key=culqi_public_key)
+
+
 @app.route("/activate/<token>")
 def activate_account(token):
     """Show password setup page for activation token."""

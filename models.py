@@ -832,10 +832,9 @@ class CheckoutSession(db.Model):
     status = db.Column(db.String(20), default='pending')
     # pending, pending_payment, paid, expired, cancelled, failed
     
-    # Integración Izipay
-    izipay_order_id = db.Column(db.String(100))
-    izipay_transaction_id = db.Column(db.String(100))
-    izipay_form_token = db.Column(db.Text)
+    # Integración Culqi
+    culqi_charge_id = db.Column(db.String(100))
+    culqi_token_id = db.Column(db.String(100))
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -879,9 +878,9 @@ class Subscription(db.Model):
     current_period_end = db.Column(db.DateTime)
     trial_ends_at = db.Column(db.DateTime)
     
-    # Integración de pagos
-    izipay_customer_id = db.Column(db.String(100))
-    izipay_subscription_id = db.Column(db.String(100))
+    # Integración Culqi
+    culqi_customer_id = db.Column(db.String(100))
+    culqi_card_id = db.Column(db.String(100))
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
