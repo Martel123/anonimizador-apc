@@ -2,7 +2,7 @@
 
 {% block title %}Calendario{% endblock %}
 {% block page_title %}Calendario{% endblock %}
-{% block page_subtitle %}Visualiza tus tareas y plazos{% endblock %}
+{% block page_subtitle %}Visualiza tus tareas, eventos y plazos{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -48,7 +48,7 @@
         align-items: center;
         justify-content: center;
     }
-    .task-item {
+    .task-item, .event-item {
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
         border-radius: 0.25rem;
@@ -58,8 +58,9 @@
         overflow: hidden;
         text-overflow: ellipsis;
         transition: all 0.2s;
+        display: block;
     }
-    .task-item:hover {
+    .task-item:hover, .event-item:hover {
         transform: scale(1.02);
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
@@ -84,7 +85,12 @@
         text-decoration: line-through;
         border-left: 3px solid #9ca3af;
     }
-    .more-tasks {
+    .event-item {
+        border-left: 3px solid;
+        color: white;
+        font-weight: 500;
+    }
+    .more-items {
         font-size: 0.7rem;
         color: #6b7280;
         text-align: center;
@@ -124,10 +130,45 @@
                             Semana
                         </a>
                     </div>
-                    <a href="{{ url_for('tarea_nueva') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-                        <i class="fas fa-plus mr-2"></i> Nueva Tarea
-                    </a>
+                    <div class="relative">
+                        <button id="crear-dropdown-btn" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                            <i class="fas fa-plus mr-2"></i> Crear
+                            <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                        </button>
+                        <div id="crear-dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                            <a href="{{ url_for('tarea_nueva') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-tasks mr-2 text-blue-500"></i> Nueva Tarea
+                            </a>
+                            <a href="{{ url_for('evento_nuevo') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-calendar-plus mr-2 text-green-500"></i> Nuevo Evento
+                            </a>
+                        </div>
+                    </div>
+                    <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const btn = document.getElementById('crear-dropdown-btn');
+                        const menu = document.getElementById('crear-dropdown-menu');
+                        btn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            menu.classList.toggle('hidden');
+                        });
+                        document.addEventListener('click', function() {
+                            menu.classList.add('hidden');
+                        });
+                    });
+                    </script>
                 </div>
+            </div>
+            
+            <div class="p-2 border-b border-gray-100 flex items-center gap-4 text-xs">
+                <span class="flex items-center gap-1">
+                    <span class="w-3 h-3 rounded" style="background-color: #fee2e2; border-left: 2px solid #dc2626;"></span>
+                    Tareas
+                </span>
+                <span class="flex items-center gap-1">
+                    <span class="w-3 h-3 rounded" style="background: linear-gradient(90deg, #3b82f6, #10b981);"></span>
+                    Eventos
+                </span>
             </div>
             
             <div class="calendar-grid {% if view_mode == 'week' %}week-view{% endif %}">
@@ -138,14 +179,34 @@
                 {% for day in calendar_days %}
                 <div class="calendar-day {% if day.other_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
                     <div class="day-number">{{ day.day }}</div>
-                    {% for task in day.tasks[:3] %}
-                    <a href="{{ url_for('tarea_detalle', tarea_id=task.id) }}" class="task-item block task-{% if task.estado == 'completado' %}completado{% else %}{{ task.prioridad }}{% endif %}">
-                        {{ task.titulo }}
-                    </a>
+                    
+                    {% set all_items = [] %}
+                    {% for task in day.tasks %}
+                        {% set _ = all_items.append({'type': 'task', 'item': task}) %}
                     {% endfor %}
-                    {% if day.tasks|length > 3 %}
-                    <div class="more-tasks" onclick="showDayTasks('{{ day.date }}')">
-                        +{{ day.tasks|length - 3 }} más
+                    {% for event in day.events|default([]) %}
+                        {% set _ = all_items.append({'type': 'event', 'item': event}) %}
+                    {% endfor %}
+                    
+                    {% for entry in all_items[:3] %}
+                        {% if entry.type == 'task' %}
+                        <a href="{{ url_for('tarea_detalle', tarea_id=entry.item.id) }}" 
+                           class="task-item task-{% if entry.item.estado == 'completado' %}completado{% else %}{{ entry.item.prioridad }}{% endif %}">
+                            <i class="fas fa-tasks mr-1"></i>{{ entry.item.titulo }}
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('evento_detalle', evento_id=entry.item.id) }}" 
+                           class="event-item"
+                           style="background-color: {{ entry.item.color }}20; border-color: {{ entry.item.color }}; color: {{ entry.item.color }};">
+                            <i class="fas fa-calendar-alt mr-1"></i>{{ entry.item.titulo }}
+                        </a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% set total_items = day.tasks|length + (day.events|default([])|length) %}
+                    {% if total_items > 3 %}
+                    <div class="more-items">
+                        +{{ total_items - 3 }} más
                     </div>
                     {% endif %}
                 </div>
@@ -181,6 +242,35 @@
                 </button>
             </form>
         </div>
+        
+        {% if upcoming_events %}
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+            <h3 class="font-semibold text-gray-800 mb-4">
+                <i class="fas fa-calendar-alt text-green-500 mr-2"></i> Próximos Eventos
+            </h3>
+            <div class="space-y-3">
+                {% for event in upcoming_events %}
+                <a href="{{ url_for('evento_detalle', evento_id=event.id) }}" class="block p-3 border rounded-lg hover:shadow-md transition-all"
+                   style="border-left: 4px solid {{ event.color }};">
+                    <div class="font-medium text-sm text-gray-800 truncate">{{ event.titulo }}</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-clock mr-1"></i>
+                        {% if event.todo_el_dia %}
+                            {{ event.fecha_inicio.strftime('%d/%m/%Y') }}
+                        {% else %}
+                            {{ event.fecha_inicio.strftime('%d/%m %H:%M') }}
+                        {% endif %}
+                    </div>
+                    {% if event.ubicacion %}
+                    <div class="text-xs text-gray-400 mt-1 truncate">
+                        <i class="fas fa-map-marker-alt mr-1"></i>{{ event.ubicacion }}
+                    </div>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         
         <div class="bg-white rounded-xl shadow-sm p-4">
             <h3 class="font-semibold text-gray-800 mb-4">

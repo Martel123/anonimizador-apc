@@ -1042,3 +1042,69 @@ class TaskReminder(db.Model):
     def was_sent(cls, task_id, reminder_type):
         """Verifica si ya se envió este tipo de recordatorio para la tarea."""
         return cls.query.filter_by(task_id=task_id, reminder_type=reminder_type).first() is not None
+
+
+class CalendarEvent(db.Model):
+    """Evento de calendario (reuniones, audiencias, citas)."""
+    __tablename__ = 'calendar_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    titulo = db.Column(db.String(200), nullable=False)
+    descripcion = db.Column(db.Text)
+    tipo = db.Column(db.String(50), default='reunion')
+    ubicacion = db.Column(db.String(300))
+    
+    fecha_inicio = db.Column(db.DateTime, nullable=False)
+    fecha_fin = db.Column(db.DateTime)
+    todo_el_dia = db.Column(db.Boolean, default=False)
+    
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    color = db.Column(db.String(7), default='#3b82f6')
+    recordatorio_minutos = db.Column(db.Integer, default=30)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('calendar_events', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('calendar_events', lazy='dynamic'))
+    created_by = db.relationship('User', backref=db.backref('created_events', lazy='dynamic'))
+    attendees = db.relationship('EventAttendee', backref='event', lazy='dynamic', cascade='all, delete-orphan')
+    
+    TIPOS = {
+        'reunion': 'Reunión',
+        'audiencia': 'Audiencia',
+        'cita': 'Cita con cliente',
+        'conferencia': 'Videoconferencia',
+        'otro': 'Otro'
+    }
+    
+    def get_tipo_display(self):
+        return self.TIPOS.get(self.tipo, self.tipo)
+    
+    def get_attendees_list(self):
+        return [a.user for a in self.attendees.all()]
+
+
+class EventAttendee(db.Model):
+    """Asistentes a un evento de calendario."""
+    __tablename__ = 'event_attendees'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('calendar_events.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    estado = db.Column(db.String(20), default='pendiente')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('event_invitations', lazy='dynamic'))
+    
+    ESTADOS = {
+        'pendiente': 'Pendiente',
+        'aceptado': 'Aceptado',
+        'rechazado': 'Rechazado'
+    }
+    
+    def get_estado_display(self):
+        return self.ESTADOS.get(self.estado, self.estado)

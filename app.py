@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee
 import qrcode
 from io import BytesIO
 import base64
@@ -3921,6 +3921,50 @@ def calendario():
                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
     day_names = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
     
+    # Obtener eventos del calendario
+    events_query = CalendarEvent.query.filter(
+        CalendarEvent.tenant_id == tenant.id,
+        CalendarEvent.fecha_inicio >= datetime.combine(first_day, datetime.min.time()),
+        CalendarEvent.fecha_inicio <= datetime.combine(last_day, datetime.max.time())
+    )
+    
+    if not current_user.can_manage_cases():
+        events_query = events_query.filter(
+            db.or_(
+                CalendarEvent.created_by_id == current_user.id,
+                CalendarEvent.attendees.any(EventAttendee.user_id == current_user.id)
+            )
+        )
+    
+    events = events_query.all()
+    
+    events_by_date = {}
+    for event in events:
+        event_date = event.fecha_inicio.date()
+        if event_date not in events_by_date:
+            events_by_date[event_date] = []
+        events_by_date[event_date].append(event)
+    
+    # Agregar eventos a calendar_days
+    for day_data in calendar_days:
+        from datetime import date as date_type
+        day_date = date_type.fromisoformat(day_data['date'])
+        day_data['events'] = events_by_date.get(day_date, [])
+    
+    # Próximos eventos
+    upcoming_events = CalendarEvent.query.filter(
+        CalendarEvent.tenant_id == tenant.id,
+        CalendarEvent.fecha_inicio >= datetime.utcnow()
+    )
+    if not current_user.can_manage_cases():
+        upcoming_events = upcoming_events.filter(
+            db.or_(
+                CalendarEvent.created_by_id == current_user.id,
+                CalendarEvent.attendees.any(EventAttendee.user_id == current_user.id)
+            )
+        )
+    upcoming_events = upcoming_events.order_by(CalendarEvent.fecha_inicio.asc()).limit(5).all()
+    
     return render_template("calendario.html",
                           year=year,
                           month=month,
@@ -3932,12 +3976,269 @@ def calendario():
                           calendar_days=calendar_days,
                           upcoming_tasks=upcoming_tasks,
                           overdue_tasks=overdue_tasks,
+                          upcoming_events=upcoming_events,
                           today=today,
                           month_names=month_names,
                           day_names=day_names,
                           estados=Task.ESTADOS,
                           estado_filter=estado_filter,
-                          buscar_filter=buscar_filter)
+                          buscar_filter=buscar_filter,
+                          event_tipos=CalendarEvent.TIPOS)
+
+
+# ==================== EVENTOS DEL CALENDARIO ====================
+
+@app.route("/eventos/nuevo", methods=["GET", "POST"])
+@case_access_required
+def evento_nuevo():
+    """Crear un nuevo evento del calendario."""
+    tenant = get_current_tenant()
+    
+    if request.method == "POST":
+        titulo = request.form.get("titulo", "").strip()
+        descripcion = request.form.get("descripcion", "").strip()
+        tipo = request.form.get("tipo", "reunion")
+        ubicacion = request.form.get("ubicacion", "").strip()
+        color = request.form.get("color", "#3b82f6")
+        case_id = request.form.get("case_id", type=int)
+        todo_el_dia = request.form.get("todo_el_dia") == "on"
+        recordatorio_minutos = request.form.get("recordatorio_minutos", 30, type=int)
+        
+        fecha_inicio_str = request.form.get("fecha_inicio")
+        hora_inicio_str = request.form.get("hora_inicio", "09:00")
+        fecha_fin_str = request.form.get("fecha_fin")
+        hora_fin_str = request.form.get("hora_fin", "10:00")
+        
+        if not titulo:
+            flash("El título es obligatorio.", "error")
+            return redirect(url_for("evento_nuevo"))
+        
+        if not fecha_inicio_str:
+            flash("La fecha de inicio es obligatoria.", "error")
+            return redirect(url_for("evento_nuevo"))
+        
+        try:
+            if todo_el_dia:
+                fecha_inicio = datetime.strptime(fecha_inicio_str, "%Y-%m-%d")
+                fecha_fin = datetime.strptime(fecha_fin_str, "%Y-%m-%d") if fecha_fin_str else fecha_inicio
+            else:
+                fecha_inicio = datetime.strptime(f"{fecha_inicio_str} {hora_inicio_str}", "%Y-%m-%d %H:%M")
+                if fecha_fin_str:
+                    fecha_fin = datetime.strptime(f"{fecha_fin_str} {hora_fin_str}", "%Y-%m-%d %H:%M")
+                else:
+                    fecha_fin = fecha_inicio
+        except ValueError as e:
+            flash(f"Formato de fecha inválido: {e}", "error")
+            return redirect(url_for("evento_nuevo"))
+        
+        evento = CalendarEvent(
+            tenant_id=tenant.id,
+            titulo=titulo,
+            descripcion=descripcion,
+            tipo=tipo,
+            ubicacion=ubicacion,
+            color=color,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            todo_el_dia=todo_el_dia,
+            case_id=case_id if case_id else None,
+            created_by_id=current_user.id,
+            recordatorio_minutos=recordatorio_minutos
+        )
+        db.session.add(evento)
+        db.session.flush()
+        
+        # Agregar invitados (solo usuarios del mismo tenant)
+        invitados_ids = request.form.getlist("invitados")
+        for user_id in invitados_ids:
+            if user_id and int(user_id) != current_user.id:
+                # Verificar que el usuario pertenece al mismo tenant
+                invited_user = User.query.filter_by(id=int(user_id), tenant_id=tenant.id, activo=True).first()
+                if invited_user:
+                    attendee = EventAttendee(
+                        event_id=evento.id,
+                        user_id=int(user_id),
+                        estado='pendiente'
+                    )
+                    db.session.add(attendee)
+        
+        db.session.commit()
+        flash("Evento creado correctamente.", "success")
+        return redirect(url_for("evento_detalle", evento_id=evento.id))
+    
+    # GET - mostrar formulario
+    cases = Case.query.filter_by(tenant_id=tenant.id, activo=True).order_by(Case.titulo).all()
+    usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+    
+    return render_template("evento_form.html",
+                          evento=None,
+                          cases=cases,
+                          usuarios=usuarios,
+                          tipos=CalendarEvent.TIPOS)
+
+
+@app.route("/eventos/<int:evento_id>")
+@case_access_required
+def evento_detalle(evento_id):
+    """Ver detalles de un evento."""
+    tenant = get_current_tenant()
+    
+    evento = CalendarEvent.query.filter_by(id=evento_id, tenant_id=tenant.id).first_or_404()
+    
+    # Verificar acceso
+    if not current_user.can_manage_cases():
+        is_creator = evento.created_by_id == current_user.id
+        is_attendee = EventAttendee.query.filter_by(event_id=evento_id, user_id=current_user.id).first()
+        if not is_creator and not is_attendee:
+            flash("No tienes acceso a este evento.", "error")
+            return redirect(url_for("calendario"))
+    
+    # Obtener respuesta del usuario actual
+    mi_respuesta = EventAttendee.query.filter_by(event_id=evento_id, user_id=current_user.id).first()
+    
+    return render_template("evento_detalle.html",
+                          evento=evento,
+                          mi_respuesta=mi_respuesta)
+
+
+@app.route("/eventos/<int:evento_id>/editar", methods=["GET", "POST"])
+@case_access_required
+def evento_editar(evento_id):
+    """Editar un evento existente."""
+    tenant = get_current_tenant()
+    
+    evento = CalendarEvent.query.filter_by(id=evento_id, tenant_id=tenant.id).first_or_404()
+    
+    # Solo el creador o admin puede editar
+    if not current_user.can_manage_cases() and evento.created_by_id != current_user.id:
+        flash("No tienes permiso para editar este evento.", "error")
+        return redirect(url_for("evento_detalle", evento_id=evento_id))
+    
+    if request.method == "POST":
+        evento.titulo = request.form.get("titulo", "").strip()
+        evento.descripcion = request.form.get("descripcion", "").strip()
+        evento.tipo = request.form.get("tipo", "reunion")
+        evento.ubicacion = request.form.get("ubicacion", "").strip()
+        evento.color = request.form.get("color", "#3b82f6")
+        evento.todo_el_dia = request.form.get("todo_el_dia") == "on"
+        evento.recordatorio_minutos = request.form.get("recordatorio_minutos", 30, type=int)
+        
+        case_id = request.form.get("case_id", type=int)
+        evento.case_id = case_id if case_id else None
+        
+        fecha_inicio_str = request.form.get("fecha_inicio")
+        hora_inicio_str = request.form.get("hora_inicio", "09:00")
+        fecha_fin_str = request.form.get("fecha_fin")
+        hora_fin_str = request.form.get("hora_fin", "10:00")
+        
+        try:
+            if evento.todo_el_dia:
+                evento.fecha_inicio = datetime.strptime(fecha_inicio_str, "%Y-%m-%d")
+                evento.fecha_fin = datetime.strptime(fecha_fin_str, "%Y-%m-%d") if fecha_fin_str else evento.fecha_inicio
+            else:
+                evento.fecha_inicio = datetime.strptime(f"{fecha_inicio_str} {hora_inicio_str}", "%Y-%m-%d %H:%M")
+                if fecha_fin_str:
+                    evento.fecha_fin = datetime.strptime(f"{fecha_fin_str} {hora_fin_str}", "%Y-%m-%d %H:%M")
+                else:
+                    evento.fecha_fin = evento.fecha_inicio
+        except ValueError as e:
+            flash(f"Formato de fecha inválido: {e}", "error")
+            return redirect(url_for("evento_editar", evento_id=evento_id))
+        
+        # Actualizar invitados (solo usuarios del mismo tenant)
+        EventAttendee.query.filter_by(event_id=evento.id).delete()
+        invitados_ids = request.form.getlist("invitados")
+        for user_id in invitados_ids:
+            if user_id and int(user_id) != current_user.id:
+                # Verificar que el usuario pertenece al mismo tenant
+                invited_user = User.query.filter_by(id=int(user_id), tenant_id=tenant.id, activo=True).first()
+                if invited_user:
+                    attendee = EventAttendee(
+                        event_id=evento.id,
+                        user_id=int(user_id),
+                        estado='pendiente'
+                    )
+                    db.session.add(attendee)
+        
+        db.session.commit()
+        flash("Evento actualizado correctamente.", "success")
+        return redirect(url_for("evento_detalle", evento_id=evento_id))
+    
+    # GET - mostrar formulario
+    cases = Case.query.filter_by(tenant_id=tenant.id, activo=True).order_by(Case.titulo).all()
+    usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+    invitados_actuales = [a.user_id for a in evento.attendees.all()]
+    
+    return render_template("evento_form.html",
+                          evento=evento,
+                          cases=cases,
+                          usuarios=usuarios,
+                          tipos=CalendarEvent.TIPOS,
+                          invitados_actuales=invitados_actuales)
+
+
+@app.route("/eventos/<int:evento_id>/eliminar", methods=["POST"])
+@case_access_required
+def evento_eliminar(evento_id):
+    """Eliminar un evento."""
+    tenant = get_current_tenant()
+    
+    evento = CalendarEvent.query.filter_by(id=evento_id, tenant_id=tenant.id).first_or_404()
+    
+    # Solo el creador o admin puede eliminar
+    if not current_user.can_manage_cases() and evento.created_by_id != current_user.id:
+        flash("No tienes permiso para eliminar este evento.", "error")
+        return redirect(url_for("evento_detalle", evento_id=evento_id))
+    
+    db.session.delete(evento)
+    db.session.commit()
+    
+    flash("Evento eliminado correctamente.", "success")
+    return redirect(url_for("calendario"))
+
+
+@app.route("/eventos/<int:evento_id>/responder", methods=["POST"])
+@case_access_required
+def evento_responder(evento_id):
+    """Responder a una invitación de evento."""
+    tenant = get_current_tenant()
+    
+    # Verificar que el usuario pertenece al tenant
+    if current_user.tenant_id != tenant.id:
+        flash("No tienes acceso a este evento.", "error")
+        return redirect(url_for("calendario"))
+    
+    evento = CalendarEvent.query.filter_by(id=evento_id, tenant_id=tenant.id).first_or_404()
+    respuesta = request.form.get("respuesta", "pendiente")
+    
+    if respuesta not in ['aceptado', 'rechazado', 'pendiente']:
+        flash("Respuesta no válida.", "error")
+        return redirect(url_for("evento_detalle", evento_id=evento_id))
+    
+    # Verificar que el usuario es el creador o fue invitado
+    is_creator = evento.created_by_id == current_user.id
+    attendee = EventAttendee.query.filter_by(event_id=evento_id, user_id=current_user.id).first()
+    
+    if not is_creator and not attendee:
+        flash("No tienes acceso a este evento.", "error")
+        return redirect(url_for("calendario"))
+    
+    if attendee:
+        attendee.estado = respuesta
+    elif is_creator:
+        # El creador puede agregar su propia respuesta
+        attendee = EventAttendee(
+            event_id=evento_id,
+            user_id=current_user.id,
+            estado=respuesta
+        )
+        db.session.add(attendee)
+    
+    db.session.commit()
+    
+    estados_msg = {'aceptado': 'aceptada', 'rechazado': 'rechazada', 'pendiente': 'marcada como pendiente'}
+    flash(f"Invitación {estados_msg.get(respuesta, respuesta)}.", "success")
+    return redirect(url_for("evento_detalle", evento_id=evento_id))
 
 
 # ==================== MIS MODELOS (User personal document models) ====================

@@ -1,0 +1,195 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}{{ evento.titulo }}{% endblock %}
+{% block page_title %}{{ evento.titulo }}{% endblock %}
+{% block page_subtitle %}{{ evento.get_tipo_display() }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="p-1" style="background-color: {{ evento.color }}"></div>
+        
+        <div class="p-6">
+            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">{{ evento.titulo }}</h2>
+                    <div class="flex items-center gap-2 mt-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                              style="background-color: {{ evento.color }}20; color: {{ evento.color }};">
+                            <i class="fas fa-calendar-alt mr-1"></i>
+                            {{ evento.get_tipo_display() }}
+                        </span>
+                        {% if evento.todo_el_dia %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+                            <i class="fas fa-sun mr-1"></i>Todo el día
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if current_user.can_manage_cases() or evento.created_by_id == current_user.id %}
+                <div class="flex items-center gap-2">
+                    <a href="{{ url_for('evento_editar', evento_id=evento.id) }}" 
+                       class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-edit mr-1"></i> Editar
+                    </a>
+                    <form action="{{ url_for('evento_eliminar', evento_id=evento.id) }}" method="post" class="inline"
+                          onsubmit="return confirm('¿Estás seguro de eliminar este evento?');">
+                        <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors">
+                            <i class="fas fa-trash mr-1"></i> Eliminar
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-clock text-blue-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Fecha y Hora</p>
+                            <p class="font-medium text-gray-800">
+                                {% if evento.todo_el_dia %}
+                                    {{ evento.fecha_inicio.strftime('%d/%m/%Y') }}
+                                    {% if evento.fecha_fin and evento.fecha_fin.date() != evento.fecha_inicio.date() %}
+                                        - {{ evento.fecha_fin.strftime('%d/%m/%Y') }}
+                                    {% endif %}
+                                {% else %}
+                                    {{ evento.fecha_inicio.strftime('%d/%m/%Y %H:%M') }}
+                                    {% if evento.fecha_fin %}
+                                        - {{ evento.fecha_fin.strftime('%H:%M') if evento.fecha_fin.date() == evento.fecha_inicio.date() else evento.fecha_fin.strftime('%d/%m/%Y %H:%M') }}
+                                    {% endif %}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {% if evento.ubicacion %}
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-map-marker-alt text-red-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Ubicación</p>
+                            <p class="font-medium text-gray-800">{{ evento.ubicacion }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if evento.case %}
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-briefcase text-purple-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Caso Relacionado</p>
+                            <a href="{{ url_for('caso_detalle', caso_id=evento.case.id) }}" 
+                               class="font-medium text-blue-600 hover:text-blue-800">
+                                {{ evento.case.titulo }}
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-user text-green-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Creado por</p>
+                            <p class="font-medium text-gray-800">{{ evento.created_by.username }}</p>
+                            <p class="text-xs text-gray-400">{{ evento.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    {% if evento.descripcion %}
+                    <div>
+                        <p class="text-sm text-gray-500 mb-2">Descripción</p>
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-gray-700 whitespace-pre-wrap">{{ evento.descripcion }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div>
+                        <p class="text-sm text-gray-500 mb-2">
+                            <i class="fas fa-users mr-1"></i>Invitados ({{ evento.attendees.count() }})
+                        </p>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            {% if evento.attendees.count() > 0 %}
+                            <div class="space-y-3">
+                                {% for attendee in evento.attendees.all() %}
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium text-white"
+                                             style="background-color: {{ evento.color }};">
+                                            {{ attendee.user.username[0]|upper }}
+                                        </div>
+                                        <span class="text-gray-700">{{ attendee.user.username }}</span>
+                                    </div>
+                                    <span class="text-xs px-2 py-1 rounded-full
+                                        {% if attendee.estado == 'aceptado' %}bg-green-100 text-green-700
+                                        {% elif attendee.estado == 'rechazado' %}bg-red-100 text-red-700
+                                        {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                                        {{ attendee.get_estado_display() }}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-gray-500 text-sm text-center py-2">Sin invitados</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if mi_respuesta or evento.created_by_id != current_user.id %}
+            <div class="mt-6 pt-6 border-t border-gray-100">
+                <p class="text-sm text-gray-500 mb-3">Tu respuesta a esta invitación</p>
+                <form action="{{ url_for('evento_responder', evento_id=evento.id) }}" method="post" class="flex gap-2">
+                    <button type="submit" name="respuesta" value="aceptado"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                   {% if mi_respuesta and mi_respuesta.estado == 'aceptado' %}
+                                   bg-green-600 text-white
+                                   {% else %}
+                                   bg-green-100 text-green-700 hover:bg-green-200
+                                   {% endif %}">
+                        <i class="fas fa-check mr-1"></i> Aceptar
+                    </button>
+                    <button type="submit" name="respuesta" value="rechazado"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                   {% if mi_respuesta and mi_respuesta.estado == 'rechazado' %}
+                                   bg-red-600 text-white
+                                   {% else %}
+                                   bg-red-100 text-red-700 hover:bg-red-200
+                                   {% endif %}">
+                        <i class="fas fa-times mr-1"></i> Rechazar
+                    </button>
+                    <button type="submit" name="respuesta" value="pendiente"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                   {% if not mi_respuesta or mi_respuesta.estado == 'pendiente' %}
+                                   bg-yellow-600 text-white
+                                   {% else %}
+                                   bg-yellow-100 text-yellow-700 hover:bg-yellow-200
+                                   {% endif %}">
+                        <i class="fas fa-question mr-1"></i> Quizás
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="mt-6">
+        <a href="{{ url_for('calendario') }}" class="inline-flex items-center text-gray-600 hover:text-gray-800">
+            <i class="fas fa-arrow-left mr-2"></i> Volver al calendario
+        </a>
+    </div>
+</div>
+{% endblock %}
