@@ -103,9 +103,13 @@
                     <i class="fas fa-folder-open w-5 mr-3"></i>
                     <span>Casos</span>
                 </a>
-                <a href="{{ url_for('tareas') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['tareas', 'tarea_nueva'] %}active{% endif %}">
+                <a href="{{ url_for('tareas') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['tareas', 'tarea_nueva', 'tarea_editar'] %}active{% endif %}">
                     <i class="fas fa-tasks w-5 mr-3"></i>
                     <span>Tareas</span>
+                </a>
+                <a href="{{ url_for('calendario') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'calendario' %}active{% endif %}">
+                    <i class="fas fa-calendar-alt w-5 mr-3"></i>
+                    <span>Calendario</span>
                 </a>
                 <div class="sidebar-submenu">
                     <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'mis_estilos', 'mi_estilo', 'historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}active{% endif %}">

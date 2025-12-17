@@ -1,0 +1,150 @@
+Quiero que implementes en mi plataforma una nueva pestaña del menú llamada “Calendario” con un sistema de tareas y recordatorios por email. Debe integrarse con el módulo actual de Subir Documento (formulario existente) para poder asignar documentos a tareas.
+
+1) Nueva pestaña: “Calendario”
+
+Agregar un ítem de navegación/menú llamado Calendario.
+
+La vista “Calendario” debe tener:
+
+Un calendario visual (mensual/semanal) donde se vean las tareas según su fecha de vencimiento.
+
+Una lista lateral (o debajo) de tareas con filtros: Pendiente / Completada / Vencida y búsqueda por nombre.
+
+Un botón principal: “Agregar tarea”.
+
+2) Funcionalidad: “Agregar tarea”
+
+Al crear una tarea, el usuario debe poder registrar:
+
+Título (obligatorio)
+
+Descripción (opcional)
+
+Fecha de inicio (opcional)
+
+Fecha de vencimiento / plazo de término (obligatorio)
+
+Estado: Pendiente / Completada (por defecto Pendiente)
+
+Prioridad: Baja / Media / Alta (opcional)
+
+Asignado a (opcional si existe multiusuario; si no existe, asignar al usuario creador)
+
+Relacionar a caso (opcional, si existe módulo “casos”)
+
+Adjuntar documentos a la tarea (ver punto 4)
+
+✅ Requisito clave:
+Cuando se crea una tarea con fecha de vencimiento, debe aparecer automáticamente como un evento en el calendario en esa fecha.
+
+3) Recordatorios por email automáticos
+
+Implementar un sistema que detecte tareas próximas a vencer y envíe emails automáticos:
+
+Si faltan 3 días para el vencimiento → enviar Recordatorio 1
+
+Si faltan 2 días → enviar Recordatorio 2
+
+Si falta 1 día → enviar Recordatorio 3
+
+Reglas:
+
+Enviar solo si la tarea sigue en Pendiente (si está Completada, no enviar nada).
+
+No duplicar envíos: cada recordatorio (3/2/1) se manda una sola vez por tarea.
+
+Debe funcionar de forma automática mediante un scheduler (cron/job) ejecutándose diariamente (por ejemplo 08:00 AM hora local).
+
+Los emails deben incluir: nombre de tarea, fecha de vencimiento, días restantes, y un link directo a abrir la tarea en la plataforma.
+
+4) Adjuntar documentos finales a tareas (integración con “Subir Documento”)
+
+Quiero que exista la relación “Documentos ↔ Tareas”:
+
+En la pestaña Calendario / Tarea:
+
+En el detalle de una tarea debe existir una sección “Documentos vinculados” con:
+
+Lista de documentos adjuntos
+
+Botón: “Agregar documento a tarea” (seleccionar de documentos ya subidos)
+
+Opción para “Quitar vínculo” (no borrar el documento del sistema, solo desvincular)
+
+En la pantalla “Subir Documento” (la que ya existe):
+
+Mantener el campo “Asignar a caso (opcional)”.
+
+Agregar un nuevo selector opcional: “Asignar a tarea (opcional)” con dropdown.
+
+Si el usuario selecciona una tarea al subir el archivo, el documento queda vinculado a esa tarea automáticamente.
+
+5) Base de datos / modelos (mínimo)
+
+Crear tablas (o colecciones) necesarias:
+
+tasks
+
+id, title, description, start_date, due_date, status, priority, assigned_to, case_id, created_by, created_at, updated_at
+
+task_documents (tabla puente)
+
+id, task_id, document_id, created_at
+
+task_reminders
+
+id, task_id, reminder_type (3d/2d/1d), sent_at
+
+6) Endpoints / funciones
+
+CRUD de tareas: crear, editar, marcar completada, eliminar (o archivar).
+
+Vista calendario: obtener tareas por rango de fechas.
+
+Asociar/desasociar documentos a tareas.
+
+Job scheduler: función diaria que:
+
+busca tareas pendientes
+
+calcula días restantes
+
+verifica si ya se envió recordatorio correspondiente
+
+envía email y registra en task_reminders
+
+7) UI/UX mínimo
+
+En Calendario, cada tarea debe mostrarse con:
+
+título
+
+color/indicador según prioridad o estado
+
+clic abre detalle de tarea
+
+Botón “Agregar tarea” abre modal o página de creación.
+
+En detalle, botón “Marcar como completada”.
+
+8) Entregables
+
+Quiero que me entregues:
+
+Código implementado (frontend + backend).
+
+Migraciones o script de creación de tablas.
+
+Configuración de emails (SMTP o proveedor que ya use el proyecto).
+
+Configuración del scheduler (cron, APScheduler, Celery beat, etc. según stack).
+
+Pruebas manuales: pasos para verificar que:
+
+Tarea aparece en calendario
+
+Se puede adjuntar documento a tarea
+
+Se envían emails a 3/2/1 días y no se duplican
+
+Antes de programar: detecta el stack actual del proyecto (framework, DB, auth, envío de emails) y adáptate a lo existente.

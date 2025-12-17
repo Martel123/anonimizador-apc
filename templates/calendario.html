@@ -1,0 +1,248 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Calendario{% endblock %}
+{% block page_title %}Calendario{% endblock %}
+{% block page_subtitle %}Visualiza tus tareas y plazos{% endblock %}
+
+{% block extra_head %}
+<style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 1px;
+        background-color: #e5e7eb;
+    }
+    .calendar-header {
+        background-color: #f3f4f6;
+        padding: 0.75rem;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #374151;
+    }
+    .calendar-day {
+        background-color: white;
+        min-height: 120px;
+        padding: 0.5rem;
+        position: relative;
+    }
+    .calendar-day.other-month {
+        background-color: #f9fafb;
+    }
+    .calendar-day.today {
+        background-color: #eff6ff;
+    }
+    .day-number {
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: #374151;
+        margin-bottom: 0.25rem;
+    }
+    .calendar-day.today .day-number {
+        background-color: #3b82f6;
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .task-item {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.25rem;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: all 0.2s;
+    }
+    .task-item:hover {
+        transform: scale(1.02);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .task-alta, .task-urgente {
+        background-color: #fee2e2;
+        color: #991b1b;
+        border-left: 3px solid #dc2626;
+    }
+    .task-media {
+        background-color: #fef3c7;
+        color: #92400e;
+        border-left: 3px solid #f59e0b;
+    }
+    .task-baja {
+        background-color: #d1fae5;
+        color: #065f46;
+        border-left: 3px solid #10b981;
+    }
+    .task-completado {
+        background-color: #e5e7eb;
+        color: #6b7280;
+        text-decoration: line-through;
+        border-left: 3px solid #9ca3af;
+    }
+    .more-tasks {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-align: center;
+        cursor: pointer;
+    }
+    .week-view .calendar-day {
+        min-height: 200px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row gap-6">
+    <div class="flex-1">
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <a href="{{ url_for('calendario', year=prev_year, month=prev_month, view=view_mode) }}" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                        <i class="fas fa-chevron-left text-gray-600"></i>
+                    </a>
+                    <h2 class="text-xl font-semibold text-gray-800">
+                        {{ month_names[month - 1] }} {{ year }}
+                    </h2>
+                    <a href="{{ url_for('calendario', year=next_year, month=next_month, view=view_mode) }}" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                        <i class="fas fa-chevron-right text-gray-600"></i>
+                    </a>
+                    <a href="{{ url_for('calendario') }}" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                        Hoy
+                    </a>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="inline-flex rounded-lg border border-gray-200 p-1">
+                        <a href="{{ url_for('calendario', year=year, month=month, view='month') }}" class="px-3 py-1 text-sm rounded-md transition-colors {% if view_mode == 'month' %}bg-blue-600 text-white{% else %}hover:bg-gray-100{% endif %}">
+                            Mes
+                        </a>
+                        <a href="{{ url_for('calendario', year=year, month=month, view='week') }}" class="px-3 py-1 text-sm rounded-md transition-colors {% if view_mode == 'week' %}bg-blue-600 text-white{% else %}hover:bg-gray-100{% endif %}">
+                            Semana
+                        </a>
+                    </div>
+                    <a href="{{ url_for('tarea_nueva') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-plus mr-2"></i> Nueva Tarea
+                    </a>
+                </div>
+            </div>
+            
+            <div class="calendar-grid {% if view_mode == 'week' %}week-view{% endif %}">
+                {% for day_name in day_names %}
+                <div class="calendar-header">{{ day_name }}</div>
+                {% endfor %}
+                
+                {% for day in calendar_days %}
+                <div class="calendar-day {% if day.other_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
+                    <div class="day-number">{{ day.day }}</div>
+                    {% for task in day.tasks[:3] %}
+                    <a href="{{ url_for('tarea_editar', tarea_id=task.id) }}" class="task-item block task-{% if task.estado == 'completado' %}completado{% else %}{{ task.prioridad }}{% endif %}">
+                        {{ task.titulo }}
+                    </a>
+                    {% endfor %}
+                    {% if day.tasks|length > 3 %}
+                    <div class="more-tasks" onclick="showDayTasks('{{ day.date }}')">
+                        +{{ day.tasks|length - 3 }} más
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="lg:w-80">
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+            <h3 class="font-semibold text-gray-800 mb-4">Filtros</h3>
+            <form method="get">
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="month" value="{{ month }}">
+                <input type="hidden" name="view" value="{{ view_mode }}">
+                
+                <div class="mb-3">
+                    <label class="block text-sm text-gray-600 mb-1">Estado</label>
+                    <select name="estado" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todos</option>
+                        {% for key, label in estados.items() %}
+                        <option value="{{ key }}" {% if estado_filter == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <input type="text" name="buscar" value="{{ buscar_filter }}" placeholder="Buscar tarea..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <button type="submit" class="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+                    <i class="fas fa-filter mr-1"></i> Aplicar Filtros
+                </button>
+            </form>
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm p-4">
+            <h3 class="font-semibold text-gray-800 mb-4">
+                <i class="fas fa-clock text-yellow-500 mr-2"></i> Próximas Tareas
+            </h3>
+            {% if upcoming_tasks %}
+            <div class="space-y-3">
+                {% for task in upcoming_tasks %}
+                <a href="{{ url_for('tarea_editar', tarea_id=task.id) }}" class="block p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="font-medium text-sm text-gray-800 truncate">{{ task.titulo }}</div>
+                    {% if task.fecha_vencimiento %}
+                    <div class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-calendar mr-1"></i>
+                        {{ task.fecha_vencimiento.strftime('%d/%m/%Y') }}
+                        {% set days = (task.fecha_vencimiento.date() - today).days %}
+                        {% if days == 0 %}
+                        <span class="text-red-600 font-medium ml-1">Hoy</span>
+                        {% elif days == 1 %}
+                        <span class="text-orange-600 font-medium ml-1">Mañana</span>
+                        {% elif days > 0 and days <= 7 %}
+                        <span class="text-yellow-600 ml-1">en {{ days }} días</span>
+                        {% elif days < 0 %}
+                        <span class="text-red-600 font-medium ml-1">Vencida</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="flex items-center gap-2 mt-2">
+                        <span class="px-2 py-0.5 text-xs rounded-full
+                            {% if task.prioridad == 'urgente' %}bg-red-100 text-red-700
+                            {% elif task.prioridad == 'alta' %}bg-orange-100 text-orange-700
+                            {% elif task.prioridad == 'media' %}bg-yellow-100 text-yellow-700
+                            {% else %}bg-green-100 text-green-700{% endif %}">
+                            {{ task.get_prioridad_display() }}
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 text-center py-4">No hay tareas próximas</p>
+            {% endif %}
+        </div>
+        
+        <div class="bg-white rounded-xl shadow-sm p-4 mt-4">
+            <h3 class="font-semibold text-gray-800 mb-4">
+                <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i> Vencidas
+            </h3>
+            {% if overdue_tasks %}
+            <div class="space-y-2">
+                {% for task in overdue_tasks %}
+                <a href="{{ url_for('tarea_editar', tarea_id=task.id) }}" class="block p-2 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors">
+                    <div class="font-medium text-sm text-red-800 truncate">{{ task.titulo }}</div>
+                    <div class="text-xs text-red-600">
+                        Venció: {{ task.fecha_vencimiento.strftime('%d/%m/%Y') }}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 text-center py-4">No hay tareas vencidas</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

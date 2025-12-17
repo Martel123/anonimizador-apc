@@ -505,6 +505,7 @@ class Task(db.Model):
     tipo = db.Column(db.String(50), default='general')
     estado = db.Column(db.String(50), default='pendiente')
     prioridad = db.Column(db.String(20), default='media')
+    fecha_inicio = db.Column(db.DateTime, nullable=True)
     fecha_vencimiento = db.Column(db.DateTime)
     fecha_completada = db.Column(db.DateTime)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -600,6 +601,7 @@ class FinishedDocument(db.Model):
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
     nombre = db.Column(db.String(255), nullable=False)
     archivo = db.Column(db.String(500), nullable=False)
     descripcion = db.Column(db.Text)
@@ -614,6 +616,7 @@ class FinishedDocument(db.Model):
     tenant = db.relationship('Tenant', backref=db.backref('finished_documents', lazy='dynamic'))
     user = db.relationship('User', backref=db.backref('finished_documents', lazy='dynamic'))
     case = db.relationship('Case', backref=db.backref('finished_documents', lazy='dynamic'))
+    task = db.relationship('Task', backref=db.backref('direct_documents', lazy='dynamic'))
     
     def get_filename(self):
         return os.path.basename(self.archivo) if self.archivo else None
@@ -994,3 +997,48 @@ class EstiloDocumento(db.Model):
             db.session.add(estilo)
             db.session.commit()
         return estilo
+
+
+class TaskDocument(db.Model):
+    """Tabla puente para vincular documentos terminados a tareas."""
+    __tablename__ = 'task_documents'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
+    document_id = db.Column(db.Integer, db.ForeignKey('finished_documents.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    task = db.relationship('Task', backref=db.backref('task_documents', lazy='dynamic', cascade='all, delete-orphan'))
+    document = db.relationship('FinishedDocument', backref=db.backref('task_links', lazy='dynamic'))
+    tenant = db.relationship('Tenant', backref=db.backref('task_documents', lazy='dynamic'))
+    
+    __table_args__ = (
+        db.UniqueConstraint('task_id', 'document_id', name='uq_task_document'),
+    )
+
+
+class TaskReminder(db.Model):
+    """Registro de recordatorios enviados para evitar duplicados."""
+    __tablename__ = 'task_reminders'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    reminder_type = db.Column(db.String(10), nullable=False)  # '3d', '2d', '1d'
+    recipient_email = db.Column(db.String(255), nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    task = db.relationship('Task', backref=db.backref('reminders', lazy='dynamic', cascade='all, delete-orphan'))
+    tenant = db.relationship('Tenant', backref=db.backref('task_reminders', lazy='dynamic'))
+    
+    REMINDER_TYPES = {
+        '3d': 'Faltan 3 días',
+        '2d': 'Faltan 2 días',
+        '1d': 'Falta 1 día'
+    }
+    
+    @classmethod
+    def was_sent(cls, task_id, reminder_type):
+        """Verifica si ya se envió este tipo de recordatorio para la tarea."""
+        return cls.query.filter_by(task_id=task_id, reminder_type=reminder_type).first() is not None

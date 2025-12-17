@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder
 import qrcode
 from io import BytesIO
 import base64
@@ -3701,6 +3701,135 @@ def descargar_adjunto_caso(caso_id, attachment_id):
         as_attachment=True,
         download_name=attachment.nombre
     )
+
+
+# ==================== CALENDARIO ====================
+
+@app.route("/calendario")
+@case_access_required
+def calendario():
+    """Vista de calendario con tareas."""
+    import calendar
+    from datetime import date, timedelta
+    
+    tenant = get_current_tenant()
+    today = date.today()
+    
+    year = request.args.get('year', today.year, type=int)
+    month = request.args.get('month', today.month, type=int)
+    view_mode = request.args.get('view', 'month')
+    estado_filter = request.args.get('estado', '')
+    buscar_filter = request.args.get('buscar', '')
+    
+    if month < 1:
+        month = 12
+        year -= 1
+    elif month > 12:
+        month = 1
+        year += 1
+    
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+    
+    cal = calendar.Calendar(firstweekday=0)
+    month_days = cal.monthdatescalendar(year, month)
+    
+    if view_mode == 'week':
+        for week in month_days:
+            if today in week or (week[0] <= today <= week[-1]):
+                month_days = [week]
+                break
+    
+    first_day = month_days[0][0]
+    last_day = month_days[-1][-1]
+    
+    query = Task.query.filter(
+        Task.tenant_id == tenant.id,
+        Task.fecha_vencimiento.isnot(None),
+        Task.fecha_vencimiento >= datetime.combine(first_day, datetime.min.time()),
+        Task.fecha_vencimiento <= datetime.combine(last_day, datetime.max.time())
+    )
+    
+    if not current_user.can_manage_cases():
+        query = query.filter(
+            db.or_(
+                Task.assigned_to_id == current_user.id,
+                Task.created_by_id == current_user.id
+            )
+        )
+    
+    if estado_filter:
+        query = query.filter_by(estado=estado_filter)
+    if buscar_filter:
+        query = query.filter(Task.titulo.ilike(f'%{buscar_filter}%'))
+    
+    tasks = query.all()
+    
+    tasks_by_date = {}
+    for task in tasks:
+        task_date = task.fecha_vencimiento.date()
+        if task_date not in tasks_by_date:
+            tasks_by_date[task_date] = []
+        tasks_by_date[task_date].append(task)
+    
+    calendar_days = []
+    for week in month_days:
+        for day in week:
+            calendar_days.append({
+                'day': day.day,
+                'date': day.isoformat(),
+                'other_month': day.month != month,
+                'is_today': day == today,
+                'tasks': tasks_by_date.get(day, [])
+            })
+    
+    upcoming_query = Task.query.filter(
+        Task.tenant_id == tenant.id,
+        Task.estado.notin_(['completado', 'cancelado']),
+        Task.fecha_vencimiento.isnot(None),
+        Task.fecha_vencimiento >= datetime.utcnow()
+    )
+    if not current_user.can_manage_cases():
+        upcoming_query = upcoming_query.filter(
+            db.or_(Task.assigned_to_id == current_user.id, Task.created_by_id == current_user.id)
+        )
+    upcoming_tasks = upcoming_query.order_by(Task.fecha_vencimiento.asc()).limit(5).all()
+    
+    overdue_query = Task.query.filter(
+        Task.tenant_id == tenant.id,
+        Task.estado.notin_(['completado', 'cancelado']),
+        Task.fecha_vencimiento.isnot(None),
+        Task.fecha_vencimiento < datetime.utcnow()
+    )
+    if not current_user.can_manage_cases():
+        overdue_query = overdue_query.filter(
+            db.or_(Task.assigned_to_id == current_user.id, Task.created_by_id == current_user.id)
+        )
+    overdue_tasks = overdue_query.order_by(Task.fecha_vencimiento.desc()).limit(5).all()
+    
+    month_names = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    day_names = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    
+    return render_template("calendario.html",
+                          year=year,
+                          month=month,
+                          view_mode=view_mode,
+                          prev_year=prev_year,
+                          prev_month=prev_month,
+                          next_year=next_year,
+                          next_month=next_month,
+                          calendar_days=calendar_days,
+                          upcoming_tasks=upcoming_tasks,
+                          overdue_tasks=overdue_tasks,
+                          today=today,
+                          month_names=month_names,
+                          day_names=day_names,
+                          estados=Task.ESTADOS,
+                          estado_filter=estado_filter,
+                          buscar_filter=buscar_filter)
 
 
 # ==================== MIS MODELOS (User personal document models) ====================
