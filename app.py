@@ -4002,6 +4002,7 @@ def evento_nuevo():
         descripcion = request.form.get("descripcion", "").strip()
         tipo = request.form.get("tipo", "reunion")
         ubicacion = request.form.get("ubicacion", "").strip()
+        link = request.form.get("link", "").strip() or None
         color = request.form.get("color", "#3b82f6")
         case_id = request.form.get("case_id", type=int)
         todo_el_dia = request.form.get("todo_el_dia") == "on"
@@ -4040,6 +4041,7 @@ def evento_nuevo():
             descripcion=descripcion,
             tipo=tipo,
             ubicacion=ubicacion,
+            link=link,
             color=color,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
@@ -4126,6 +4128,7 @@ def evento_editar(evento_id):
         evento.descripcion = request.form.get("descripcion", "").strip()
         evento.tipo = request.form.get("tipo", "reunion")
         evento.ubicacion = request.form.get("ubicacion", "").strip()
+        evento.link = request.form.get("link", "").strip() or None
         evento.color = request.form.get("color", "#3b82f6")
         evento.todo_el_dia = request.form.get("todo_el_dia") == "on"
         evento.recordatorio_minutos = request.form.get("recordatorio_minutos", 30, type=int)

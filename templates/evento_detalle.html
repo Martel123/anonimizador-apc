@@ -79,6 +79,21 @@
                     </div>
                     {% endif %}
                     
+                    {% if evento.link %}
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-link text-purple-600"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Link</p>
+                            <a href="{{ evento.link }}" target="_blank" rel="noopener noreferrer"
+                               class="font-medium text-blue-600 hover:text-blue-800 hover:underline break-all">
+                                {{ evento.link }}
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
                     {% if evento.case %}
                     <div class="flex items-start gap-3">
                         <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">

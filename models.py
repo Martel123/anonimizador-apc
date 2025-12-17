@@ -1058,6 +1058,7 @@ class CalendarEvent(db.Model):
     fecha_inicio = db.Column(db.DateTime, nullable=False)
     fecha_fin = db.Column(db.DateTime)
     todo_el_dia = db.Column(db.Boolean, default=False)
+    link = db.Column(db.String(500))
     
     case_id = db.Column(db.Integer, db.ForeignKey('cases.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
