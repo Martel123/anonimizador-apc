@@ -3632,6 +3632,7 @@ def tarea_nueva():
     casos = Case.query.filter_by(tenant_id=tenant.id).filter(Case.estado.notin_(['terminado', 'archivado'])).all()
     usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
     preselected_case = request.args.get('caso_id', type=int)
+    fecha_preseleccionada = request.args.get('fecha', '')
     
     return render_template("tarea_form.html",
                           tarea=None,
@@ -3639,7 +3640,8 @@ def tarea_nueva():
                           usuarios=usuarios,
                           preselected_case=preselected_case,
                           tipos=Task.TIPOS,
-                          prioridades=Task.PRIORIDADES)
+                          prioridades=Task.PRIORIDADES,
+                          fecha_preseleccionada=fecha_preseleccionada)
 
 
 @app.route("/tareas/<int:tarea_id>/estado", methods=["POST"])
@@ -3888,6 +3890,7 @@ def calendario():
             calendar_days.append({
                 'day': day.day,
                 'date': day.isoformat(),
+                'full_date': day.strftime('%Y-%m-%d'),
                 'other_month': day.month != month,
                 'is_today': day == today,
                 'tasks': tasks_by_date.get(day, [])
@@ -4067,14 +4070,18 @@ def evento_nuevo():
         return redirect(url_for("evento_detalle", evento_id=evento.id))
     
     # GET - mostrar formulario
-    cases = Case.query.filter_by(tenant_id=tenant.id, activo=True).order_by(Case.titulo).all()
+    cases = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
     usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+    
+    # Fecha preseleccionada desde el calendario
+    fecha_preseleccionada = request.args.get('fecha', '')
     
     return render_template("evento_form.html",
                           evento=None,
                           cases=cases,
                           usuarios=usuarios,
-                          tipos=CalendarEvent.TIPOS)
+                          tipos=CalendarEvent.TIPOS,
+                          fecha_preseleccionada=fecha_preseleccionada)
 
 
 @app.route("/eventos/<int:evento_id>")
@@ -4165,7 +4172,7 @@ def evento_editar(evento_id):
         return redirect(url_for("evento_detalle", evento_id=evento_id))
     
     # GET - mostrar formulario
-    cases = Case.query.filter_by(tenant_id=tenant.id, activo=True).order_by(Case.titulo).all()
+    cases = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
     usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
     invitados_actuales = [a.user_id for a in evento.attendees.all()]
     
@@ -4174,7 +4181,8 @@ def evento_editar(evento_id):
                           cases=cases,
                           usuarios=usuarios,
                           tipos=CalendarEvent.TIPOS,
-                          invitados_actuales=invitados_actuales)
+                          invitados_actuales=invitados_actuales,
+                          fecha_preseleccionada='')
 
 
 @app.route("/eventos/<int:evento_id>/eliminar", methods=["POST"])

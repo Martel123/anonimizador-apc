@@ -177,7 +177,9 @@
                 {% endfor %}
                 
                 {% for day in calendar_days %}
-                <div class="calendar-day {% if day.other_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}">
+                <div class="calendar-day {% if day.other_month %}other-month{% endif %} {% if day.is_today %}today{% endif %}" 
+                     data-date="{{ day.full_date }}"
+                     onclick="selectDay(this, '{{ day.full_date }}')">
                     <div class="day-number">{{ day.day }}</div>
                     
                     {% set all_items = [] %}
@@ -335,4 +337,87 @@
         </div>
     </div>
 </div>
+
+<div id="day-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">Crear para <span id="modal-date-display"></span></h3>
+        <p class="text-sm text-gray-500 mb-4">¿Qué deseas crear para esta fecha?</p>
+        <div class="space-y-3">
+            <a id="modal-tarea-link" href="#" class="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all">
+                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <i class="fas fa-tasks text-blue-600"></i>
+                </div>
+                <div>
+                    <div class="font-medium text-gray-800">Nueva Tarea</div>
+                    <div class="text-xs text-gray-500">Crear una tarea con esta fecha</div>
+                </div>
+            </a>
+            <a id="modal-evento-link" href="#" class="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-all">
+                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                    <i class="fas fa-calendar-plus text-green-600"></i>
+                </div>
+                <div>
+                    <div class="font-medium text-gray-800">Nuevo Evento</div>
+                    <div class="text-xs text-gray-500">Crear un evento para esta fecha</div>
+                </div>
+            </a>
+        </div>
+        <button onclick="closeDayModal()" class="mt-4 w-full py-2 text-gray-600 hover:text-gray-800 text-sm font-medium">
+            Cancelar
+        </button>
+    </div>
+</div>
+
+<style>
+.calendar-day {
+    cursor: pointer;
+}
+.calendar-day:hover {
+    background-color: #f3f4f6;
+}
+.calendar-day.selected {
+    background-color: #dbeafe;
+    border: 2px solid #3b82f6;
+}
+</style>
+
+<script>
+let selectedDate = null;
+let selectedElement = null;
+
+function selectDay(element, dateStr) {
+    if (event.target.closest('a')) return;
+    
+    if (selectedElement) {
+        selectedElement.classList.remove('selected');
+    }
+    
+    selectedElement = element;
+    selectedDate = dateStr;
+    element.classList.add('selected');
+    
+    const dateParts = dateStr.split('-');
+    const displayDate = dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0];
+    document.getElementById('modal-date-display').textContent = displayDate;
+    
+    document.getElementById('modal-tarea-link').href = "{{ url_for('tarea_nueva') }}?fecha=" + dateStr;
+    document.getElementById('modal-evento-link').href = "{{ url_for('evento_nuevo') }}?fecha=" + dateStr;
+    
+    document.getElementById('day-modal').classList.remove('hidden');
+}
+
+function closeDayModal() {
+    document.getElementById('day-modal').classList.add('hidden');
+    if (selectedElement) {
+        selectedElement.classList.remove('selected');
+        selectedElement = null;
+    }
+}
+
+document.getElementById('day-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDayModal();
+    }
+});
+</script>
 {% endblock %}
