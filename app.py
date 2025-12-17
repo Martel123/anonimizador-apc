@@ -3703,6 +3703,114 @@ def descargar_adjunto_caso(caso_id, attachment_id):
     )
 
 
+@app.route("/tareas/<int:tarea_id>")
+@case_access_required
+def tarea_detalle(tarea_id):
+    """Vista de detalle de una tarea con documentos vinculados."""
+    tenant = get_current_tenant()
+    tarea = Task.query.filter_by(id=tarea_id, tenant_id=tenant.id).first_or_404()
+    
+    if not current_user.can_manage_cases():
+        if tarea.assigned_to_id != current_user.id and tarea.created_by_id != current_user.id:
+            flash("No tienes permiso para ver esta tarea.", "error")
+            return redirect(url_for("tareas"))
+    
+    documentos_vinculados = db.session.query(TaskDocument).join(
+        FinishedDocument, TaskDocument.document_id == FinishedDocument.id
+    ).filter(
+        TaskDocument.task_id == tarea_id,
+        FinishedDocument.tenant_id == tenant.id
+    ).all()
+    documentos_ids = [td.document_id for td in documentos_vinculados]
+    
+    documentos_disponibles = FinishedDocument.query.filter(
+        FinishedDocument.tenant_id == tenant.id,
+        FinishedDocument.id.notin_(documentos_ids) if documentos_ids else True
+    ).order_by(FinishedDocument.created_at.desc()).limit(50).all()
+    
+    return render_template("tarea_detalle.html",
+                          tarea=tarea,
+                          documentos_vinculados=documentos_vinculados,
+                          documentos_disponibles=documentos_disponibles,
+                          estados=Task.ESTADOS,
+                          tipos=Task.TIPOS,
+                          prioridades=Task.PRIORIDADES)
+
+
+@app.route("/tareas/<int:tarea_id>/vincular-documento", methods=["POST"])
+@case_access_required
+def vincular_documento_tarea(tarea_id):
+    """Vincular un documento terminado a una tarea."""
+    tenant = get_current_tenant()
+    tarea = Task.query.filter_by(id=tarea_id, tenant_id=tenant.id).first_or_404()
+    
+    if tarea.assigned_to_id != current_user.id and tarea.created_by_id != current_user.id and not current_user.can_manage_cases():
+        flash("No tienes permiso para modificar esta tarea.", "error")
+        return redirect(url_for("tareas"))
+    
+    document_id = request.form.get("document_id", type=int)
+    if not document_id:
+        flash("Debes seleccionar un documento.", "error")
+        return redirect(url_for("tarea_detalle", tarea_id=tarea_id))
+    
+    documento = FinishedDocument.query.filter_by(id=document_id, tenant_id=tenant.id).first()
+    if not documento:
+        flash("Documento no encontrado.", "error")
+        return redirect(url_for("tarea_detalle", tarea_id=tarea_id))
+    
+    existing = TaskDocument.query.filter_by(task_id=tarea_id, document_id=document_id).first()
+    if existing:
+        flash("Este documento ya está vinculado a la tarea.", "warning")
+        return redirect(url_for("tarea_detalle", tarea_id=tarea_id))
+    
+    task_doc = TaskDocument(
+        task_id=tarea_id,
+        document_id=document_id,
+        linked_by_id=current_user.id
+    )
+    db.session.add(task_doc)
+    
+    documento.task_id = tarea_id
+    
+    db.session.commit()
+    flash("Documento vinculado exitosamente.", "success")
+    return redirect(url_for("tarea_detalle", tarea_id=tarea_id))
+
+
+@app.route("/tareas/<int:tarea_id>/desvincular-documento/<int:doc_id>", methods=["POST"])
+@case_access_required
+def desvincular_documento_tarea(tarea_id, doc_id):
+    """Desvincular un documento de una tarea."""
+    tenant = get_current_tenant()
+    tarea = Task.query.filter_by(id=tarea_id, tenant_id=tenant.id).first_or_404()
+    
+    if tarea.assigned_to_id != current_user.id and tarea.created_by_id != current_user.id and not current_user.can_manage_cases():
+        flash("No tienes permiso para modificar esta tarea.", "error")
+        return redirect(url_for("tareas"))
+    
+    task_doc = db.session.query(TaskDocument).join(
+        FinishedDocument, TaskDocument.document_id == FinishedDocument.id
+    ).filter(
+        TaskDocument.task_id == tarea_id,
+        TaskDocument.document_id == doc_id,
+        FinishedDocument.tenant_id == tenant.id
+    ).first()
+    
+    if task_doc:
+        db.session.delete(task_doc)
+        
+        documento = FinishedDocument.query.filter_by(id=doc_id, tenant_id=tenant.id).first()
+        if documento and documento.task_id == tarea_id:
+            documento.task_id = None
+        
+        db.session.commit()
+        flash("Documento desvinculado.", "success")
+    else:
+        flash("El documento no estaba vinculado.", "warning")
+    
+    return redirect(url_for("tarea_detalle", tarea_id=tarea_id))
+
+
 # ==================== CALENDARIO ====================
 
 @app.route("/calendario")
@@ -4285,8 +4393,11 @@ def documentos_terminados():
     ).order_by(FinishedDocument.created_at.desc()).all()
     
     casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
+    tareas = Task.query.filter_by(tenant_id=tenant.id).filter(
+        Task.estado.notin_(['completado', 'cancelado'])
+    ).order_by(Task.titulo).all()
     
-    return render_template("documentos_terminados.html", documentos=documentos, casos=casos)
+    return render_template("documentos_terminados.html", documentos=documentos, casos=casos, tareas=tareas)
 
 
 @app.route("/documentos-terminados/subir", methods=["POST"])
@@ -4300,6 +4411,7 @@ def subir_documento_terminado():
     archivo = request.files.get('archivo')
     nombre = request.form.get('nombre', '').strip()
     case_id = request.form.get('case_id', type=int)
+    task_id = request.form.get('task_id', type=int)
     descripcion = request.form.get('descripcion', '').strip()
     tipo_documento = request.form.get('tipo_documento', '').strip()
     numero_expediente = request.form.get('numero_expediente', '').strip()
@@ -4337,6 +4449,7 @@ def subir_documento_terminado():
         tenant_id=tenant.id,
         user_id=current_user.id,
         case_id=case_id if case_id else None,
+        task_id=task_id if task_id else None,
         nombre=nombre,
         archivo=archivo_path,
         descripcion=descripcion,
@@ -4346,6 +4459,17 @@ def subir_documento_terminado():
     )
     db.session.add(documento)
     db.session.commit()
+    
+    if task_id:
+        tarea = Task.query.filter_by(id=task_id, tenant_id=tenant.id).first()
+        if tarea:
+            task_doc = TaskDocument(
+                task_id=task_id,
+                document_id=documento.id,
+                linked_by_id=current_user.id
+            )
+            db.session.add(task_doc)
+            db.session.commit()
     
     flash("Documento subido exitosamente.", "success")
     return redirect(url_for("documentos_terminados"))
@@ -5384,6 +5508,101 @@ def revisor_ia_historial():
     ).order_by(ReviewSession.created_at.desc()).all()
     
     return render_template("revisor_ia_historial.html", revisiones=revisiones)
+
+
+def send_task_reminders():
+    """Send email reminders for tasks due in 1, 2, or 3 days."""
+    from datetime import date, timedelta
+    
+    today = date.today()
+    reminder_days = [1, 2, 3]
+    
+    with app.app_context():
+        for days_before in reminder_days:
+            target_date = today + timedelta(days=days_before)
+            
+            tasks = Task.query.filter(
+                Task.estado.notin_(['completado', 'cancelado']),
+                Task.fecha_vencimiento.isnot(None),
+                db.func.date(Task.fecha_vencimiento) == target_date
+            ).all()
+            
+            for task in tasks:
+                if not task.assigned_to or not task.assigned_to.email:
+                    continue
+                
+                existing_reminder = TaskReminder.query.filter_by(
+                    task_id=task.id,
+                    days_before=days_before
+                ).first()
+                
+                if existing_reminder:
+                    continue
+                
+                reminder_type = 'urgente' if days_before == 1 else ('proximo' if days_before == 2 else 'recordatorio')
+                
+                subject = f"{'⚠️ URGENTE: ' if days_before == 1 else ''}Recordatorio de tarea - {task.titulo}"
+                
+                html_content = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: {'#dc2626' if days_before == 1 else '#f59e0b' if days_before == 2 else '#3b82f6'};">
+                        {'⚠️ ' if days_before == 1 else ''}Recordatorio de Tarea
+                    </h2>
+                    <p>Hola {task.assigned_to.username},</p>
+                    <p>Te recordamos que tienes una tarea que vence en <strong>{days_before} día{'s' if days_before > 1 else ''}</strong>:</p>
+                    <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin: 0 0 10px 0;">{task.titulo}</h3>
+                        <p style="margin: 5px 0; color: #666;">
+                            <strong>Fecha de vencimiento:</strong> {task.fecha_vencimiento.strftime('%d/%m/%Y')}
+                        </p>
+                        {f'<p style="margin: 5px 0; color: #666;"><strong>Caso:</strong> {task.case.titulo}</p>' if task.case else ''}
+                        {f'<p style="margin: 5px 0; color: #666;">{task.descripcion[:200]}...</p>' if task.descripcion and len(task.descripcion) > 0 else ''}
+                    </div>
+                    <p>Por favor, asegúrate de completar esta tarea a tiempo.</p>
+                    <p style="color: #888; font-size: 12px;">Este es un recordatorio automático.</p>
+                </div>
+                """
+                
+                try:
+                    success = send_notification_email(
+                        task.assigned_to.email,
+                        subject,
+                        html_content
+                    )
+                    
+                    reminder = TaskReminder(
+                        task_id=task.id,
+                        user_id=task.assigned_to.id,
+                        reminder_type=reminder_type,
+                        days_before=days_before,
+                        email_sent=success
+                    )
+                    db.session.add(reminder)
+                    db.session.commit()
+                    
+                    if success:
+                        logging.info(f"Reminder sent for task {task.id} to {task.assigned_to.email}")
+                    else:
+                        logging.warning(f"Failed to send reminder for task {task.id}")
+                except Exception as e:
+                    logging.error(f"Error sending reminder for task {task.id}: {e}")
+
+
+@app.route("/api/send-task-reminders", methods=["POST"])
+def api_send_task_reminders():
+    """API endpoint to trigger task reminders (for cron jobs)."""
+    auth_key = request.headers.get('X-API-Key')
+    expected_key = os.environ.get('REMINDER_API_KEY', os.environ.get('SESSION_SECRET'))
+    
+    if auth_key != expected_key:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        send_task_reminders()
+        return jsonify({"status": "success", "message": "Reminders processed"})
+    except Exception as e:
+        logging.error(f"Error in reminder API: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 with app.app_context():

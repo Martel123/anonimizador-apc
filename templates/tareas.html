@@ -81,9 +81,9 @@
                     </form>
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
-                            <h3 class="font-medium text-gray-900 {% if tarea.estado == 'completado' %}line-through text-gray-400{% endif %}">
+                            <a href="{{ url_for('tarea_detalle', tarea_id=tarea.id) }}" class="font-medium text-gray-900 hover:text-blue-600 {% if tarea.estado == 'completado' %}line-through text-gray-400{% endif %}">
                                 {{ tarea.titulo }}
-                            </h3>
+                            </a>
                             <span class="px-2 py-0.5 text-xs rounded-full
                                 {% if tarea.tipo == 'audiencia' %}bg-purple-100 text-purple-700
                                 {% elif tarea.tipo == 'documento' %}bg-blue-100 text-blue-700
