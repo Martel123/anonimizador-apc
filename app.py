@@ -5970,7 +5970,7 @@ def argumentacion_sesion(session_id):
         tenant_id=tenant.id
     ).first_or_404()
     
-    mensajes = sesion.messages.order_by(ArgumentationMessage.created_at.asc()).all()
+    mensajes = ArgumentationMessage.query.filter_by(session_id=sesion.id).order_by(ArgumentationMessage.created_at.asc()).all()
     
     estilos_personalizados = UserArgumentationStyle.query.filter_by(
         user_id=current_user.id,
