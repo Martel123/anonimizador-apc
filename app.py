@@ -6112,22 +6112,27 @@ def argumentacion_mejorar(session_id):
             estilo_instrucciones = estilo_custom.instrucciones
     
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=150.0)
         
-        system_prompt = f"""Eres un experto en argumentación jurídica peruana. Tu tarea es mejorar la argumentación de documentos legales.
+        system_prompt = f"""Actua como un asistente juridico especializado en redaccion y argumentacion.
+
+Tu tarea es modificar directamente el texto del documento juridico, aplicando EXACTAMENTE las instrucciones del usuario, de forma rapida, directa y sin rodeos.
 
 REGLAS ESTRICTAS:
-1. NO modifiques datos fácticos (nombres, fechas, montos, DNIs, direcciones, números de expediente)
-2. Respeta la estructura jurídica del documento (Hechos, Fundamentos de Derecho, Petitorio, etc.)
-3. Mejora únicamente la argumentación jurídica, claridad lógica y estilo
-4. Elimina contradicciones y refuerza la coherencia
-5. Aplica el estilo solicitado: {estilo}
-6. {estilo_instrucciones}
+1. Manten intactos todos los datos facticos (nombres, DNIs, fechas, montos, direcciones, numeros de expediente, numeros de cuenta, porcentajes, acuerdos economicos)
+2. Si encuentras incoherencias factuales, solo senala el error; no inventes datos nuevos
+3. Puedes anadir parrafos completos si el usuario lo pide
+4. Puedes eliminar fragmentos si el usuario lo pide
+5. Puedes reorganizar la logica argumentativa si ayuda a la claridad
+6. Respeta la estructura general (Hechos - Fundamentos - Petitorio)
+7. No inventes hechos ni articulos falsos
+8. Aplica el estilo solicitado: {estilo}
+9. {estilo_instrucciones}
 
 INSTRUCCIONES DEL USUARIO:
 {instrucciones}
 
-Devuelve el documento mejorado manteniendo su formato y estructura. Si el usuario pide mejoras específicas de alguna sección, enfócate en esa parte."""
+Devuelve SIEMPRE el documento modificado completo, listo para copiar, sin comentarios meta, solo el contenido final."""
 
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -6158,7 +6163,11 @@ Devuelve el documento mejorado manteniendo su formato y estructura. Si el usuari
         
     except Exception as e:
         logging.error(f"Error mejorando argumentación: {e}")
-        flash("Error al procesar la mejora. Intenta nuevamente.", "error")
+        error_msg = str(e).lower()
+        if 'timeout' in error_msg or 'timed out' in error_msg:
+            flash("El documento es muy extenso y la mejora tarda más de lo esperado. Intenta con instrucciones más específicas o un fragmento más corto.", "warning")
+        else:
+            flash("Error al procesar la mejora. Intenta nuevamente.", "error")
     
     return redirect(url_for('argumentacion_sesion', session_id=session_id))
 
