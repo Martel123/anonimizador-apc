@@ -6,7 +6,7 @@ import requests
 import resend
 from functools import wraps
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify, session, g
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, flash, jsonify, session, g
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix

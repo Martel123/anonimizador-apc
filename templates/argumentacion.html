@@ -1,209 +1,201 @@
 {% extends "base_dashboard.html" %}
 
 {% block title %}Argumentacion{% endblock %}
-{% block page_title %}Argumentacion con IA{% endblock %}
-{% block page_subtitle %}Mejora la argumentacion juridica de tus documentos{% endblock %}
+{% block page_title %}{% endblock %}
+{% block page_subtitle %}{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 space-y-6">
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">
-                <i class="fas fa-upload text-blue-500 mr-2"></i>Subir Documento
-            </h3>
-            
-            <form action="{{ url_for('argumentacion_nueva') }}" method="POST" enctype="multipart/form-data">
-                <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer mb-4">
-                    <div class="space-y-3">
-                        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                            <i class="fas fa-cloud-upload-alt text-3xl text-blue-500"></i>
-                        </div>
-                        <div>
-                            <p class="text-gray-700 font-medium">Arrastra y suelta tu documento aqui</p>
-                            <p class="text-sm text-gray-500">o haz clic para seleccionar</p>
-                        </div>
-                        <p class="text-xs text-gray-400">Formatos aceptados: .docx, .doc, .pdf, .txt</p>
+<div class="flex h-[calc(100vh-120px)] bg-gray-50 -m-6 -mt-8">
+    <div class="flex-1 flex flex-col">
+        <div class="flex-1 overflow-y-auto">
+            <div class="max-w-3xl mx-auto py-8 px-4">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <i class="fas fa-brain text-white text-2xl"></i>
                     </div>
-                    <input type="file" name="archivo" id="archivo-input" class="hidden" accept=".docx,.doc,.pdf,.txt">
+                    <h1 class="text-2xl font-bold text-gray-900 mb-2">Asistente de Argumentacion</h1>
+                    <p class="text-gray-500">Mejora la argumentacion juridica de tus documentos con IA</p>
                 </div>
-                
-                <div id="archivo-seleccionado" class="hidden mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <i class="fas fa-file-alt text-green-600 text-xl"></i>
-                            <span id="nombre-archivo" class="font-medium text-green-800"></span>
+
+                <form action="{{ url_for('argumentacion_nueva') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                    <div id="drop-zone" class="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer">
+                        <div class="space-y-3">
+                            <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center mx-auto">
+                                <i class="fas fa-cloud-upload-alt text-2xl text-blue-500"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-700 font-medium">Arrastra y suelta tu documento</p>
+                                <p class="text-sm text-gray-400">o haz clic para seleccionar</p>
+                            </div>
+                            <p class="text-xs text-gray-400">Formatos: .docx, .doc, .pdf, .txt</p>
                         </div>
-                        <button type="button" onclick="limpiarArchivo()" class="text-gray-400 hover:text-red-500">
-                            <i class="fas fa-times"></i>
+                        <input type="file" name="archivo" id="archivo-input" class="hidden" accept=".docx,.doc,.pdf,.txt">
+                    </div>
+
+                    <div id="archivo-seleccionado" class="hidden">
+                        <div class="bg-white rounded-xl p-4 border border-green-200 shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-file-alt text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <p id="nombre-archivo" class="font-medium text-gray-900"></p>
+                                        <p class="text-xs text-green-600">Listo para procesar</p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="limpiarArchivo()" class="text-gray-400 hover:text-red-500 p-2">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center text-gray-400 text-sm">o</div>
+
+                    <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                        <textarea name="texto_documento" rows="6" 
+                                  class="w-full border-0 focus:ring-0 resize-none p-4"
+                                  placeholder="Pega aqui el contenido de tu documento juridico..."></textarea>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <select name="case_id" class="flex-1 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                            <option value="">Sin asociar a caso</option>
+                            {% for caso in casos %}
+                            <option value="{{ caso.id }}">{{ caso.titulo }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <button type="submit" class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-3 px-8 rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
+                            <i class="fas fa-arrow-right"></i>
+                            Iniciar
                         </button>
                     </div>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">O pega el texto directamente:</label>
-                    <textarea name="texto_documento" rows="6" 
-                              class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                              placeholder="Pega aqui el contenido de tu documento..."></textarea>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Asociar a un caso (opcional):</label>
-                    <select name="case_id" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">Sin asociar a caso</option>
-                        {% for caso in casos %}
-                        <option value="{{ caso.id }}">{{ caso.titulo }}</option>
+                </form>
+
+                {% if sesiones %}
+                <div class="mt-12">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Conversaciones recientes</h3>
+                        <a href="{{ url_for('argumentacion_historial') }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            Ver todo
+                        </a>
+                    </div>
+                    
+                    <div class="grid gap-3">
+                        {% for sesion in sesiones %}
+                        <a href="{{ url_for('argumentacion_sesion', session_id=sesion.id) }}" 
+                           class="bg-white p-4 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all flex items-center gap-4 group">
+                            <div class="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors">
+                                <i class="fas fa-comment-alt text-gray-400 group-hover:text-blue-500"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium text-gray-900 truncate">{{ sesion.titulo or 'Sin titulo' }}</p>
+                                <p class="text-sm text-gray-500">{{ sesion.updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                            </div>
+                            <i class="fas fa-chevron-right text-gray-300 group-hover:text-gray-400"></i>
+                        </a>
                         {% endfor %}
-                    </select>
+                    </div>
                 </div>
-                
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                    <i class="fas fa-rocket mr-2"></i>Iniciar Sesion de Argumentacion
-                </button>
-            </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div id="sidebar" class="w-80 bg-white border-l border-gray-200 flex flex-col hidden lg:flex">
+        <div class="p-4 border-b border-gray-100">
+            <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+                <i class="fas fa-palette text-blue-500"></i>
+                Estilos de Argumentacion
+            </h3>
         </div>
         
-        {% if sesiones %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900">
-                    <i class="fas fa-history text-purple-500 mr-2"></i>Sesiones Recientes
-                </h3>
-                <a href="{{ url_for('argumentacion_historial') }}" class="text-blue-600 hover:text-blue-800 text-sm">
-                    Ver todo <i class="fas fa-arrow-right ml-1"></i>
-                </a>
-            </div>
-            
-            <div class="space-y-3">
-                {% for sesion in sesiones %}
-                <a href="{{ url_for('argumentacion_sesion', session_id=sesion.id) }}" 
-                   class="block p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="font-medium text-gray-900">{{ sesion.titulo or 'Sin titulo' }}</p>
-                            <p class="text-sm text-gray-500">
-                                {{ sesion.updated_at.strftime('%d/%m/%Y %H:%M') }}
-                                {% if sesion.estilo_usado %}
-                                <span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">{{ sesion.estilo_usado }}</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                        <i class="fas fa-chevron-right text-gray-400"></i>
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div>
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Predefinidos</p>
+                <div class="space-y-2">
+                    {% for estilo in estilos_predefinidos %}
+                    <div class="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors cursor-default">
+                        <p class="font-medium text-gray-800 text-sm">{{ estilo.nombre }}</p>
+                        <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ estilo.instrucciones[:100] }}...</p>
                     </div>
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    
-    <div class="space-y-6">
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">
-                <i class="fas fa-palette text-green-500 mr-2"></i>Mis Estilos
-            </h3>
-            
-            <div class="space-y-3 mb-4">
-                <p class="text-sm text-gray-600 font-medium">Estilos predefinidos:</p>
-                {% for estilo in estilos_predefinidos %}
-                <div class="p-3 bg-gray-50 rounded-lg">
-                    <p class="font-medium text-gray-800">{{ estilo.nombre }}</p>
-                    <p class="text-xs text-gray-500">{{ estilo.instrucciones[:80] }}...</p>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
             
             {% if estilos_personalizados %}
-            <div class="border-t pt-4 mt-4">
-                <p class="text-sm text-gray-600 font-medium mb-3">Mis estilos personalizados:</p>
-                {% for estilo in estilos_personalizados %}
-                <div class="p-3 bg-green-50 rounded-lg mb-2 flex items-start justify-between">
-                    <div>
-                        <p class="font-medium text-gray-800">{{ estilo.nombre }}</p>
-                        <p class="text-xs text-gray-500">{{ estilo.descripcion or estilo.instrucciones[:60] }}...</p>
+            <div class="pt-4 border-t border-gray-100">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Mis Estilos</p>
+                <div class="space-y-2">
+                    {% for estilo in estilos_personalizados %}
+                    <div class="p-3 bg-blue-50 rounded-lg group relative">
+                        <p class="font-medium text-gray-800 text-sm">{{ estilo.nombre }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ estilo.descripcion or estilo.instrucciones[:60] }}...</p>
+                        <form action="{{ url_for('argumentacion_estilo_eliminar', estilo_id=estilo.id) }}" method="POST" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="submit" class="text-gray-400 hover:text-red-500 text-xs p-1" onclick="return confirm('¿Eliminar?')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
                     </div>
-                    <form action="{{ url_for('argumentacion_estilo_eliminar', estilo_id=estilo.id) }}" method="POST" class="inline">
-                        <button type="submit" class="text-gray-400 hover:text-red-500 text-sm" onclick="return confirm('¿Eliminar este estilo?')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
             {% endif %}
-            
-            <button onclick="document.getElementById('modal-nuevo-estilo').classList.remove('hidden')" 
-                    class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
-                <i class="fas fa-plus mr-2"></i>Crear Nuevo Estilo
-            </button>
         </div>
         
-        <div class="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100">
-            <h4 class="font-semibold text-gray-900 mb-3">
-                <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>Como funciona
-            </h4>
-            <ol class="space-y-2 text-sm text-gray-600">
-                <li class="flex items-start gap-2">
-                    <span class="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">1</span>
-                    <span>Sube tu documento borrador</span>
-                </li>
-                <li class="flex items-start gap-2">
-                    <span class="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">2</span>
-                    <span>Indica que quieres mejorar y selecciona un estilo</span>
-                </li>
-                <li class="flex items-start gap-2">
-                    <span class="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">3</span>
-                    <span>La IA mejora la argumentacion respetando los datos facticos</span>
-                </li>
-                <li class="flex items-start gap-2">
-                    <span class="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">4</span>
-                    <span>Descarga o copia el resultado</span>
-                </li>
-            </ol>
+        <div class="p-4 border-t border-gray-100">
+            <button onclick="document.getElementById('modal-nuevo-estilo').classList.remove('hidden')" 
+                    class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i>
+                Crear Nuevo Estilo
+            </button>
         </div>
     </div>
 </div>
 
-<div id="modal-nuevo-estilo" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Crear Nuevo Estilo</h3>
-            <button onclick="document.getElementById('modal-nuevo-estilo').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times"></i>
-            </button>
+<div id="modal-nuevo-estilo" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        <div class="p-6 border-b border-gray-100">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Crear Nuevo Estilo</h3>
+                <button onclick="document.getElementById('modal-nuevo-estilo').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
         
-        <form action="{{ url_for('argumentacion_estilo_nuevo') }}" method="POST">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del estilo *</label>
-                    <input type="text" name="nombre" required
-                           class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                           placeholder="Ej: Estilo agresivo familiar">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Descripcion breve</label>
-                    <input type="text" name="descripcion"
-                           class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                           placeholder="Ej: Para casos de custodia disputada">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Instrucciones para la IA *</label>
-                    <textarea name="instrucciones" rows="4" required
-                              class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                              placeholder="Describe como debe redactar la IA. Ej: Tono firme y directo, enfatizando derechos del menor..."></textarea>
-                </div>
-                
-                <div class="flex gap-3">
-                    <button type="button" onclick="document.getElementById('modal-nuevo-estilo').classList.add('hidden')"
-                            class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors">
-                        Cancelar
-                    </button>
-                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-                        Guardar Estilo
-                    </button>
-                </div>
+        <form action="{{ url_for('argumentacion_estilo_nuevo') }}" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Nombre del estilo</label>
+                <input type="text" name="nombre" required
+                       class="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                       placeholder="Ej: Estilo agresivo familiar">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Descripcion breve</label>
+                <input type="text" name="descripcion"
+                       class="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                       placeholder="Ej: Para casos de custodia disputada">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Instrucciones para la IA</label>
+                <textarea name="instrucciones" rows="4" required
+                          class="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                          placeholder="Describe como debe redactar la IA..."></textarea>
+            </div>
+            
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('modal-nuevo-estilo').classList.add('hidden')"
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors">
+                    Guardar
+                </button>
             </div>
         </form>
     </div>

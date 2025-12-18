@@ -1,158 +1,197 @@
 {% extends "base_dashboard.html" %}
 
-{% block title %}{{ sesion.titulo[:30] }}... - Argumentacion{% endblock %}
-{% block page_title %}Sesion de Argumentacion{% endblock %}
-{% block page_subtitle %}{{ sesion.titulo }}{% endblock %}
+{% block title %}{{ sesion.titulo[:30] }}...{% endblock %}
+{% block page_title %}{% endblock %}
+{% block page_subtitle %}{% endblock %}
 
 {% block content %}
-<div class="flex items-center gap-2 mb-6">
-    <a href="{{ url_for('argumentacion') }}" class="text-gray-500 hover:text-gray-700">
-        <i class="fas fa-arrow-left"></i>
-    </a>
-    <nav class="text-sm text-gray-500">
-        <a href="{{ url_for('argumentacion') }}" class="hover:text-gray-700">Argumentacion</a>
-        <span class="mx-2">/</span>
-        <span class="text-gray-900">{{ sesion.titulo[:40] }}{% if sesion.titulo|length > 40 %}...{% endif %}</span>
-    </nav>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-    <div class="lg:col-span-3 space-y-4">
-        <div class="bg-white rounded-xl shadow-sm" style="height: calc(100vh - 300px); display: flex; flex-direction: column;">
-            <div class="p-4 border-b flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <i class="fas fa-brain text-blue-600"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-gray-900">Asistente de Argumentacion</h3>
-                        <p class="text-xs text-gray-500">Mejora tu documento con IA</p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <a href="{{ url_for('argumentacion_descargar', session_id=sesion.id) }}" 
-                       class="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Descargar DOCX">
-                        <i class="fas fa-download"></i>
-                    </a>
-                    <button onclick="copiarTexto()" class="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Copiar texto">
-                        <i class="fas fa-copy"></i>
-                    </button>
+<div class="flex h-[calc(100vh-120px)] bg-white -m-6 -mt-8">
+    <div class="flex-1 flex flex-col">
+        <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white">
+            <div class="flex items-center gap-3">
+                <a href="{{ url_for('argumentacion') }}" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div>
+                    <h1 class="font-semibold text-gray-900">{{ sesion.titulo[:50] }}{% if sesion.titulo|length > 50 %}...{% endif %}</h1>
+                    <p class="text-xs text-gray-500">{{ sesion.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
                 </div>
             </div>
-            
-            <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                <div class="flex gap-3">
-                    <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-file-alt text-gray-600 text-sm"></i>
+            <div class="flex items-center gap-1">
+                <a href="{{ url_for('argumentacion_descargar', session_id=sesion.id) }}" 
+                   class="p-2.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Descargar DOCX">
+                    <i class="fas fa-download"></i>
+                </a>
+                <button onclick="copiarTexto()" class="p-2.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Copiar texto">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button onclick="toggleSidebar()" class="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors lg:hidden" title="Info">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div id="chat-container" class="flex-1 overflow-y-auto bg-gray-50">
+            <div class="max-w-4xl mx-auto py-6 px-4 space-y-6">
+                <div class="flex gap-4">
+                    <div class="w-9 h-9 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-file-alt text-gray-500 text-sm"></i>
                     </div>
-                    <div class="flex-1 bg-white rounded-lg p-4 shadow-sm">
-                        <p class="text-sm font-medium text-gray-500 mb-2">Documento Original</p>
-                        <div class="text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">{{ sesion.documento_original[:2000] }}{% if sesion.documento_original|length > 2000 %}...{% endif %}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-sm font-semibold text-gray-700">Documento Original</span>
+                            <button onclick="toggleDocumento()" class="text-xs text-blue-600 hover:text-blue-800">
+                                <span id="toggle-text">Ver completo</span>
+                            </button>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <div id="documento-preview" class="text-sm text-gray-700 whitespace-pre-wrap">{{ sesion.documento_original[:1500] }}{% if sesion.documento_original|length > 1500 %}<span class="text-gray-400">...</span>{% endif %}</div>
+                            <div id="documento-completo" class="text-sm text-gray-700 whitespace-pre-wrap hidden">{{ sesion.documento_original }}</div>
+                        </div>
                     </div>
                 </div>
                 
                 {% for mensaje in mensajes %}
-                <div class="flex gap-3 {% if mensaje.role == 'user' %}flex-row-reverse{% endif %}">
-                    <div class="w-8 h-8 {% if mensaje.role == 'user' %}bg-blue-500{% else %}bg-green-500{% endif %} rounded-full flex items-center justify-center flex-shrink-0">
-                        <i class="fas {% if mensaje.role == 'user' %}fa-user{% else %}fa-robot{% endif %} text-white text-sm"></i>
+                <div class="flex gap-4 {% if mensaje.role == 'user' %}justify-end{% endif %}">
+                    {% if mensaje.role != 'user' %}
+                    <div class="w-9 h-9 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-robot text-white text-sm"></i>
                     </div>
-                    <div class="flex-1 {% if mensaje.role == 'user' %}bg-blue-50{% else %}bg-white{% endif %} rounded-lg p-4 shadow-sm max-w-3xl">
+                    {% endif %}
+                    
+                    <div class="flex-1 min-w-0 {% if mensaje.role == 'user' %}max-w-2xl{% endif %}">
                         {% if mensaje.role == 'user' %}
-                        <p class="text-sm font-medium text-blue-600 mb-1">Tu solicitud:</p>
-                        <p class="text-sm text-gray-700">{{ mensaje.content }}</p>
-                        {% if mensaje.estilo_aplicado %}
-                        <span class="inline-block mt-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">Estilo: {{ mensaje.estilo_aplicado }}</span>
-                        {% endif %}
+                        <div class="flex items-center gap-2 mb-2 justify-end">
+                            <span class="text-sm font-semibold text-blue-700">Tu solicitud</span>
+                            {% if mensaje.estilo_aplicado %}
+                            <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">{{ mensaje.estilo_aplicado }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="bg-blue-600 text-white rounded-xl p-4 shadow-sm">
+                            <p class="text-sm">{{ mensaje.content }}</p>
+                        </div>
                         {% else %}
-                        <p class="text-sm font-medium text-green-600 mb-2">Documento Mejorado:</p>
-                        <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ mensaje.content }}</div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-sm font-semibold text-gray-700">Documento Mejorado</span>
+                            <button onclick="copiarMensaje('{{ mensaje.id }}')" class="text-xs text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <div id="mensaje-{{ mensaje.id }}" class="text-sm text-gray-700 whitespace-pre-wrap prose prose-sm max-w-none">{{ mensaje.content }}</div>
+                        </div>
                         {% endif %}
-                        <p class="text-xs text-gray-400 mt-2">{{ mensaje.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                        <p class="text-xs text-gray-400 mt-2 {% if mensaje.role == 'user' %}text-right{% endif %}">{{ mensaje.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
                     </div>
+                    
+                    {% if mensaje.role == 'user' %}
+                    <div class="w-9 h-9 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-user text-white text-sm"></i>
+                    </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
-            
-            <div class="p-4 border-t bg-white">
-                <form action="{{ url_for('argumentacion_mejorar', session_id=sesion.id) }}" method="POST">
-                    <div class="flex gap-3 mb-3">
-                        <select name="estilo" class="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm">
-                            <optgroup label="Estilos Predefinidos">
-                                {% for estilo in estilos_predefinidos %}
-                                <option value="{{ estilo.nombre }}">{{ estilo.nombre }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            {% if estilos_personalizados %}
-                            <optgroup label="Mis Estilos">
-                                {% for estilo in estilos_personalizados %}
-                                <option value="{{ estilo.nombre }}">{{ estilo.nombre }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            {% endif %}
-                        </select>
-                    </div>
-                    <div class="flex gap-2">
+        </div>
+        
+        <div class="border-t border-gray-200 bg-white p-4">
+            <form action="{{ url_for('argumentacion_mejorar', session_id=sesion.id) }}" method="POST" class="max-w-4xl mx-auto">
+                <div class="flex items-end gap-3">
+                    <div class="flex-1 bg-gray-100 rounded-2xl p-3">
+                        <div class="flex items-center gap-2 mb-2">
+                            <label class="text-xs text-gray-500">Estilo:</label>
+                            <select name="estilo" class="text-xs border-0 bg-transparent focus:ring-0 text-gray-700 font-medium p-0 pr-6">
+                                <optgroup label="Predefinidos">
+                                    {% for estilo in estilos_predefinidos %}
+                                    <option value="{{ estilo.nombre }}">{{ estilo.nombre }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% if estilos_personalizados %}
+                                <optgroup label="Mis Estilos">
+                                    {% for estilo in estilos_personalizados %}
+                                    <option value="{{ estilo.nombre }}">{{ estilo.nombre }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+                            </select>
+                        </div>
                         <input type="text" name="instrucciones" required
-                               class="flex-1 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                               placeholder="Ej: Refuerza los fundamentos de derecho en materia de alimentos...">
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2">
-                            <i class="fas fa-magic"></i>
-                            Mejorar
-                        </button>
+                               class="w-full bg-transparent border-0 focus:ring-0 text-gray-900 placeholder-gray-400"
+                               placeholder="Describe que mejoras quieres hacer al documento...">
                     </div>
-                </form>
-            </div>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-colors shadow-lg shadow-blue-500/25">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     
-    <div class="space-y-4">
-        <div class="bg-white rounded-xl shadow-sm p-4">
-            <h4 class="font-semibold text-gray-900 mb-3 text-sm">
-                <i class="fas fa-info-circle text-blue-500 mr-2"></i>Informacion
-            </h4>
-            <div class="space-y-2 text-sm">
-                <div>
-                    <span class="text-gray-500">Archivo:</span>
-                    <p class="text-gray-900">{{ sesion.archivo_nombre or 'Texto directo' }}</p>
-                </div>
-                <div>
-                    <span class="text-gray-500">Creado:</span>
-                    <p class="text-gray-900">{{ sesion.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
-                </div>
-                {% if sesion.case %}
-                <div>
-                    <span class="text-gray-500">Caso:</span>
-                    <a href="{{ url_for('caso_detalle', caso_id=sesion.case.id) }}" class="text-blue-600 hover:underline">{{ sesion.case.titulo }}</a>
-                </div>
-                {% endif %}
-                {% if sesion.estilo_usado %}
-                <div>
-                    <span class="text-gray-500">Ultimo estilo:</span>
-                    <p class="text-gray-900">{{ sesion.estilo_usado }}</p>
-                </div>
-                {% endif %}
+    <div id="sidebar" class="w-72 bg-gray-50 border-l border-gray-200 hidden lg:flex flex-col">
+        <div class="p-4 border-b border-gray-200 bg-white">
+            <h3 class="font-semibold text-gray-900 text-sm">Informacion de la sesion</h3>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <dl class="space-y-3 text-sm">
+                    <div>
+                        <dt class="text-gray-500 text-xs uppercase tracking-wider">Archivo</dt>
+                        <dd class="text-gray-900 mt-0.5">{{ sesion.archivo_nombre or 'Texto directo' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500 text-xs uppercase tracking-wider">Creado</dt>
+                        <dd class="text-gray-900 mt-0.5">{{ sesion.created_at.strftime('%d/%m/%Y %H:%M') }}</dd>
+                    </div>
+                    {% if sesion.case %}
+                    <div>
+                        <dt class="text-gray-500 text-xs uppercase tracking-wider">Caso asociado</dt>
+                        <dd class="mt-0.5"><a href="{{ url_for('caso_detalle', caso_id=sesion.case.id) }}" class="text-blue-600 hover:underline">{{ sesion.case.titulo }}</a></dd>
+                    </div>
+                    {% endif %}
+                    {% if sesion.estilo_usado %}
+                    <div>
+                        <dt class="text-gray-500 text-xs uppercase tracking-wider">Ultimo estilo</dt>
+                        <dd class="text-gray-900 mt-0.5">{{ sesion.estilo_usado }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+            
+            <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+                <h4 class="font-medium text-gray-900 mb-3 text-sm flex items-center gap-2">
+                    <i class="fas fa-lightbulb text-amber-500"></i>
+                    Sugerencias
+                </h4>
+                <ul class="space-y-2 text-xs text-gray-600">
+                    <li class="flex items-start gap-2">
+                        <i class="fas fa-chevron-right text-amber-400 mt-0.5 text-[10px]"></i>
+                        Refuerza los fundamentos de derecho
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i class="fas fa-chevron-right text-amber-400 mt-0.5 text-[10px]"></i>
+                        Mejora la claridad del petitorio
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i class="fas fa-chevron-right text-amber-400 mt-0.5 text-[10px]"></i>
+                        Agrega citas jurisprudenciales
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i class="fas fa-chevron-right text-amber-400 mt-0.5 text-[10px]"></i>
+                        Corrige posibles contradicciones
+                    </li>
+                </ul>
             </div>
         </div>
         
-        <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-200">
-            <h4 class="font-semibold text-gray-900 mb-2 text-sm">
-                <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>Sugerencias
-            </h4>
-            <ul class="space-y-1 text-xs text-gray-600">
-                <li>• "Refuerza los fundamentos de derecho"</li>
-                <li>• "Mejora la claridad del petitorio"</li>
-                <li>• "Agrega citas jurisprudenciales"</li>
-                <li>• "Corrige posibles contradicciones"</li>
-                <li>• "Hazlo mas formal y tecnico"</li>
-            </ul>
+        <div class="p-4 border-t border-gray-200 bg-white">
+            <form action="{{ url_for('argumentacion_eliminar', session_id=sesion.id) }}" method="POST">
+                <button type="submit" onclick="return confirm('¿Eliminar esta sesion?')"
+                        class="w-full bg-red-50 hover:bg-red-100 text-red-600 font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                    <i class="fas fa-trash mr-2"></i>Eliminar
+                </button>
+            </form>
         </div>
-        
-        <form action="{{ url_for('argumentacion_eliminar', session_id=sesion.id) }}" method="POST">
-            <button type="submit" onclick="return confirm('¿Eliminar esta sesion?')"
-                    class="w-full bg-red-50 hover:bg-red-100 text-red-600 font-medium py-2 px-4 rounded-lg transition-colors text-sm">
-                <i class="fas fa-trash mr-2"></i>Eliminar Sesion
-            </button>
-        </form>
     </div>
 </div>
 
@@ -162,16 +201,59 @@ document.addEventListener('DOMContentLoaded', function() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 });
 
+let documentoExpandido = false;
+
+function toggleDocumento() {
+    const preview = document.getElementById('documento-preview');
+    const completo = document.getElementById('documento-completo');
+    const toggleText = document.getElementById('toggle-text');
+    
+    documentoExpandido = !documentoExpandido;
+    
+    if (documentoExpandido) {
+        preview.classList.add('hidden');
+        completo.classList.remove('hidden');
+        toggleText.textContent = 'Ver menos';
+    } else {
+        preview.classList.remove('hidden');
+        completo.classList.add('hidden');
+        toggleText.textContent = 'Ver completo';
+    }
+}
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('hidden');
+    sidebar.classList.toggle('flex');
+}
+
 function copiarTexto() {
     fetch('{{ url_for("argumentacion_copiar_texto", session_id=sesion.id) }}')
         .then(response => response.json())
         .then(data => {
             if (data.texto) {
                 navigator.clipboard.writeText(data.texto).then(() => {
-                    alert('Texto copiado al portapapeles');
+                    showToast('Texto copiado al portapapeles');
                 });
             }
         });
+}
+
+function copiarMensaje(mensajeId) {
+    const mensaje = document.getElementById('mensaje-' + mensajeId);
+    if (mensaje) {
+        navigator.clipboard.writeText(mensaje.textContent).then(() => {
+            showToast('Mensaje copiado');
+        });
+    }
+}
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
 }
 </script>
 {% endblock %}
