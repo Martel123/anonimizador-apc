@@ -173,6 +173,31 @@ Sistema web Flask multi-tenant (SaaS) para generar documentos jurídicos. Múlti
 3. Navega la plataforma como si fuera ese estudio
 4. Puede salir con "Salir Vista" en la navegación
 
+## Módulo de Argumentación
+
+### Descripción
+Sistema de mejora de documentos legales con IA, procesamiento asíncrono y formato profesional.
+
+### Modelos
+- **ArgumentationSession**: Sesión con documento original, versiones mejoradas, contador de interacciones
+- **ArgumentationJob**: Jobs de procesamiento con estados (queued/processing/done/failed), secciones objetivo, métricas de tiempo
+
+### Rutas
+- `/argumentacion` - Vista principal con listado de sesiones del usuario
+- `/argumentacion/nueva` - Iniciar nueva sesión de argumentación
+- `/argumentacion/sesion/<id>` - Chat-like interface para mejorar documento
+- `/argumentacion/start` (POST) - Crear job de procesamiento asíncrono
+- `/argumentacion/jobs/<id>` (GET) - Polling de estado del job
+- `/argumentacion/descargar/<id>` - Descarga documento con formato del estudio
+- `/argumentacion/historial` - Historial de sesiones del usuario
+
+### Características
+- **Procesamiento asíncrono**: Worker de fondo con threading para evitar timeouts
+- **Secciones específicas**: Mejorar solo Hechos, Fundamentos o Petitorio
+- **Detección de intención**: Distingue preguntas (explicación) de modificaciones (reescritura)
+- **Formato profesional**: Documentos descargados incluyen logo, encabezado y estilos del tenant
+- **Seguridad multi-tenant**: Filtrado por user_id y tenant_id en todas las consultas
+
 ## Generación de Documentos
 
 ### Encabezado del Documento
