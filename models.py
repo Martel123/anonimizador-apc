@@ -1181,3 +1181,79 @@ class ArgumentationMessage(db.Model):
         'user': 'Usuario',
         'assistant': 'Asistente IA'
     }
+
+
+class ArgumentationJob(db.Model):
+    """Job asíncrono para procesamiento de argumentación."""
+    __tablename__ = 'argumentation_jobs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('argumentation_sessions.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    
+    section = db.Column(db.String(50), default='full')
+    job_type = db.Column(db.String(20), default='rewrite')
+    instructions = db.Column(db.Text)
+    estilo = db.Column(db.String(100))
+    
+    status = db.Column(db.String(20), default='queued')
+    result_text = db.Column(db.Text)
+    error_message = db.Column(db.Text)
+    
+    extraction_ms = db.Column(db.Integer)
+    ia_ms = db.Column(db.Integer)
+    docx_render_ms = db.Column(db.Integer)
+    total_ms = db.Column(db.Integer)
+    
+    result_file = db.Column(db.String(500))
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    
+    session = db.relationship('ArgumentationSession', backref=db.backref('jobs', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('argumentation_jobs', lazy='dynamic'))
+    tenant = db.relationship('Tenant', backref=db.backref('argumentation_jobs', lazy='dynamic'))
+    
+    STATUSES = {
+        'queued': 'En cola',
+        'processing': 'Procesando',
+        'done': 'Completado',
+        'failed': 'Error'
+    }
+    
+    SECTIONS = {
+        'full': 'Documento completo',
+        'fundamentos': 'Fundamentos de Derecho',
+        'petitorio': 'Petitorio',
+        'hechos': 'Hechos'
+    }
+    
+    JOB_TYPES = {
+        'rewrite': 'Reescritura',
+        'explanation': 'Explicación'
+    }
+    
+    def get_status_display(self):
+        return self.STATUSES.get(self.status, self.status)
+    
+    def get_section_display(self):
+        return self.SECTIONS.get(self.section, self.section)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'section': self.section,
+            'section_display': self.get_section_display(),
+            'job_type': self.job_type,
+            'status': self.status,
+            'status_display': self.get_status_display(),
+            'result_text': self.result_text,
+            'error_message': self.error_message,
+            'ia_ms': self.ia_ms,
+            'total_ms': self.total_ms,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
+        }

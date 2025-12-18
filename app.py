@@ -16,8 +16,12 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob
 import qrcode
+import threading
+import queue
+import re
+import time
 from io import BytesIO
 import base64
 import uuid
@@ -63,6 +67,295 @@ CARPETA_PLANTILLAS_SUBIDAS = "plantillas_subidas"
 CARPETA_ESTILOS_SUBIDOS = "estilos_subidos"
 CARPETA_IMAGENES_MODELOS = "static/imagenes_modelos"
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+
+argumentation_job_queue = queue.Queue()
+argumentation_worker_started = False
+
+
+def detect_document_sections(texto):
+    """Detecta secciones del documento legal usando patrones regex mejorados."""
+    secciones = {
+        'hechos': {'inicio': None, 'fin': None, 'texto': None},
+        'fundamentos': {'inicio': None, 'fin': None, 'texto': None},
+        'petitorio': {'inicio': None, 'fin': None, 'texto': None}
+    }
+    
+    patrones = {
+        'hechos': [
+            r'(?i)(I+\.?\s*)?(DE\s+LOS\s+)?HECHOS\s*:?',
+            r'(?i)PRIMERO\s*[:.\-]',
+            r'(?i)ANTECEDENTES\s*:?',
+            r'(?i)EXPOSICI[OÓ]N\s+DE\s+(LOS\s+)?HECHOS',
+            r'(?i)RELACI[OÓ]N\s+DE\s+(LOS\s+)?HECHOS',
+            r'(?i)NARRACI[OÓ]N\s+DE\s+(LOS\s+)?HECHOS'
+        ],
+        'fundamentos': [
+            r'(?i)(I+\.?\s*)?FUNDAMENTOS?\s+(DE\s+)?(DERECHO|JUR[IÍ]DICO|HECHO\s+Y\s+DERECHO)',
+            r'(?i)FUNDAMENTACI[OÓ]N\s+JUR[IÍ]DICA',
+            r'(?i)BASE\s+LEGAL',
+            r'(?i)MARCO\s+(LEGAL|JUR[IÍ]DICO|NORMATIVO)',
+            r'(?i)CONSIDERACIONES\s+(DE\s+)?DERECHO',
+            r'(?i)AMPARO\s+LEGAL'
+        ],
+        'petitorio': [
+            r'(?i)PETITORIO\s*:?',
+            r'(?i)POR\s+(LO\s+)?TANTO\s*:?',
+            r'(?i)POR\s+ESTAS?\s+CONSIDERACIONES?\s*:?',
+            r'(?i)SOLICITO\s*:?',
+            r'(?i)SE\s+SIRVA\s*:?',
+            r'(?i)PEDIMENTO\s*:?',
+            r'(?i)CONCLUSI[OÓ]N\s*:?'
+        ]
+    }
+    
+    lineas = texto.split('\n')
+    posiciones = []
+    
+    for seccion, patrones_sec in patrones.items():
+        for i, linea in enumerate(lineas):
+            linea_norm = linea.strip()
+            if len(linea_norm) > 200:
+                continue
+            for patron in patrones_sec:
+                if re.search(patron, linea_norm):
+                    posiciones.append((seccion, i))
+                    break
+            else:
+                continue
+            break
+    
+    posiciones.sort(key=lambda x: x[1])
+    
+    for idx, (seccion, inicio) in enumerate(posiciones):
+        fin = posiciones[idx + 1][1] if idx + 1 < len(posiciones) else len(lineas)
+        secciones[seccion]['inicio'] = inicio
+        secciones[seccion]['fin'] = fin
+        secciones[seccion]['texto'] = '\n'.join(lineas[inicio:fin])
+    
+    return secciones
+
+
+def detect_intent(instrucciones):
+    """Detecta si el usuario hace una pregunta o pide una modificación."""
+    instrucciones_lower = instrucciones.lower()
+    
+    preguntas_keywords = [
+        'explica', 'explicame', 'por qué', 'por que', 'qué pasa si', 'que pasa si',
+        'cómo puedo', 'como puedo', 'ayúdame a entender', 'ayudame a entender',
+        'qué argumento', 'que argumento', 'está bien', 'esta bien', 'es correcto',
+        'qué opinas', 'que opinas', 'crees que', '?', 'debería', 'deberia',
+        'puedo agregar', 'puedo añadir', 'sugieres', 'recomiendas'
+    ]
+    
+    modificacion_keywords = [
+        'añade', 'anade', 'agrega', 'elimina', 'quita', 'borra',
+        'reescribe', 'modifica', 'cambia', 'mejora', 'refuerza',
+        'amplía', 'amplia', 'reduce', 'resume', 'desarrolla',
+        'incluye', 'incorpora', 'expande', 'reestructura'
+    ]
+    
+    score_pregunta = sum(1 for kw in preguntas_keywords if kw in instrucciones_lower)
+    score_modificacion = sum(1 for kw in modificacion_keywords if kw in instrucciones_lower)
+    
+    if score_pregunta > score_modificacion:
+        return 'explanation'
+    return 'rewrite'
+
+
+def extract_section_text(texto_completo, section):
+    """Extrae solo la sección solicitada del documento."""
+    if section == 'full':
+        return texto_completo
+    
+    secciones = detect_document_sections(texto_completo)
+    
+    if secciones.get(section, {}).get('texto'):
+        return secciones[section]['texto']
+    
+    return texto_completo
+
+
+def merge_section_result(texto_original, section, texto_mejorado):
+    """Reinserta la sección mejorada en el documento original.
+    Si no se detecta la sección, devuelve el documento completo mejorado (texto_mejorado)
+    pero SOLO si es claramente un documento completo, sino conserva el original."""
+    if section == 'full':
+        return texto_mejorado
+    
+    secciones = detect_document_sections(texto_original)
+    
+    if not secciones.get(section, {}).get('inicio'):
+        len_original = len(texto_original.strip())
+        len_mejorado = len(texto_mejorado.strip())
+        
+        if len_mejorado > len_original * 0.7:
+            return texto_mejorado
+        else:
+            logging.warning(f"Section '{section}' not found in document, returning improved text")
+            return texto_mejorado
+    
+    lineas = texto_original.split('\n')
+    inicio = secciones[section]['inicio']
+    fin = secciones[section]['fin']
+    
+    resultado = lineas[:inicio] + texto_mejorado.split('\n') + lineas[fin:]
+    return '\n'.join(resultado)
+
+
+def process_argumentation_job(job_id):
+    """Procesa un job de argumentación en segundo plano."""
+    with app.app_context():
+        job = ArgumentationJob.query.get(job_id)
+        if not job or job.status != 'queued':
+            return
+        
+        start_time = time.time()
+        
+        try:
+            job.status = 'processing'
+            job.started_at = datetime.utcnow()
+            db.session.commit()
+            
+            sesion = ArgumentationSession.query.get(job.session_id)
+            if not sesion:
+                job.status = 'failed'
+                job.error_message = 'Sesión no encontrada'
+                job.completed_at = datetime.utcnow()
+                db.session.commit()
+                return
+            
+            documento_actual = sesion.ultima_version_mejorada or sesion.documento_original
+            
+            extraction_start = time.time()
+            texto_a_procesar = extract_section_text(documento_actual, job.section)
+            job.extraction_ms = int((time.time() - extraction_start) * 1000)
+            
+            estilo_instrucciones = ""
+            for e in UserArgumentationStyle.ESTILOS_PREDEFINIDOS:
+                if e['nombre'] == job.estilo:
+                    estilo_instrucciones = e['instrucciones']
+                    break
+            
+            if not estilo_instrucciones:
+                estilo_custom = UserArgumentationStyle.query.filter_by(
+                    user_id=job.user_id,
+                    nombre=job.estilo,
+                    activo=True
+                ).first()
+                if estilo_custom:
+                    estilo_instrucciones = estilo_custom.instrucciones
+            
+            ia_start = time.time()
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=120.0)
+            
+            if job.job_type == 'explanation':
+                system_prompt = f"""Eres un asistente juridico experto. El usuario te hace una consulta sobre un documento legal.
+Responde de forma clara, concisa y profesional. No reescribas el documento completo, solo responde la pregunta.
+Cita articulos o jurisprudencia relevante si aplica.
+Estilo de comunicacion: {job.estilo}
+{estilo_instrucciones}"""
+                user_content = f"Documento de referencia:\n{texto_a_procesar[:15000]}\n\nPregunta del usuario:\n{job.instructions}"
+            else:
+                section_name = ArgumentationJob.SECTIONS.get(job.section, job.section)
+                system_prompt = f"""Actua como un asistente juridico especializado en redaccion y argumentacion.
+
+Tu tarea es modificar directamente el texto del documento juridico, aplicando EXACTAMENTE las instrucciones del usuario.
+
+SECCION A TRABAJAR: {section_name}
+
+REGLAS ESTRICTAS:
+1. Manten intactos todos los datos facticos (nombres, DNIs, fechas, montos, direcciones)
+2. Si encuentras incoherencias factuales, solo senala el error; no inventes datos nuevos
+3. Puedes anadir parrafos completos si el usuario lo pide
+4. Puedes eliminar fragmentos si el usuario lo pide
+5. Puedes reorganizar la logica argumentativa si ayuda a la claridad
+6. Respeta la estructura de la seccion
+7. No inventes hechos ni articulos falsos
+8. Aplica el estilo solicitado: {job.estilo}
+9. {estilo_instrucciones}
+
+INSTRUCCIONES DEL USUARIO:
+{job.instructions}
+
+Devuelve SOLO la seccion modificada, sin comentarios meta, lista para usar."""
+                user_content = f"Texto a mejorar:\n\n{texto_a_procesar[:18000]}"
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.4,
+                max_tokens=6000
+            )
+            
+            resultado = response.choices[0].message.content
+            job.ia_ms = int((time.time() - ia_start) * 1000)
+            
+            if job.job_type == 'rewrite' and job.section != 'full':
+                resultado_final = merge_section_result(documento_actual, job.section, resultado)
+            else:
+                resultado_final = resultado
+            
+            job.result_text = resultado_final
+            
+            mensaje_usuario = ArgumentationMessage(
+                session_id=sesion.id,
+                role="user",
+                content=job.instructions,
+                estilo_aplicado=job.estilo
+            )
+            db.session.add(mensaje_usuario)
+            
+            mensaje_ia = ArgumentationMessage(
+                session_id=sesion.id,
+                role="assistant",
+                content=resultado_final,
+                estilo_aplicado=job.estilo
+            )
+            db.session.add(mensaje_ia)
+            
+            if job.job_type == 'rewrite':
+                sesion.ultima_version_mejorada = resultado_final
+                sesion.estilo_usado = job.estilo
+                sesion.updated_at = datetime.utcnow()
+            
+            job.status = 'done'
+            job.completed_at = datetime.utcnow()
+            job.total_ms = int((time.time() - start_time) * 1000)
+            db.session.commit()
+            
+        except Exception as e:
+            logging.error(f"Error processing argumentation job {job_id}: {e}")
+            job.status = 'failed'
+            job.error_message = str(e)[:500]
+            job.completed_at = datetime.utcnow()
+            job.total_ms = int((time.time() - start_time) * 1000)
+            db.session.commit()
+
+
+def argumentation_worker():
+    """Worker que procesa jobs de argumentación en segundo plano."""
+    while True:
+        try:
+            job_id = argumentation_job_queue.get(timeout=5)
+            if job_id:
+                process_argumentation_job(job_id)
+        except queue.Empty:
+            continue
+        except Exception as e:
+            logging.error(f"Error in argumentation worker: {e}")
+
+
+def start_argumentation_worker():
+    """Inicia el worker de argumentación si no está corriendo."""
+    global argumentation_worker_started
+    if not argumentation_worker_started:
+        worker_thread = threading.Thread(target=argumentation_worker, daemon=True)
+        worker_thread.start()
+        argumentation_worker_started = True
+        logging.info("Argumentation worker started")
 
 
 def get_resend_credentials():
@@ -6172,6 +6465,85 @@ Devuelve SIEMPRE el documento modificado completo, listo para copiar, sin coment
     return redirect(url_for('argumentacion_sesion', session_id=session_id))
 
 
+@app.route("/argumentacion/start", methods=["POST"])
+@login_required
+def argumentacion_start_job():
+    """Inicia un job asíncrono de argumentación."""
+    start_argumentation_worker()
+    
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"success": False, "error": "No autorizado"}), 403
+    
+    data = request.get_json() or {}
+    session_id = data.get('session_id')
+    instrucciones = data.get('instrucciones', '').strip()
+    estilo = data.get('estilo', 'Formal clásico')
+    section = data.get('section', 'full')
+    
+    if not session_id:
+        return jsonify({"success": False, "error": "Sesión no especificada"}), 400
+    
+    if not instrucciones:
+        return jsonify({"success": False, "error": "Instrucciones requeridas"}), 400
+    
+    sesion = ArgumentationSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if not sesion:
+        return jsonify({"success": False, "error": "Sesión no encontrada"}), 404
+    
+    job_type = detect_intent(instrucciones)
+    
+    job = ArgumentationJob(
+        session_id=sesion.id,
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        section=section,
+        job_type=job_type,
+        instructions=instrucciones,
+        estilo=estilo,
+        status='queued'
+    )
+    db.session.add(job)
+    db.session.commit()
+    
+    argumentation_job_queue.put(job.id)
+    
+    return jsonify({
+        "success": True,
+        "job_id": job.id,
+        "job_type": job_type,
+        "status": "queued"
+    })
+
+
+@app.route("/argumentacion/jobs/<int:job_id>")
+@login_required
+def argumentacion_job_status(job_id):
+    """Consulta el estado de un job de argumentación."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"success": False, "error": "No autorizado"}), 403
+    
+    job = ArgumentationJob.query.filter_by(
+        id=job_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if not job:
+        return jsonify({"success": False, "error": "Job no encontrado"}), 404
+    
+    return jsonify({
+        "success": True,
+        "job": job.to_dict()
+    })
+
+
 @app.route("/argumentacion/descargar/<int:session_id>")
 @login_required
 def argumentacion_descargar(session_id):
@@ -6189,9 +6561,75 @@ def argumentacion_descargar(session_id):
     texto = sesion.ultima_version_mejorada or sesion.documento_original
     
     doc = Document()
+    
+    estilo_doc = EstiloDocumento.query.filter_by(tenant_id=tenant.id).first()
+    font_name = estilo_doc.fuente if estilo_doc else 'Times New Roman'
+    font_size = estilo_doc.tamano_base if estilo_doc else 12
+    line_spacing = estilo_doc.interlineado if estilo_doc else 1.5
+    
+    sections = doc.sections
+    for section in sections:
+        if estilo_doc:
+            section.top_margin = Cm(estilo_doc.margen_superior)
+            section.bottom_margin = Cm(estilo_doc.margen_inferior)
+            section.left_margin = Cm(estilo_doc.margen_izquierdo)
+            section.right_margin = Cm(estilo_doc.margen_derecho)
+        else:
+            section.top_margin = Cm(3.5)
+            section.bottom_margin = Cm(2.5)
+            section.left_margin = Cm(3)
+            section.right_margin = Cm(2.5)
+        
+        logo_path = get_tenant_logo_path(tenant)
+        if logo_path and os.path.exists(logo_path):
+            header = section.header
+            header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = header_para.add_run()
+            try:
+                run.add_picture(logo_path, width=Cm(4))
+            except Exception as e:
+                logging.error(f"Error adding logo to argumentation doc: {e}")
+            
+            info_lines = tenant.get_header_info()
+            for linea in info_lines:
+                info_para = header.add_paragraph()
+                info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                info_run = info_para.add_run(linea)
+                info_run.font.name = font_name
+                info_run.font.size = Pt(9)
+                info_para.paragraph_format.space_after = Pt(0)
+                info_para.paragraph_format.space_before = Pt(0)
+    
+    titulos_principales = ['SUMILLA:', 'PETITORIO:', 'HECHOS:', 'FUNDAMENTOS', 'ANEXOS:', 
+                          'POR TANTO:', 'VÍA PROCEDIMENTAL:', 'CONTRACAUTELA:',
+                          'FUNDAMENTACION JURÍDICA:', 'FUNDAMENTACIÓN JURÍDICA:']
+    titulos_secundarios = ['PRIMERO:', 'SEGUNDO:', 'TERCERO:', 'CUARTO:', 'QUINTO:',
+                          'SEXTO:', 'SÉPTIMO:', 'OCTAVO:', 'NOVENO:', 'DÉCIMO:']
+    
     for parrafo in texto.split('\n'):
-        if parrafo.strip():
-            doc.add_paragraph(parrafo)
+        linea = parrafo.strip()
+        if not linea:
+            continue
+        
+        p = doc.add_paragraph()
+        run = p.add_run(linea)
+        run.font.name = font_name
+        run.font.size = Pt(font_size)
+        
+        es_titulo_principal = any(linea.upper().startswith(t.upper()) for t in titulos_principales)
+        es_titulo_secundario = any(linea.upper().startswith(t.upper()) for t in titulos_secundarios)
+        
+        if es_titulo_principal:
+            run.bold = True
+            p.paragraph_format.space_before = Pt(18)
+            p.paragraph_format.space_after = Pt(6)
+        elif es_titulo_secundario:
+            run.bold = True
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(6)
+        
+        p.paragraph_format.line_spacing = line_spacing
     
     folder = get_argumentacion_folder(tenant.id)
     nombre_archivo = f"argumentacion_{sesion.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"

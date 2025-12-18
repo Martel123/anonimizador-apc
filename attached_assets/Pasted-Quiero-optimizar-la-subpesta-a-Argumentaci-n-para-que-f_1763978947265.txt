@@ -1,0 +1,186 @@
+Quiero optimizar la subpestaña “Argumentación” para que:
+
+funcione lo más rápido posible,
+
+procese solo lo necesario,
+
+permita preguntas del usuario,
+
+y al descargar, el documento salga con el formato del estudio jurídico (plantilla de la empresa).
+
+1) Procesar por secciones (para que sea rápido)
+
+Cuando el usuario usa el Asistente de Argumentación, debe poder elegir QUÉ quiere mejorar:
+
+Solo “Fundamentos de Derecho”
+
+Solo “Petitorio de la Demanda”
+
+Todo el documento (modo completo, que puede tardar más)
+
+En el backend, detecta estas secciones en el documento y envía a la IA solo la parte seleccionada, no todo el texto si no es necesario.
+
+2) Jobs asíncronos para Argumentación (igual que generación de documentos)
+
+Implementa un sistema de jobs para “Argumentación”:
+
+Modelo ArgumentationJob:
+
+id
+
+user_id
+
+document_id (opcional)
+
+section (fundamentos, petitorio, full, etc.)
+
+instructions (texto libre del usuario)
+
+status (queued, processing, done, failed)
+
+result_text
+
+error_message
+
+timestamps + métricas de tiempo (IA, render, etc.)
+
+Endpoint rápido:
+
+POST /argumentacion/start
+
+Recibe: document_id (o texto), section, instrucciones del usuario.
+
+Crea un ArgumentationJob con status = queued.
+
+Devuelve job_id y status en <300ms.
+
+Worker/background:
+
+Toma jobs en queued, los pasa a processing.
+
+Extrae solo la sección seleccionada del documento.
+
+Llama a la IA con:
+
+el texto de la sección
+
+las instrucciones del usuario.
+
+Guarda el resultado en result_text.
+
+Actualiza status = done o failed con error_message.
+
+Endpoint de estado:
+
+GET /argumentacion/jobs/{job_id}
+
+Devuelve status y, si está listo, result_text.
+
+3) UX: loader + polling
+
+Al hacer clic en “Iniciar” en Argumentación:
+
+Llamar a POST /argumentacion/start, guardar job_id.
+
+Mostrar loader: “Mejorando tu argumentación…”
+
+Hacer polling cada 1–2 segundos a GET /argumentacion/jobs/{job_id}.
+
+Cuando status = done, mostrar el texto mejorado en el editor.
+
+4) Comportamiento tipo ChatGPT (preguntas del usuario)
+
+En la misma subpestaña de Argumentación:
+
+Si el usuario escribe preguntas en lugar de pedir cambios directos, la IA debe comportarse como un asistente:
+
+Ejemplos:
+
+“¿Qué argumento podría añadir para reforzar el interés superior del niño?”
+
+“¿Está bien planteado este petitorio?”
+
+En estos casos:
+
+responde en modo explicación, no reescribiendo todo el documento.
+
+Implementa una lógica simple:
+
+Si las instrucciones contienen verbos como “explica”, “qué pasa si”, “por qué”, “ayúdame a entender”, etc. → la IA responde con explicación.
+
+Si las instrucciones contienen verbos como “añade”, “elimina”, “reescribe”, “mejora”, “modifica”, etc. → la IA devuelve el texto modificado.
+
+Mantén el contexto de la sesión para que el usuario pueda:
+
+hacer preguntas,
+
+luego pedir cambios,
+
+y viceversa, en la misma conversación.
+
+5) Descarga con formato del estudio jurídico
+
+Cuando el usuario presione “Descargar”, el archivo generado NO debe ser texto plano.
+
+Debe descargarse en formato de documento de la empresa:
+
+Usar la plantilla del estudio (logo, encabezado, pie de página, estilos de párrafo, fuente, márgenes).
+
+Cada tenant/estudio puede tener su propia plantilla base (por ejemplo, un .docx modelo).
+
+Lógica:
+
+Tomar result_text de la argumentación.
+
+Insertarlo en la sección correspondiente del modelo de documento del estudio (plantilla del tenant).
+
+Exportar como .docx listo para uso profesional.
+
+Si el documento original ya estaba basado en una plantilla del estudio:
+
+intenta mantener el formato original lo más posible (estilos, numeración, etc.).
+
+6) Optimizar para que el trabajo tome el menor tiempo posible
+
+Minimizar tamaño de contexto:
+
+no enviar a la IA el documento completo si solo se trabaja una sección.
+
+evitar repetir el prompt completo en cada turno si puede manejarse contexto más corto.
+
+Reutilizar:
+
+texto ya extraído del .docx o .pdf (no volver a parsear si no es necesario).
+
+No hacer tareas pesadas en el thread del servidor web:
+
+solo en el worker de jobs.
+
+Registrar tiempos:
+
+ia_ms
+
+extraction_ms
+
+docx_render_ms
+para poder medir y luego optimizar.
+
+7) Requisitos de seguridad
+
+Mantener la privacidad por usuario (cada uno ve solo sus sesiones).
+
+Respetar el modelo multi-tenant.
+
+No permitir que un usuario descargue documentos formateados con la plantilla de otro estudio.
+
+8) Antes de implementar
+
+Explica primero:
+
+qué stack backend detectas (Flask/FastAPI/otro),
+
+cómo vas a reutilizar o crear infraestructura de jobs (worker/background),
+
+cómo vas a inyectar la plantilla de la empresa en el .docx final.
+
+Luego implementa la solución respetando todo lo anterior.

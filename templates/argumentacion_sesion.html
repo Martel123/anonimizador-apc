@@ -94,13 +94,33 @@
             </div>
         </div>
         
+        <div id="loading-overlay" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div class="bg-white rounded-2xl p-6 shadow-2xl max-w-sm mx-4 text-center">
+                <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                <h3 class="font-semibold text-gray-900 mb-1" id="loading-title">Mejorando argumentacion...</h3>
+                <p class="text-sm text-gray-500" id="loading-subtitle">Esto puede tardar unos segundos</p>
+                <div class="mt-4 flex items-center justify-center gap-2 text-xs text-gray-400">
+                    <span id="loading-status">Procesando</span>
+                    <span id="loading-time">0s</span>
+                </div>
+            </div>
+        </div>
+        
         <div class="border-t border-gray-200 bg-white p-4">
-            <form action="{{ url_for('argumentacion_mejorar', session_id=sesion.id) }}" method="POST" class="max-w-4xl mx-auto">
+            <form id="mejorar-form" class="max-w-4xl mx-auto">
                 <div class="flex items-end gap-3">
                     <div class="flex-1 bg-gray-100 rounded-2xl p-3">
-                        <div class="flex items-center gap-2 mb-2">
+                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                            <label class="text-xs text-gray-500">Seccion:</label>
+                            <select id="section-select" class="text-xs border-0 bg-white rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500 text-gray-700 font-medium shadow-sm">
+                                <option value="full">Documento completo</option>
+                                <option value="fundamentos">Fundamentos de Derecho</option>
+                                <option value="petitorio">Petitorio</option>
+                                <option value="hechos">Hechos</option>
+                            </select>
+                            <span class="text-gray-300">|</span>
                             <label class="text-xs text-gray-500">Estilo:</label>
-                            <select name="estilo" class="text-xs border-0 bg-transparent focus:ring-0 text-gray-700 font-medium p-0 pr-6">
+                            <select id="estilo-select" class="text-xs border-0 bg-white rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500 text-gray-700 font-medium shadow-sm">
                                 <optgroup label="Predefinidos">
                                     {% for estilo in estilos_predefinidos %}
                                     <option value="{{ estilo.nombre }}">{{ estilo.nombre }}</option>
@@ -115,12 +135,12 @@
                                 {% endif %}
                             </select>
                         </div>
-                        <input type="text" name="instrucciones" required
+                        <input type="text" id="instrucciones-input" required
                                class="w-full bg-transparent border-0 focus:ring-0 text-gray-900 placeholder-gray-400"
-                               placeholder="Describe que mejoras quieres hacer al documento...">
+                               placeholder="Escribe instrucciones o haz una pregunta sobre el documento...">
                     </div>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-colors shadow-lg shadow-blue-500/25">
-                        <i class="fas fa-paper-plane"></i>
+                    <button type="submit" id="submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-colors shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-paper-plane" id="submit-icon"></i>
                     </button>
                 </div>
             </form>
@@ -196,10 +216,129 @@
 </div>
 
 <script>
+const SESSION_ID = {{ sesion.id }};
+let currentJobId = null;
+let pollInterval = null;
+let startTime = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     const chatContainer = document.getElementById('chat-container');
     chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    document.getElementById('mejorar-form').addEventListener('submit', handleSubmit);
 });
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    
+    const instrucciones = document.getElementById('instrucciones-input').value.trim();
+    const section = document.getElementById('section-select').value;
+    const estilo = document.getElementById('estilo-select').value;
+    
+    if (!instrucciones) return;
+    
+    showLoading();
+    disableForm();
+    
+    try {
+        const response = await fetch('/argumentacion/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: SESSION_ID,
+                instrucciones: instrucciones,
+                section: section,
+                estilo: estilo
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentJobId = data.job_id;
+            updateLoadingTitle(data.job_type);
+            startPolling();
+        } else {
+            hideLoading();
+            enableForm();
+            showToast(data.error || 'Error al iniciar la mejora', 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        enableForm();
+        showToast('Error de conexion', 'error');
+    }
+}
+
+function startPolling() {
+    startTime = Date.now();
+    pollInterval = setInterval(checkJobStatus, 1500);
+}
+
+async function checkJobStatus() {
+    if (!currentJobId) return;
+    
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('loading-time').textContent = elapsed + 's';
+    
+    try {
+        const response = await fetch(`/argumentacion/jobs/${currentJobId}`);
+        const data = await response.json();
+        
+        if (data.success && data.job) {
+            document.getElementById('loading-status').textContent = data.job.status_display;
+            
+            if (data.job.status === 'done' || data.job.status === 'failed') {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                
+                if (data.job.status === 'done') {
+                    window.location.reload();
+                } else {
+                    hideLoading();
+                    enableForm();
+                    showToast(data.job.error_message || 'Error al procesar', 'error');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error polling job status:', error);
+    }
+}
+
+function updateLoadingTitle(jobType) {
+    const title = document.getElementById('loading-title');
+    const subtitle = document.getElementById('loading-subtitle');
+    
+    if (jobType === 'explanation') {
+        title.textContent = 'Analizando tu consulta...';
+        subtitle.textContent = 'Preparando una respuesta detallada';
+    } else {
+        title.textContent = 'Mejorando argumentacion...';
+        subtitle.textContent = 'Aplicando tus instrucciones al documento';
+    }
+}
+
+function showLoading() {
+    document.getElementById('loading-overlay').classList.remove('hidden');
+    document.getElementById('loading-time').textContent = '0s';
+    document.getElementById('loading-status').textContent = 'Iniciando';
+}
+
+function hideLoading() {
+    document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+function disableForm() {
+    document.getElementById('submit-btn').disabled = true;
+    document.getElementById('instrucciones-input').disabled = true;
+}
+
+function enableForm() {
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('instrucciones-input').disabled = false;
+    document.getElementById('instrucciones-input').value = '';
+}
 
 let documentoExpandido = false;
 
@@ -248,12 +387,13 @@ function copiarMensaje(mensajeId) {
     }
 }
 
-function showToast(message) {
+function showToast(message, type = 'success') {
+    const bgColor = type === 'error' ? 'bg-red-600' : 'bg-gray-900';
     const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50';
+    toast.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2000);
+    setTimeout(() => toast.remove(), 3000);
 }
 </script>
 {% endblock %}
