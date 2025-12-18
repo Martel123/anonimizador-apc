@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage
 import qrcode
 from io import BytesIO
 import base64
@@ -5917,12 +5917,409 @@ def api_send_task_reminders():
         return jsonify({"error": str(e)}), 500
 
 
+CARPETA_ARGUMENTACION = "argumentaciones"
+
+def get_argumentacion_folder(tenant_id):
+    folder = os.path.join(CARPETA_ARGUMENTACION, f"tenant_{tenant_id}")
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+@app.route("/argumentacion")
+@login_required
+def argumentacion():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    sesiones = ArgumentationSession.query.filter_by(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        activo=True
+    ).order_by(ArgumentationSession.updated_at.desc()).limit(10).all()
+    
+    estilos_personalizados = UserArgumentationStyle.query.filter_by(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        activo=True
+    ).all()
+    
+    estilos_predefinidos = UserArgumentationStyle.ESTILOS_PREDEFINIDOS
+    
+    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
+    
+    return render_template("argumentacion.html",
+                          sesiones=sesiones,
+                          estilos_personalizados=estilos_personalizados,
+                          estilos_predefinidos=estilos_predefinidos,
+                          casos=casos)
+
+
+@app.route("/argumentacion/sesion/<int:session_id>")
+@login_required
+def argumentacion_sesion(session_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    sesion = ArgumentationSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first_or_404()
+    
+    mensajes = sesion.messages.order_by(ArgumentationMessage.created_at.asc()).all()
+    
+    estilos_personalizados = UserArgumentationStyle.query.filter_by(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        activo=True
+    ).all()
+    
+    estilos_predefinidos = UserArgumentationStyle.ESTILOS_PREDEFINIDOS
+    
+    return render_template("argumentacion_sesion.html",
+                          sesion=sesion,
+                          mensajes=mensajes,
+                          estilos_personalizados=estilos_personalizados,
+                          estilos_predefinidos=estilos_predefinidos)
+
+
+@app.route("/argumentacion/nueva", methods=["POST"])
+@login_required
+def argumentacion_nueva():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    texto_documento = None
+    archivo_nombre = None
+    archivo_tipo = None
+    case_id = request.form.get("case_id", type=int)
+    
+    archivo = request.files.get("archivo")
+    if archivo and archivo.filename:
+        filename = secure_filename(archivo.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        
+        if ext not in ['.docx', '.doc', '.txt', '.pdf']:
+            flash("Formato no soportado. Use archivos .docx, .txt o .pdf", "error")
+            return redirect(url_for('argumentacion'))
+        
+        archivo_nombre = filename
+        archivo_tipo = ext
+        
+        if ext == '.docx' or ext == '.doc':
+            try:
+                archivo.seek(0)
+                doc = Document(archivo)
+                texto_documento = "\n".join([p.text for p in doc.paragraphs])
+            except Exception as e:
+                logging.error(f"Error leyendo docx: {e}")
+                flash("Error al leer el archivo Word.", "error")
+                return redirect(url_for('argumentacion'))
+        elif ext == '.txt':
+            archivo.seek(0)
+            texto_documento = archivo.read().decode('utf-8')
+        elif ext == '.pdf':
+            try:
+                from PyPDF2 import PdfReader
+                archivo.seek(0)
+                reader = PdfReader(archivo)
+                texto_documento = "\n".join([page.extract_text() or "" for page in reader.pages])
+            except Exception as e:
+                logging.error(f"Error leyendo PDF: {e}")
+                flash("Error al leer el archivo PDF.", "error")
+                return redirect(url_for('argumentacion'))
+    
+    texto_directo = request.form.get("texto_documento", "").strip()
+    if not texto_documento and texto_directo:
+        texto_documento = texto_directo
+        archivo_nombre = "Texto directo"
+        archivo_tipo = "text"
+    
+    if not texto_documento:
+        flash("No se proporcionó ningún documento.", "error")
+        return redirect(url_for('argumentacion'))
+    
+    titulo = archivo_nombre or f"Sesión {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    
+    sesion = ArgumentationSession(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        case_id=case_id if case_id else None,
+        titulo=titulo,
+        documento_original=texto_documento,
+        archivo_nombre=archivo_nombre,
+        archivo_tipo=archivo_tipo
+    )
+    db.session.add(sesion)
+    db.session.commit()
+    
+    flash("Documento cargado correctamente.", "success")
+    return redirect(url_for('argumentacion_sesion', session_id=sesion.id))
+
+
+@app.route("/argumentacion/mejorar/<int:session_id>", methods=["POST"])
+@login_required
+def argumentacion_mejorar(session_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    sesion = ArgumentationSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if not sesion:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+    
+    instrucciones = request.form.get("instrucciones", "").strip()
+    estilo = request.form.get("estilo", "Formal clásico")
+    
+    if not instrucciones:
+        flash("Por favor, indica qué tipo de mejora deseas.", "error")
+        return redirect(url_for('argumentacion_sesion', session_id=session_id))
+    
+    mensaje_usuario = ArgumentationMessage(
+        session_id=sesion.id,
+        role="user",
+        content=instrucciones,
+        estilo_aplicado=estilo
+    )
+    db.session.add(mensaje_usuario)
+    
+    documento_actual = sesion.ultima_version_mejorada or sesion.documento_original
+    
+    estilo_instrucciones = ""
+    for e in UserArgumentationStyle.ESTILOS_PREDEFINIDOS:
+        if e['nombre'] == estilo:
+            estilo_instrucciones = e['instrucciones']
+            break
+    
+    if not estilo_instrucciones:
+        estilo_custom = UserArgumentationStyle.query.filter_by(
+            user_id=current_user.id,
+            nombre=estilo,
+            activo=True
+        ).first()
+        if estilo_custom:
+            estilo_instrucciones = estilo_custom.instrucciones
+    
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        system_prompt = f"""Eres un experto en argumentación jurídica peruana. Tu tarea es mejorar la argumentación de documentos legales.
+
+REGLAS ESTRICTAS:
+1. NO modifiques datos fácticos (nombres, fechas, montos, DNIs, direcciones, números de expediente)
+2. Respeta la estructura jurídica del documento (Hechos, Fundamentos de Derecho, Petitorio, etc.)
+3. Mejora únicamente la argumentación jurídica, claridad lógica y estilo
+4. Elimina contradicciones y refuerza la coherencia
+5. Aplica el estilo solicitado: {estilo}
+6. {estilo_instrucciones}
+
+INSTRUCCIONES DEL USUARIO:
+{instrucciones}
+
+Devuelve el documento mejorado manteniendo su formato y estructura. Si el usuario pide mejoras específicas de alguna sección, enfócate en esa parte."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Documento a mejorar:\n\n{documento_actual[:20000]}"}
+            ],
+            temperature=0.4,
+            max_tokens=8000
+        )
+        
+        resultado = response.choices[0].message.content
+        
+        mensaje_ia = ArgumentationMessage(
+            session_id=sesion.id,
+            role="assistant",
+            content=resultado,
+            estilo_aplicado=estilo
+        )
+        db.session.add(mensaje_ia)
+        
+        sesion.ultima_version_mejorada = resultado
+        sesion.estilo_usado = estilo
+        sesion.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        flash("Argumentación mejorada correctamente.", "success")
+        
+    except Exception as e:
+        logging.error(f"Error mejorando argumentación: {e}")
+        flash("Error al procesar la mejora. Intenta nuevamente.", "error")
+    
+    return redirect(url_for('argumentacion_sesion', session_id=session_id))
+
+
+@app.route("/argumentacion/descargar/<int:session_id>")
+@login_required
+def argumentacion_descargar(session_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No autorizado", "error")
+        return redirect(url_for('argumentacion'))
+    
+    sesion = ArgumentationSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first_or_404()
+    
+    texto = sesion.ultima_version_mejorada or sesion.documento_original
+    
+    doc = Document()
+    for parrafo in texto.split('\n'):
+        if parrafo.strip():
+            doc.add_paragraph(parrafo)
+    
+    folder = get_argumentacion_folder(tenant.id)
+    nombre_archivo = f"argumentacion_{sesion.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+    ruta = os.path.join(folder, nombre_archivo)
+    doc.save(ruta)
+    
+    return send_file(ruta, as_attachment=True, download_name=nombre_archivo)
+
+
+@app.route("/argumentacion/copiar/<int:session_id>")
+@login_required
+def argumentacion_copiar_texto(session_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    sesion = ArgumentationSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if not sesion:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+    
+    texto = sesion.ultima_version_mejorada or sesion.documento_original
+    return jsonify({"texto": texto})
+
+
+@app.route("/argumentacion/estilo/nuevo", methods=["POST"])
+@login_required
+def argumentacion_estilo_nuevo():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No autorizado", "error")
+        return redirect(url_for('argumentacion'))
+    
+    nombre = request.form.get("nombre", "").strip()
+    descripcion = request.form.get("descripcion", "").strip()
+    instrucciones = request.form.get("instrucciones", "").strip()
+    
+    if not nombre or not instrucciones:
+        flash("Nombre e instrucciones son requeridos.", "error")
+        return redirect(url_for('argumentacion'))
+    
+    existe = UserArgumentationStyle.query.filter_by(
+        user_id=current_user.id,
+        nombre=nombre,
+        activo=True
+    ).first()
+    
+    if existe:
+        flash("Ya tienes un estilo con ese nombre.", "error")
+        return redirect(url_for('argumentacion'))
+    
+    estilo = UserArgumentationStyle(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        nombre=nombre,
+        descripcion=descripcion,
+        instrucciones=instrucciones
+    )
+    db.session.add(estilo)
+    db.session.commit()
+    
+    flash("Estilo guardado correctamente.", "success")
+    return redirect(url_for('argumentacion'))
+
+
+@app.route("/argumentacion/estilo/eliminar/<int:estilo_id>", methods=["POST"])
+@login_required
+def argumentacion_estilo_eliminar(estilo_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No autorizado", "error")
+        return redirect(url_for('argumentacion'))
+    
+    estilo = UserArgumentationStyle.query.filter_by(
+        id=estilo_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if estilo:
+        estilo.activo = False
+        db.session.commit()
+        flash("Estilo eliminado.", "success")
+    
+    return redirect(url_for('argumentacion'))
+
+
+@app.route("/argumentacion/eliminar/<int:session_id>", methods=["POST"])
+@login_required
+def argumentacion_eliminar(session_id):
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No autorizado", "error")
+        return redirect(url_for('argumentacion'))
+    
+    sesion = ArgumentationSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if sesion:
+        sesion.activo = False
+        db.session.commit()
+        flash("Sesión eliminada.", "success")
+    
+    return redirect(url_for('argumentacion'))
+
+
+@app.route("/argumentacion/historial")
+@login_required
+def argumentacion_historial():
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    sesiones = ArgumentationSession.query.filter_by(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        activo=True
+    ).order_by(ArgumentationSession.updated_at.desc()).all()
+    
+    return render_template("argumentacion_historial.html", sesiones=sesiones)
+
+
 with app.app_context():
     db.create_all()
     os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
     os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
     os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
     os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
+    os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
 
 
 if __name__ == "__main__":

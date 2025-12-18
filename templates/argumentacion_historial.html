@@ -1,0 +1,71 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Historial de Argumentacion{% endblock %}
+{% block page_title %}Historial de Argumentacion{% endblock %}
+{% block page_subtitle %}Todas tus sesiones de mejora de argumentacion{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-2 mb-6">
+    <a href="{{ url_for('argumentacion') }}" class="text-gray-500 hover:text-gray-700">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <nav class="text-sm text-gray-500">
+        <a href="{{ url_for('argumentacion') }}" class="hover:text-gray-700">Argumentacion</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900">Historial</span>
+    </nav>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm">
+    {% if sesiones %}
+    <div class="divide-y divide-gray-100">
+        {% for sesion in sesiones %}
+        <div class="p-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <a href="{{ url_for('argumentacion_sesion', session_id=sesion.id) }}" class="block">
+                        <h4 class="font-medium text-gray-900 hover:text-blue-600">{{ sesion.titulo or 'Sin titulo' }}</h4>
+                        <p class="text-sm text-gray-500 mt-1">
+                            <i class="fas fa-clock mr-1"></i>{{ sesion.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                            {% if sesion.estilo_usado %}
+                            <span class="ml-3 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">{{ sesion.estilo_usado }}</span>
+                            {% endif %}
+                            {% if sesion.case %}
+                            <span class="ml-3">
+                                <i class="fas fa-briefcase mr-1"></i>{{ sesion.case.titulo[:30] }}
+                            </span>
+                            {% endif %}
+                        </p>
+                    </a>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ url_for('argumentacion_descargar', session_id=sesion.id) }}" 
+                       class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Descargar">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    <form action="{{ url_for('argumentacion_eliminar', session_id=sesion.id) }}" method="POST" class="inline">
+                        <button type="submit" onclick="return confirm('¿Eliminar esta sesion?')"
+                                class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-12 text-center">
+        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-brain text-3xl text-gray-400"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Sin sesiones de argumentacion</h3>
+        <p class="text-gray-500 mb-4">Aun no has creado ninguna sesion de mejora de argumentacion.</p>
+        <a href="{{ url_for('argumentacion') }}" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            <i class="fas fa-plus"></i>
+            Nueva Sesion
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

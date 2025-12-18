@@ -1,0 +1,200 @@
+🧠 PROMPT – Subpestaña “Argumentación” (con contenido 100% privado por usuario)
+
+Quiero que implementes una nueva subpestaña dentro de la plataforma llamada “Argumentación”, accesible desde el dashboard.
+
+Objetivo
+
+Esta sección servirá para que cada usuario, de forma totalmente privada, pueda mejorar la argumentación jurídica de sus documentos usando IA, con una interfaz similar a ChatGPT.
+
+El flujo debe ser:
+
+El usuario sube su primer borrador de documento (por ejemplo, una demanda ya generada por la plataforma).
+
+El sistema extrae el texto.
+
+El usuario escribe en una caja de texto qué tipo de argumentación quiere reforzar y con qué estilo.
+
+La IA devuelve una versión mejorada de la argumentación, manteniendo la estructura jurídica y sin modificar datos fácticos.
+
+1️⃣ UI de la subpestaña “Argumentación”
+
+En la subpestaña “Argumentación” necesito:
+
+Un área para subir documento:
+
+arrastrar y soltar + botón “Subir archivo”
+
+formatos aceptados: .docx, .doc, .pdf, .txt
+
+Una caja de texto grande tipo ChatGPT donde el usuario escriba:
+
+qué quiere lograr con la argumentación (por ejemplo: “refuerza los fundamentos de derecho en materia de alimentos”)
+
+el estilo deseado (formal, agresivo, conciliador, técnico, pedagógico, etc.)
+
+Un botón: “Mejorar argumentación con IA”.
+
+Un panel de resultado donde se muestre:
+
+la versión mejorada del texto o de la parte argumentativa
+
+opciones para:
+
+copiar el texto
+
+descargar como .docx
+
+guardar como nueva versión ligada al documento/caso original.
+
+La experiencia debe sentirse como una conversación con un asistente de IA:
+
+el usuario puede hacer nuevos mensajes pidiendo ajustes
+
+la IA recuerda el documento actual dentro de esta subpestaña
+
+2️⃣ Lógica del proceso de IA
+
+Flujo interno cuando el usuario presiona “Mejorar argumentación con IA”:
+
+Se toma:
+
+texto del documento subido
+
+instrucciones del usuario
+
+estilo de redacción elegido
+
+La IA debe:
+
+identificar y respetar la estructura jurídica básica (Hechos, Fundamentos de Derecho, Petitorio, etc., si existen).
+
+no inventar datos fácticos (nombres, fechas, montos, DNIs, etc.).
+
+centrarse en:
+
+mejorar la claridad lógica
+
+reforzar la argumentación jurídica
+
+eliminar contradicciones
+
+pulir el estilo solicitado.
+
+El resultado:
+
+se muestra en pantalla
+
+y se puede guardar como una nueva versión del documento.
+
+3️⃣ Estilos y preferencias de argumentación (por usuario)
+
+Cada usuario puede tener sus propios estilos de redacción guardados para la pestaña de “Argumentación”.
+
+Agregar un bloque con estilos predefinidos:
+
+Formal clásico
+
+Agresivo / combativo
+
+Conciliador
+
+Técnico / doctrinal
+
+Además, permitir que el usuario guarde estilos personalizados, por ejemplo:
+
+“Estilo Juan – familia agresivo”
+
+“Estilo Carla – conciliador en alimentos”
+
+Esos estilos guardados deben ser:
+
+privados para cada usuario individual
+
+no compartidos ni visibles para otros usuarios del estudio.
+
+4️⃣ Argumentaciones privadas por usuario
+
+La lógica de privacidad debe ser:
+
+Cada usuario solo puede ver:
+
+sus propios documentos subidos en la pestaña “Argumentación”
+
+el historial de sus propias argumentaciones
+
+sus estilos personalizados.
+
+Los demás usuarios del mismo estudio NO pueden ver:
+
+las argumentaciones
+
+estilos
+
+historial de otro usuario.
+
+El estudio (tenant) solo sirve para agrupar usuarios, pero el contenido de “Argumentación” es 100% individual por usuario.
+
+El super_admin:
+
+puede ver estadísticas generales de uso (ej: cuántas argumentaciones se hicieron por estudio/usuario)
+
+NO puede ver el contenido exacto de las argumentaciones ni los textos privados.
+
+5️⃣ Integración con casos y versionado
+
+Si el documento viene de un caso:
+
+guardar la versión mejorada como una nueva entrada en el historial del documento/caso.
+
+registrar:
+
+usuario que hizo la mejora
+
+fecha y hora
+
+“tipo” de cambio: Mejora de argumentación.
+
+Si el documento se sube sin estar asociado a un caso:
+
+permitir guardarlo en un repositorio personal del usuario.
+
+6️⃣ Multi-tenant y seguridad
+
+Respetar el modelo multi-tenant:
+
+cada usuario pertenece a un estudio (tenant)
+
+pero las argumentaciones y estilos son privados por usuario, no compartidos ni siquiera dentro del mismo estudio.
+
+El super_admin solo debe acceder a métricas agregadas, nunca al contenido.
+
+7️⃣ Antes de implementar
+
+Antes de escribir código, explica:
+
+qué modelos de BD nuevos usarás (por ejemplo: ArgumentationSession, UserStyle, etc.)
+
+qué endpoints crearás para:
+
+subir archivo
+
+pedir mejora de argumentación
+
+guardar versión
+
+listar historial de argumentaciones del usuario
+
+cómo vas a garantizar que:
+
+un usuario solo pueda ver sus propias argumentaciones y estilos
+
+el super_admin solo pueda ver métricas, no contenido.
+
+cómo mantendrás el contexto del documento dentro de la “conversación” en la subpestaña “Argumentación”.
+
+Después de esa explicación, implementa tanto:
+
+la UI de la subpestaña,
+
+como la lógica de backend y las llamadas a la IA,
+respetando la privacidad por usuario y el multi-tenant.

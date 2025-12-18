@@ -1109,3 +1109,75 @@ class EventAttendee(db.Model):
     
     def get_estado_display(self):
         return self.ESTADOS.get(self.estado, self.estado)
+
+
+class UserArgumentationStyle(db.Model):
+    """Estilos de argumentación personalizados por usuario (privados)."""
+    __tablename__ = 'user_argumentation_styles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    instrucciones = db.Column(db.Text, nullable=False)
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('argumentation_styles', lazy='dynamic'))
+    tenant = db.relationship('Tenant', backref=db.backref('user_argumentation_styles', lazy='dynamic'))
+    
+    ESTILOS_PREDEFINIDOS = [
+        {'nombre': 'Formal clásico', 'instrucciones': 'Redacción formal, tradicional, con lenguaje solemne y estructura clásica.'},
+        {'nombre': 'Agresivo / Combativo', 'instrucciones': 'Tono firme y directo, enfatizando las violaciones legales y exigiendo reparación contundente.'},
+        {'nombre': 'Conciliador', 'instrucciones': 'Tono diplomático, buscando soluciones y evitando confrontación innecesaria.'},
+        {'nombre': 'Técnico / Doctrinal', 'instrucciones': 'Cargado de citas doctrinales, jurisprudencia y análisis técnico-jurídico profundo.'},
+        {'nombre': 'Pedagógico', 'instrucciones': 'Explicativo y didáctico, ideal para jueces que no son especialistas en la materia.'}
+    ]
+
+
+class ArgumentationSession(db.Model):
+    """Sesión de argumentación - contiene documento y conversación."""
+    __tablename__ = 'argumentation_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=True)
+    
+    titulo = db.Column(db.String(200))
+    documento_original = db.Column(db.Text)
+    archivo_nombre = db.Column(db.String(255))
+    archivo_tipo = db.Column(db.String(50))
+    
+    ultima_version_mejorada = db.Column(db.Text)
+    estilo_usado = db.Column(db.String(100))
+    
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('argumentation_sessions', lazy='dynamic'))
+    tenant = db.relationship('Tenant', backref=db.backref('argumentation_sessions', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('argumentation_sessions', lazy='dynamic'))
+    messages = db.relationship('ArgumentationMessage', backref='session', lazy='dynamic', cascade='all, delete-orphan', order_by='ArgumentationMessage.created_at')
+
+
+class ArgumentationMessage(db.Model):
+    """Mensajes dentro de una sesión de argumentación."""
+    __tablename__ = 'argumentation_messages'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('argumentation_sessions.id'), nullable=False)
+    
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    estilo_aplicado = db.Column(db.String(100))
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    ROLES = {
+        'user': 'Usuario',
+        'assistant': 'Asistente IA'
+    }
