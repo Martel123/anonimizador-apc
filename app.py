@@ -3995,6 +3995,8 @@ def tarea_nueva():
         db.session.add(tarea)
         db.session.commit()
         
+        logging.info(f"Task created: {tarea.id}, assigned_to_id: {tarea.assigned_to_id}")
+        
         # Send email notification to assigned user
         if tarea.assigned_to_id:
             assigned_user = User.query.get(tarea.assigned_to_id)
