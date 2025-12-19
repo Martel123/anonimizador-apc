@@ -404,6 +404,7 @@ def get_resend_credentials():
             token = 'repl ' + token
         
         if not hostname or not token:
+            logging.warning("Missing REPLIT_CONNECTORS_HOSTNAME or token for Resend")
             return None, None
             
         response = requests.get(
@@ -413,7 +414,11 @@ def get_resend_credentials():
         data = response.json()
         if data.get('items'):
             settings = data['items'][0].get('settings', {})
-            return settings.get('api_key'), settings.get('from_email')
+            api_key = settings.get('api_key')
+            # Use verified subdomain for sending emails
+            from_email = "notificaciones@notificaciones.apcjuridica.com"
+            logging.info(f"Resend credentials loaded, from_email: {from_email}")
+            return api_key, from_email
     except Exception as e:
         logging.error(f"Error getting Resend credentials: {e}")
     return None, None
