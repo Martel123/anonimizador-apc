@@ -143,13 +143,28 @@ def detect_intent(instrucciones):
     if '?' in instrucciones or '¿' in instrucciones:
         return 'explanation'
     
-    frases_pregunta = [
+    frases_pregunta_explicita = [
+        'cuales son', 'cuáles son', 'que hiciste', 'qué hiciste', 
+        'que cambiaste', 'qué cambiaste', 'que modificaste', 'qué modificaste',
+        'que parte', 'qué parte', 'que partes', 'qué partes',
+        'quiero ver', 'quiero saber', 'muestrame', 'muéstrame',
+        'dime que', 'dime qué', 'explica que', 'explica qué',
+        'cuales fueron', 'cuáles fueron', 'que son los cambios', 'qué son los cambios',
+        'los cambios que hiciste', 'los cambios que realizaste',
+        'me puedes decir', 'me puedes explicar', 'puedes decirme', 'puedes explicarme'
+    ]
+    
+    for frase in frases_pregunta_explicita:
+        if frase in instrucciones_lower:
+            return 'explanation'
+    
+    frases_pregunta_inicio = [
         'qué ', 'que ', 'cuál ', 'cual ', 'cómo ', 'como ', 'por qué ', 'por que ',
         'dónde ', 'donde ', 'cuándo ', 'cuando ', 'quién ', 'quien ',
         'explica', 'explicame', 'explícame', 'dime ', 'cuéntame', 'cuentame'
     ]
     
-    for frase in frases_pregunta:
+    for frase in frases_pregunta_inicio:
         if instrucciones_lower.startswith(frase):
             return 'explanation'
     
@@ -159,14 +174,16 @@ def detect_intent(instrucciones):
         'qué argumento', 'que argumento', 'está bien', 'esta bien', 'es correcto',
         'qué opinas', 'que opinas', 'crees que', 'debería', 'deberia',
         'puedo agregar', 'puedo añadir', 'sugieres', 'recomiendas', 'significa',
-        'cuál es', 'cual es', 'qué es', 'que es', 'dime', 'cuéntame', 'cuentame'
+        'cuál es', 'cual es', 'qué es', 'que es', 'dime', 'cuéntame', 'cuentame',
+        'los cambios', 'que hiciste', 'que modificaste', 'que cambiaste'
     ]
     
     modificacion_keywords = [
         'añade', 'anade', 'agrega', 'elimina', 'quita', 'borra',
         'reescribe', 'modifica', 'cambia a', 'cambia el', 'cambia la', 'cambia los',
-        'mejora', 'refuerza', 'amplía', 'amplia', 'reduce', 'resume', 'desarrolla',
-        'incluye', 'incorpora', 'expande', 'reestructura', 'pon ', 'coloca', 'escribe'
+        'mejora el', 'mejora la', 'mejora los', 'refuerza', 'amplía', 'amplia', 
+        'reduce', 'resume', 'desarrolla', 'incluye', 'incorpora', 'expande', 
+        'reestructura', 'pon ', 'coloca', 'escribe'
     ]
     
     score_pregunta = sum(1 for kw in preguntas_keywords if kw in instrucciones_lower)
