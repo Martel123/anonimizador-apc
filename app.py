@@ -3798,6 +3798,44 @@ def caso_asignar(caso_id):
     db.session.add(assignment)
     db.session.commit()
     
+    # Send email notification to assigned user
+    assigned_user = User.query.get(user_id)
+    if assigned_user and assigned_user.email and user_id != current_user.id:
+        tenant_name = tenant.nombre if tenant else "el sistema"
+        rol_display = {
+            'abogado': 'Abogado',
+            'asistente': 'Asistente Legal',
+            'supervisor': 'Supervisor',
+            'practicante': 'Practicante'
+        }.get(rol, rol)
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #10b981;">Te han asignado a un caso</h2>
+            <p>Hola {assigned_user.username},</p>
+            <p><strong>{current_user.username}</strong> te ha asignado al siguiente caso:</p>
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #1f2937;">{caso.titulo}</h3>
+                <p><strong>Tu rol:</strong> {rol_display}</p>
+                <p><strong>Estado:</strong> {Case.ESTADOS.get(caso.estado, caso.estado)}</p>
+                <p><strong>Prioridad:</strong> {Case.PRIORIDADES.get(caso.prioridad, caso.prioridad)}</p>
+                {f'<p><strong>Fecha límite:</strong> {caso.fecha_limite.strftime("%d/%m/%Y")}</p>' if caso.fecha_limite else ''}
+                {'<p style="color: #059669;"><strong>Eres el responsable principal de este caso.</strong></p>' if es_responsable else ''}
+            </div>
+            <p>Ya puedes acceder al caso desde tu panel de casos.</p>
+            <p style="color: #666; font-size: 12px;">Este correo fue enviado desde {tenant_name}.</p>
+        </div>
+        """
+        try:
+            send_notification_email(
+                assigned_user.email,
+                f"Asignación a caso: {caso.titulo}",
+                html_content
+            )
+            logging.info(f"Case assignment notification sent to {assigned_user.email}")
+        except Exception as e:
+            logging.error(f"Error sending case assignment email: {e}")
+    
     flash("Usuario asignado exitosamente.", "success")
     return redirect(url_for("caso_detalle", caso_id=caso_id))
 
@@ -3951,6 +3989,41 @@ def tarea_nueva():
         
         db.session.add(tarea)
         db.session.commit()
+        
+        # Send email notification to assigned user
+        if tarea.assigned_to_id and tarea.assigned_to_id != current_user.id:
+            assigned_user = User.query.get(tarea.assigned_to_id)
+            if assigned_user and assigned_user.email:
+                tenant_name = tenant.nombre if tenant else "el sistema"
+                caso_info = f"<p><strong>Caso:</strong> {tarea.case.titulo}</p>" if tarea.case else ""
+                fecha_info = f"<p><strong>Fecha límite:</strong> {tarea.fecha_vencimiento.strftime('%d/%m/%Y')}</p>" if tarea.fecha_vencimiento else ""
+                
+                html_content = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #3b82f6;">Nueva Tarea Asignada</h2>
+                    <p>Hola {assigned_user.username},</p>
+                    <p><strong>{current_user.username}</strong> te ha asignado una nueva tarea:</p>
+                    <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin: 0 0 10px 0; color: #1f2937;">{tarea.titulo}</h3>
+                        <p><strong>Tipo:</strong> {Task.TIPOS.get(tarea.tipo, tarea.tipo)}</p>
+                        <p><strong>Prioridad:</strong> {Task.PRIORIDADES.get(tarea.prioridad, tarea.prioridad)}</p>
+                        {fecha_info}
+                        {caso_info}
+                        {f'<p style="color: #666;">{tarea.descripcion[:300]}{"..." if len(tarea.descripcion) > 300 else ""}</p>' if tarea.descripcion else ''}
+                    </div>
+                    <p>Por favor, revisa esta tarea en tu bandeja de trabajo.</p>
+                    <p style="color: #666; font-size: 12px;">Este correo fue enviado desde {tenant_name}.</p>
+                </div>
+                """
+                try:
+                    send_notification_email(
+                        assigned_user.email,
+                        f"Nueva tarea asignada: {tarea.titulo}",
+                        html_content
+                    )
+                    logging.info(f"Task assignment notification sent to {assigned_user.email}")
+                except Exception as e:
+                    logging.error(f"Error sending task assignment email: {e}")
         
         flash("Tarea creada exitosamente.", "success")
         return redirect(url_for("tareas"))
