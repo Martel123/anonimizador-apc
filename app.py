@@ -422,21 +422,26 @@ def get_resend_credentials():
 def send_notification_email(to_email, subject, html_content):
     """Send email notification via Resend."""
     try:
+        logging.info(f"Attempting to send email to {to_email} with subject: {subject}")
         api_key, from_email = get_resend_credentials()
         if not api_key or not from_email:
-            logging.warning("Resend not configured")
+            logging.warning(f"Resend not configured - api_key: {bool(api_key)}, from_email: {bool(from_email)}")
             return False
         
+        logging.info(f"Resend credentials obtained. From: {from_email}")
         resend.api_key = api_key
-        resend.Emails.send({
+        result = resend.Emails.send({
             "from": from_email,
             "to": [to_email],
             "subject": subject,
             "html": html_content
         })
+        logging.info(f"Email sent successfully to {to_email}. Result: {result}")
         return True
     except Exception as e:
-        logging.error(f"Error sending email: {e}")
+        logging.error(f"Error sending email to {to_email}: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         return False
 
 
@@ -3991,18 +3996,44 @@ def tarea_nueva():
         db.session.commit()
         
         # Send email notification to assigned user
-        if tarea.assigned_to_id and tarea.assigned_to_id != current_user.id:
+        if tarea.assigned_to_id:
             assigned_user = User.query.get(tarea.assigned_to_id)
             if assigned_user and assigned_user.email:
                 tenant_name = tenant.nombre if tenant else "el sistema"
                 caso_info = f"<p><strong>Caso:</strong> {tarea.case.titulo}</p>" if tarea.case else ""
                 fecha_info = f"<p><strong>Fecha límite:</strong> {tarea.fecha_vencimiento.strftime('%d/%m/%Y')}</p>" if tarea.fecha_vencimiento else ""
                 
+                # Check if deadline is soon (1-3 days)
+                urgency_warning = ""
+                days_until_deadline = None
+                if tarea.fecha_vencimiento:
+                    from datetime import date
+                    today = date.today()
+                    deadline_date = tarea.fecha_vencimiento.date() if hasattr(tarea.fecha_vencimiento, 'date') else tarea.fecha_vencimiento
+                    days_until_deadline = (deadline_date - today).days
+                    
+                    if days_until_deadline <= 1:
+                        urgency_warning = '<p style="color: #dc2626; font-weight: bold;">⚠️ URGENTE: Esta tarea vence mañana o hoy.</p>'
+                    elif days_until_deadline <= 2:
+                        urgency_warning = '<p style="color: #f59e0b; font-weight: bold;">⚡ IMPORTANTE: Esta tarea vence en 2 días.</p>'
+                    elif days_until_deadline <= 3:
+                        urgency_warning = '<p style="color: #3b82f6; font-weight: bold;">📅 RECORDATORIO: Esta tarea vence en 3 días.</p>'
+                
+                subject_prefix = ""
+                if days_until_deadline is not None:
+                    if days_until_deadline <= 1:
+                        subject_prefix = "⚠️ URGENTE: "
+                    elif days_until_deadline <= 2:
+                        subject_prefix = "⚡ IMPORTANTE: "
+                    elif days_until_deadline <= 3:
+                        subject_prefix = "📅 "
+                
                 html_content = f"""
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #3b82f6;">Nueva Tarea Asignada</h2>
                     <p>Hola {assigned_user.username},</p>
                     <p><strong>{current_user.username}</strong> te ha asignado una nueva tarea:</p>
+                    {urgency_warning}
                     <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
                         <h3 style="margin: 0 0 10px 0; color: #1f2937;">{tarea.titulo}</h3>
                         <p><strong>Tipo:</strong> {Task.TIPOS.get(tarea.tipo, tarea.tipo)}</p>
@@ -4016,12 +4047,16 @@ def tarea_nueva():
                 </div>
                 """
                 try:
-                    send_notification_email(
+                    logging.info(f"Sending task assignment email to {assigned_user.email} for task {tarea.id}")
+                    result = send_notification_email(
                         assigned_user.email,
-                        f"Nueva tarea asignada: {tarea.titulo}",
+                        f"{subject_prefix}Nueva tarea asignada: {tarea.titulo}",
                         html_content
                     )
-                    logging.info(f"Task assignment notification sent to {assigned_user.email}")
+                    if result:
+                        logging.info(f"Task assignment notification sent successfully to {assigned_user.email}")
+                    else:
+                        logging.warning(f"Task assignment notification failed for {assigned_user.email}")
                 except Exception as e:
                     logging.error(f"Error sending task assignment email: {e}")
         
