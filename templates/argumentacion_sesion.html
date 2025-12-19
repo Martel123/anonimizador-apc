@@ -72,14 +72,24 @@
                         </div>
                         {% else %}
                         <div class="flex items-center gap-2 mb-2">
+                            {% if mensaje.message_type == 'explanation' %}
+                            <span class="text-sm font-semibold text-purple-700">Respuesta del Asistente</span>
+                            {% else %}
                             <span class="text-sm font-semibold text-gray-700">Documento Mejorado</span>
+                            {% endif %}
                             <button onclick="copiarMensaje('{{ mensaje.id }}')" class="text-xs text-gray-400 hover:text-gray-600">
                                 <i class="fas fa-copy"></i>
                             </button>
                         </div>
+                        {% if mensaje.message_type == 'explanation' %}
+                        <div class="bg-purple-50 rounded-xl p-4 shadow-sm border border-purple-100">
+                            <div id="mensaje-{{ mensaje.id }}" class="text-sm text-gray-700 whitespace-pre-wrap prose prose-sm max-w-none">{{ mensaje.content }}</div>
+                        </div>
+                        {% else %}
                         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                             <div id="mensaje-{{ mensaje.id }}" class="text-sm text-gray-700 whitespace-pre-wrap prose prose-sm max-w-none">{{ mensaje.content }}</div>
                         </div>
+                        {% endif %}
                         {% endif %}
                         <p class="text-xs text-gray-400 mt-2 {% if mensaje.role == 'user' %}text-right{% endif %}">{{ mensaje.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
                     </div>

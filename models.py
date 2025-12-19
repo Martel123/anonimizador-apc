@@ -1174,12 +1174,18 @@ class ArgumentationMessage(db.Model):
     role = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=False)
     estilo_aplicado = db.Column(db.String(100))
+    message_type = db.Column(db.String(20), default='rewrite')
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     ROLES = {
         'user': 'Usuario',
         'assistant': 'Asistente IA'
+    }
+    
+    MESSAGE_TYPES = {
+        'rewrite': 'Documento Mejorado',
+        'explanation': 'Respuesta del Asistente'
     }
 
 

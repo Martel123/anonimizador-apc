@@ -136,28 +136,43 @@ def detect_document_sections(texto):
 
 
 def detect_intent(instrucciones):
-    """Detecta si el usuario hace una pregunta o pide una modificación."""
-    instrucciones_lower = instrucciones.lower()
+    """Detecta si el usuario hace una pregunta o pide una modificación.
+    Prioriza preguntas cuando hay signos de interrogación o frases interrogativas."""
+    instrucciones_lower = instrucciones.lower().strip()
+    
+    if '?' in instrucciones or '¿' in instrucciones:
+        return 'explanation'
+    
+    frases_pregunta = [
+        'qué ', 'que ', 'cuál ', 'cual ', 'cómo ', 'como ', 'por qué ', 'por que ',
+        'dónde ', 'donde ', 'cuándo ', 'cuando ', 'quién ', 'quien ',
+        'explica', 'explicame', 'explícame', 'dime ', 'cuéntame', 'cuentame'
+    ]
+    
+    for frase in frases_pregunta:
+        if instrucciones_lower.startswith(frase):
+            return 'explanation'
     
     preguntas_keywords = [
-        'explica', 'explicame', 'por qué', 'por que', 'qué pasa si', 'que pasa si',
+        'explica', 'explicame', 'explícame', 'por qué', 'por que', 'qué pasa si', 'que pasa si',
         'cómo puedo', 'como puedo', 'ayúdame a entender', 'ayudame a entender',
         'qué argumento', 'que argumento', 'está bien', 'esta bien', 'es correcto',
-        'qué opinas', 'que opinas', 'crees que', '?', 'debería', 'deberia',
-        'puedo agregar', 'puedo añadir', 'sugieres', 'recomiendas'
+        'qué opinas', 'que opinas', 'crees que', 'debería', 'deberia',
+        'puedo agregar', 'puedo añadir', 'sugieres', 'recomiendas', 'significa',
+        'cuál es', 'cual es', 'qué es', 'que es', 'dime', 'cuéntame', 'cuentame'
     ]
     
     modificacion_keywords = [
         'añade', 'anade', 'agrega', 'elimina', 'quita', 'borra',
-        'reescribe', 'modifica', 'cambia', 'mejora', 'refuerza',
-        'amplía', 'amplia', 'reduce', 'resume', 'desarrolla',
-        'incluye', 'incorpora', 'expande', 'reestructura'
+        'reescribe', 'modifica', 'cambia a', 'cambia el', 'cambia la', 'cambia los',
+        'mejora', 'refuerza', 'amplía', 'amplia', 'reduce', 'resume', 'desarrolla',
+        'incluye', 'incorpora', 'expande', 'reestructura', 'pon ', 'coloca', 'escribe'
     ]
     
     score_pregunta = sum(1 for kw in preguntas_keywords if kw in instrucciones_lower)
     score_modificacion = sum(1 for kw in modificacion_keywords if kw in instrucciones_lower)
     
-    if score_pregunta > score_modificacion:
+    if score_pregunta >= score_modificacion and score_pregunta > 0:
         return 'explanation'
     return 'rewrite'
 
@@ -312,7 +327,8 @@ Devuelve SOLO la seccion modificada, sin comentarios meta, lista para usar."""
                 session_id=sesion.id,
                 role="assistant",
                 content=resultado_final,
-                estilo_aplicado=job.estilo
+                estilo_aplicado=job.estilo,
+                message_type=job.job_type
             )
             db.session.add(mensaje_ia)
             
