@@ -1263,3 +1263,204 @@ class ArgumentationJob(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
+
+
+# ==================== APC IA AGENT ====================
+
+class AgentSession(db.Model):
+    """Sesión del agente APC IA."""
+    __tablename__ = 'agent_sessions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=True)
+    
+    titulo = db.Column(db.String(200))
+    status = db.Column(db.String(20), default='active')
+    current_step = db.Column(db.String(100))
+    
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('agent_sessions', lazy='dynamic'))
+    tenant = db.relationship('Tenant', backref=db.backref('agent_sessions', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('agent_sessions', lazy='dynamic'))
+    messages = db.relationship('AgentMessage', backref='session', lazy='dynamic', cascade='all, delete-orphan', order_by='AgentMessage.created_at')
+    
+    STATUSES = {
+        'active': 'Activa',
+        'completed': 'Completada',
+        'archived': 'Archivada'
+    }
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'titulo': self.titulo,
+            'case_id': self.case_id,
+            'case_titulo': self.case.titulo if self.case else None,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'message_count': self.messages.count()
+        }
+
+
+class AgentMessage(db.Model):
+    """Mensajes dentro de una sesión del agente."""
+    __tablename__ = 'agent_messages'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('agent_sessions.id'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    content_json = db.Column(db.JSON)
+    
+    intent = db.Column(db.String(50))
+    tool_used = db.Column(db.String(100))
+    tool_result = db.Column(db.JSON)
+    
+    latency_ms = db.Column(db.Integer)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('agent_messages', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('agent_messages', lazy='dynamic'))
+    
+    ROLES = {
+        'system': 'Sistema',
+        'user': 'Usuario',
+        'assistant': 'APC IA',
+        'tool': 'Herramienta'
+    }
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role': self.role,
+            'role_display': self.ROLES.get(self.role, self.role),
+            'content': self.content,
+            'content_json': self.content_json,
+            'intent': self.intent,
+            'tool_used': self.tool_used,
+            'tool_result': self.tool_result,
+            'latency_ms': self.latency_ms,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class LegalStrategy(db.Model):
+    """Estrategia legal generada por el agente."""
+    __tablename__ = 'legal_strategies'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    session_id = db.Column(db.Integer, db.ForeignKey('agent_sessions.id'), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    titulo = db.Column(db.String(200), nullable=False)
+    resumen = db.Column(db.Text)
+    contenido = db.Column(db.Text, nullable=False)
+    
+    objetivo_principal = db.Column(db.Text)
+    argumentos_principales = db.Column(db.JSON)
+    pruebas_clave = db.Column(db.JSON)
+    riesgos = db.Column(db.JSON)
+    escenarios = db.Column(db.JSON)
+    proximos_pasos = db.Column(db.JSON)
+    
+    status = db.Column(db.String(20), default='draft')
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('legal_strategies', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('legal_strategies', lazy='dynamic'))
+    session = db.relationship('AgentSession', backref=db.backref('strategies', lazy='dynamic'))
+    created_by = db.relationship('User', backref=db.backref('created_strategies', lazy='dynamic'))
+    
+    STATUSES = {
+        'draft': 'Borrador',
+        'final': 'Final',
+        'archived': 'Archivado'
+    }
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'case_id': self.case_id,
+            'titulo': self.titulo,
+            'resumen': self.resumen,
+            'contenido': self.contenido,
+            'objetivo_principal': self.objetivo_principal,
+            'argumentos_principales': self.argumentos_principales,
+            'pruebas_clave': self.pruebas_clave,
+            'riesgos': self.riesgos,
+            'escenarios': self.escenarios,
+            'proximos_pasos': self.proximos_pasos,
+            'status': self.status,
+            'status_display': self.STATUSES.get(self.status, self.status),
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CostEstimate(db.Model):
+    """Estimación de costos generada por el agente."""
+    __tablename__ = 'cost_estimates'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    session_id = db.Column(db.Integer, db.ForeignKey('agent_sessions.id'), nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    titulo = db.Column(db.String(200))
+    assumptions = db.Column(db.JSON)
+    breakdown = db.Column(db.JSON)
+    
+    honorarios = db.Column(db.Float, default=0)
+    tasas_judiciales = db.Column(db.Float, default=0)
+    otros_gastos = db.Column(db.Float, default=0)
+    total_amount = db.Column(db.Float, default=0)
+    currency = db.Column(db.String(10), default='PEN')
+    
+    duracion_estimada_meses = db.Column(db.Integer)
+    num_audiencias = db.Column(db.Integer)
+    horas_estimadas = db.Column(db.Float)
+    tarifa_hora = db.Column(db.Float)
+    
+    notas = db.Column(db.Text)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('cost_estimates', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('cost_estimates', lazy='dynamic'))
+    session = db.relationship('AgentSession', backref=db.backref('cost_estimates', lazy='dynamic'))
+    created_by = db.relationship('User', backref=db.backref('created_cost_estimates', lazy='dynamic'))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'case_id': self.case_id,
+            'titulo': self.titulo,
+            'assumptions': self.assumptions,
+            'breakdown': self.breakdown,
+            'honorarios': self.honorarios,
+            'tasas_judiciales': self.tasas_judiciales,
+            'otros_gastos': self.otros_gastos,
+            'total_amount': self.total_amount,
+            'currency': self.currency,
+            'duracion_estimada_meses': self.duracion_estimada_meses,
+            'num_audiencias': self.num_audiencias,
+            'horas_estimadas': self.horas_estimadas,
+            'tarifa_hora': self.tarifa_hora,
+            'notas': self.notas,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }

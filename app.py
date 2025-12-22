@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate
 import qrcode
 import threading
 import queue
@@ -6906,6 +6906,852 @@ def argumentacion_historial():
     ).order_by(ArgumentationSession.updated_at.desc()).all()
     
     return render_template("argumentacion_historial.html", sesiones=sesiones)
+
+
+# ==================== APC IA AGENT ====================
+
+AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_info_caso",
+            "description": "Obtiene información básica del caso: partes, materia, juzgado, estado, expediente, etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "case_id": {"type": "integer", "description": "ID del caso"}
+                },
+                "required": ["case_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_documentos_del_caso",
+            "description": "Lista todos los documentos asociados a un caso (demandas, contratos, resoluciones, escritos, etc.)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "case_id": {"type": "integer", "description": "ID del caso"}
+                },
+                "required": ["case_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "leer_documento",
+            "description": "Lee el contenido de texto de un documento específico del caso",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {"type": "integer", "description": "ID del documento"},
+                    "doc_type": {"type": "string", "enum": ["case_document", "finished_document"], "description": "Tipo de documento"}
+                },
+                "required": ["doc_id", "doc_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generar_documento_desde_plantilla",
+            "description": "Genera un documento legal completo (demanda, contestación, recurso, escrito) usando las plantillas del estudio",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "case_id": {"type": "integer", "description": "ID del caso"},
+                    "tipo_documento": {"type": "string", "description": "Tipo de documento a generar (demanda, contestación, recurso, escrito, etc.)"},
+                    "instrucciones": {"type": "string", "description": "Instrucciones detalladas para la generación del documento"},
+                    "plantilla_key": {"type": "string", "description": "Clave de la plantilla a usar (opcional)"}
+                },
+                "required": ["case_id", "tipo_documento", "instrucciones"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "guardar_borrador_estrategia",
+            "description": "Guarda una estrategia legal propuesta como borrador asociada al caso",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "case_id": {"type": "integer", "description": "ID del caso"},
+                    "titulo": {"type": "string", "description": "Título de la estrategia"},
+                    "contenido": {"type": "string", "description": "Contenido completo de la estrategia"},
+                    "objetivo_principal": {"type": "string", "description": "Objetivo principal de la estrategia"},
+                    "argumentos": {"type": "array", "items": {"type": "string"}, "description": "Lista de argumentos principales"},
+                    "riesgos": {"type": "array", "items": {"type": "string"}, "description": "Lista de riesgos identificados"},
+                    "proximos_pasos": {"type": "array", "items": {"type": "string"}, "description": "Lista de próximos pasos recomendados"}
+                },
+                "required": ["case_id", "titulo", "contenido"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "crear_tarea",
+            "description": "Crea una tarea o recordatorio ligado al caso (vencimientos, audiencias, acciones pendientes)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "case_id": {"type": "integer", "description": "ID del caso"},
+                    "titulo": {"type": "string", "description": "Título de la tarea"},
+                    "descripcion": {"type": "string", "description": "Descripción de la tarea"},
+                    "fecha_vencimiento": {"type": "string", "description": "Fecha de vencimiento en formato YYYY-MM-DD"},
+                    "tipo": {"type": "string", "enum": ["general", "audiencia", "escrito", "reunion", "vencimiento", "otro"], "description": "Tipo de tarea"},
+                    "prioridad": {"type": "string", "enum": ["alta", "media", "baja"], "description": "Prioridad de la tarea"}
+                },
+                "required": ["case_id", "titulo", "fecha_vencimiento"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calcular_costos_estimados",
+            "description": "Calcula los costos estimados del caso incluyendo honorarios, tasas y otros gastos",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "case_id": {"type": "integer", "description": "ID del caso"},
+                    "tipo_proceso": {"type": "string", "description": "Tipo de proceso judicial"},
+                    "num_audiencias": {"type": "integer", "description": "Número estimado de audiencias"},
+                    "horas_estimadas": {"type": "number", "description": "Horas de trabajo estimadas"},
+                    "tarifa_hora": {"type": "number", "description": "Tarifa por hora en soles"},
+                    "duracion_meses": {"type": "integer", "description": "Duración estimada en meses"}
+                },
+                "required": ["case_id"]
+            }
+        }
+    }
+]
+
+
+def agent_tool_obtener_info_caso(case_id, tenant_id, user_id):
+    """Obtiene información del caso."""
+    caso = Case.query.filter_by(id=case_id, tenant_id=tenant_id).first()
+    if not caso:
+        return {"error": "Caso no encontrado"}
+    
+    assignments = CaseAssignment.query.filter_by(case_id=case_id).all()
+    asignados = [{"user_id": a.user_id, "username": a.user.username, "rol": a.rol} for a in assignments if a.user]
+    
+    return {
+        "id": caso.id,
+        "titulo": caso.titulo,
+        "numero_expediente": caso.numero_expediente,
+        "materia": caso.materia,
+        "estado": caso.estado,
+        "cliente": caso.cliente,
+        "contraparte": caso.contraparte,
+        "juzgado": caso.juzgado,
+        "descripcion": caso.descripcion,
+        "fecha_inicio": caso.fecha_inicio.isoformat() if caso.fecha_inicio else None,
+        "asignados": asignados
+    }
+
+
+def agent_tool_listar_documentos_del_caso(case_id, tenant_id, user_id):
+    """Lista documentos del caso."""
+    caso = Case.query.filter_by(id=case_id, tenant_id=tenant_id).first()
+    if not caso:
+        return {"error": "Caso no encontrado"}
+    
+    case_docs = CaseDocument.query.filter_by(case_id=case_id).order_by(CaseDocument.created_at.desc()).all()
+    finished_docs = FinishedDocument.query.filter_by(case_id=case_id, tenant_id=tenant_id).order_by(FinishedDocument.created_at.desc()).all()
+    
+    documentos = []
+    for doc in case_docs:
+        documentos.append({
+            "id": doc.id,
+            "type": "case_document",
+            "nombre": doc.nombre,
+            "tipo": doc.tipo,
+            "fecha": doc.created_at.isoformat() if doc.created_at else None
+        })
+    
+    for doc in finished_docs:
+        documentos.append({
+            "id": doc.id,
+            "type": "finished_document",
+            "nombre": doc.nombre,
+            "tipo": doc.tipo_documento,
+            "fecha": doc.created_at.isoformat() if doc.created_at else None
+        })
+    
+    return {"documentos": documentos, "total": len(documentos)}
+
+
+def agent_tool_leer_documento(doc_id, doc_type, tenant_id, user_id):
+    """Lee el contenido de un documento."""
+    if doc_type == "case_document":
+        doc = CaseDocument.query.filter_by(id=doc_id).first()
+        if not doc:
+            return {"error": "Documento no encontrado"}
+        caso = Case.query.filter_by(id=doc.case_id, tenant_id=tenant_id).first()
+        if not caso:
+            return {"error": "No tienes acceso a este documento"}
+        
+        contenido = ""
+        if doc.archivo_path and os.path.exists(doc.archivo_path):
+            contenido = extract_text_from_file(doc.archivo_path)
+        
+        return {
+            "id": doc.id,
+            "nombre": doc.nombre,
+            "tipo": doc.tipo,
+            "contenido": contenido[:15000] if contenido else "No se pudo extraer el contenido"
+        }
+    
+    elif doc_type == "finished_document":
+        doc = FinishedDocument.query.filter_by(id=doc_id, tenant_id=tenant_id).first()
+        if not doc:
+            return {"error": "Documento no encontrado"}
+        
+        contenido = ""
+        if doc.archivo and os.path.exists(doc.archivo):
+            contenido = extract_text_from_file(doc.archivo)
+        
+        return {
+            "id": doc.id,
+            "nombre": doc.nombre,
+            "tipo": doc.tipo_documento,
+            "contenido": contenido[:15000] if contenido else "No se pudo extraer el contenido"
+        }
+    
+    return {"error": "Tipo de documento no válido"}
+
+
+def agent_tool_generar_documento(case_id, tipo_documento, instrucciones, plantilla_key, tenant_id, user_id, session_id):
+    """Genera un documento legal usando IA."""
+    caso = Case.query.filter_by(id=case_id, tenant_id=tenant_id).first()
+    if not caso:
+        return {"error": "Caso no encontrado"}
+    
+    case_docs = CaseDocument.query.filter_by(case_id=case_id).limit(5).all()
+    contexto_documentos = ""
+    for doc in case_docs:
+        if doc.archivo_path and os.path.exists(doc.archivo_path):
+            texto = extract_text_from_file(doc.archivo_path)
+            if texto:
+                contexto_documentos += f"\n\n--- Documento: {doc.nombre} ---\n{texto[:5000]}"
+    
+    prompt = f"""Eres un abogado experto redactando documentos legales en Perú.
+
+INFORMACIÓN DEL CASO:
+- Título: {caso.titulo}
+- Expediente: {caso.numero_expediente or 'Sin número'}
+- Materia: {caso.materia or 'No especificada'}
+- Cliente: {caso.cliente or 'No especificado'}
+- Contraparte: {caso.contraparte or 'No especificada'}
+- Juzgado: {caso.juzgado or 'No especificado'}
+- Descripción: {caso.descripcion or ''}
+
+DOCUMENTOS DEL CASO:
+{contexto_documentos if contexto_documentos else 'No hay documentos adjuntos'}
+
+INSTRUCCIONES DEL USUARIO:
+{instrucciones}
+
+TIPO DE DOCUMENTO A GENERAR: {tipo_documento}
+
+Genera el documento legal completo con la estructura apropiada:
+- Encabezado con datos del expediente
+- Sumilla
+- Señor Juez / Autoridad
+- Datos del solicitante
+- Hechos (numerados)
+- Fundamentos de Derecho (con citas legales reales de Perú)
+- Petitorio
+- Anexos
+- Firma
+
+El documento debe ser formal, técnico-jurídico y listo para presentar."""
+
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=180.0)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=8000
+        )
+        
+        texto_documento = response.choices[0].message.content
+        
+        tenant = Tenant.query.get(tenant_id)
+        fecha_actual = datetime.now()
+        nombre_archivo = f"{tipo_documento.replace(' ', '_')}_{case_id}_{fecha_actual.strftime('%Y%m%d_%H%M%S')}.docx"
+        
+        guardar_docx(texto_documento, nombre_archivo, tenant, None)
+        
+        finished_doc = FinishedDocument(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            case_id=case_id,
+            nombre=f"{tipo_documento} - {caso.titulo}",
+            tipo_documento=tipo_documento,
+            archivo=os.path.join(get_resultados_folder(tenant), nombre_archivo),
+            numero_expediente=caso.numero_expediente
+        )
+        db.session.add(finished_doc)
+        db.session.commit()
+        
+        return {
+            "success": True,
+            "documento_id": finished_doc.id,
+            "nombre_archivo": nombre_archivo,
+            "resumen": texto_documento[:500] + "..." if len(texto_documento) > 500 else texto_documento,
+            "download_url": url_for('descargar', nombre_archivo=nombre_archivo)
+        }
+        
+    except Exception as e:
+        logging.error(f"Error generando documento: {e}")
+        return {"error": f"Error al generar el documento: {str(e)}"}
+
+
+def agent_tool_guardar_estrategia(case_id, titulo, contenido, objetivo_principal, argumentos, riesgos, proximos_pasos, tenant_id, user_id, session_id):
+    """Guarda una estrategia legal."""
+    caso = Case.query.filter_by(id=case_id, tenant_id=tenant_id).first()
+    if not caso:
+        return {"error": "Caso no encontrado"}
+    
+    estrategia = LegalStrategy(
+        tenant_id=tenant_id,
+        case_id=case_id,
+        session_id=session_id,
+        created_by_id=user_id,
+        titulo=titulo,
+        contenido=contenido,
+        objetivo_principal=objetivo_principal,
+        argumentos_principales=argumentos,
+        riesgos=riesgos,
+        proximos_pasos=proximos_pasos,
+        status='draft'
+    )
+    db.session.add(estrategia)
+    db.session.commit()
+    
+    return {
+        "success": True,
+        "estrategia_id": estrategia.id,
+        "mensaje": f"Estrategia '{titulo}' guardada correctamente"
+    }
+
+
+def agent_tool_crear_tarea(case_id, titulo, descripcion, fecha_vencimiento, tipo, prioridad, tenant_id, user_id):
+    """Crea una tarea ligada al caso."""
+    caso = Case.query.filter_by(id=case_id, tenant_id=tenant_id).first()
+    if not caso:
+        return {"error": "Caso no encontrado"}
+    
+    try:
+        fecha = datetime.strptime(fecha_vencimiento, "%Y-%m-%d")
+    except:
+        return {"error": "Formato de fecha inválido. Use YYYY-MM-DD"}
+    
+    tarea = Task(
+        tenant_id=tenant_id,
+        case_id=case_id,
+        titulo=titulo,
+        descripcion=descripcion or "",
+        tipo=tipo or "general",
+        prioridad=prioridad or "media",
+        fecha_vencimiento=fecha,
+        created_by_id=user_id,
+        assigned_to_id=user_id
+    )
+    db.session.add(tarea)
+    db.session.commit()
+    
+    return {
+        "success": True,
+        "tarea_id": tarea.id,
+        "mensaje": f"Tarea '{titulo}' creada para el {fecha_vencimiento}"
+    }
+
+
+def agent_tool_calcular_costos(case_id, tipo_proceso, num_audiencias, horas_estimadas, tarifa_hora, duracion_meses, tenant_id, user_id, session_id):
+    """Calcula costos estimados del caso."""
+    caso = Case.query.filter_by(id=case_id, tenant_id=tenant_id).first()
+    if not caso:
+        return {"error": "Caso no encontrado"}
+    
+    tarifa = tarifa_hora or 150.0
+    horas = horas_estimadas or 20.0
+    audiencias = num_audiencias or 3
+    meses = duracion_meses or 12
+    
+    honorarios = horas * tarifa
+    costo_audiencia = 200.0
+    costo_audiencias = audiencias * costo_audiencia
+    tasas_judiciales = 500.0
+    otros_gastos = 300.0
+    
+    total = honorarios + costo_audiencias + tasas_judiciales + otros_gastos
+    
+    estimacion = CostEstimate(
+        tenant_id=tenant_id,
+        case_id=case_id,
+        session_id=session_id,
+        created_by_id=user_id,
+        titulo=f"Estimación de costos - {caso.titulo}",
+        assumptions={
+            "tipo_proceso": tipo_proceso or caso.materia,
+            "horas_estimadas": horas,
+            "tarifa_hora": tarifa,
+            "num_audiencias": audiencias,
+            "duracion_meses": meses
+        },
+        breakdown={
+            "honorarios": honorarios,
+            "costo_audiencias": costo_audiencias,
+            "tasas_judiciales": tasas_judiciales,
+            "otros_gastos": otros_gastos
+        },
+        honorarios=honorarios,
+        tasas_judiciales=tasas_judiciales,
+        otros_gastos=otros_gastos + costo_audiencias,
+        total_amount=total,
+        currency="PEN",
+        duracion_estimada_meses=meses,
+        num_audiencias=audiencias,
+        horas_estimadas=horas,
+        tarifa_hora=tarifa
+    )
+    db.session.add(estimacion)
+    db.session.commit()
+    
+    return {
+        "success": True,
+        "estimacion_id": estimacion.id,
+        "resumen": {
+            "honorarios": f"S/. {honorarios:,.2f}",
+            "audiencias": f"S/. {costo_audiencias:,.2f}",
+            "tasas_judiciales": f"S/. {tasas_judiciales:,.2f}",
+            "otros_gastos": f"S/. {otros_gastos:,.2f}",
+            "total": f"S/. {total:,.2f}"
+        },
+        "supuestos": {
+            "horas": horas,
+            "tarifa_hora": f"S/. {tarifa}",
+            "audiencias": audiencias,
+            "duracion": f"{meses} meses"
+        }
+    }
+
+
+def execute_agent_tool(tool_name, arguments, tenant_id, user_id, session_id):
+    """Ejecuta una herramienta del agente."""
+    try:
+        args = json.loads(arguments) if isinstance(arguments, str) else arguments
+        
+        if tool_name == "obtener_info_caso":
+            return agent_tool_obtener_info_caso(args["case_id"], tenant_id, user_id)
+        
+        elif tool_name == "listar_documentos_del_caso":
+            return agent_tool_listar_documentos_del_caso(args["case_id"], tenant_id, user_id)
+        
+        elif tool_name == "leer_documento":
+            return agent_tool_leer_documento(args["doc_id"], args["doc_type"], tenant_id, user_id)
+        
+        elif tool_name == "generar_documento_desde_plantilla":
+            return agent_tool_generar_documento(
+                args["case_id"],
+                args["tipo_documento"],
+                args["instrucciones"],
+                args.get("plantilla_key"),
+                tenant_id, user_id, session_id
+            )
+        
+        elif tool_name == "guardar_borrador_estrategia":
+            return agent_tool_guardar_estrategia(
+                args["case_id"],
+                args["titulo"],
+                args["contenido"],
+                args.get("objetivo_principal"),
+                args.get("argumentos", []),
+                args.get("riesgos", []),
+                args.get("proximos_pasos", []),
+                tenant_id, user_id, session_id
+            )
+        
+        elif tool_name == "crear_tarea":
+            return agent_tool_crear_tarea(
+                args["case_id"],
+                args["titulo"],
+                args.get("descripcion"),
+                args["fecha_vencimiento"],
+                args.get("tipo", "general"),
+                args.get("prioridad", "media"),
+                tenant_id, user_id
+            )
+        
+        elif tool_name == "calcular_costos_estimados":
+            return agent_tool_calcular_costos(
+                args["case_id"],
+                args.get("tipo_proceso"),
+                args.get("num_audiencias"),
+                args.get("horas_estimadas"),
+                args.get("tarifa_hora"),
+                args.get("duracion_meses"),
+                tenant_id, user_id, session_id
+            )
+        
+        return {"error": f"Herramienta '{tool_name}' no reconocida"}
+    
+    except Exception as e:
+        logging.error(f"Error ejecutando herramienta {tool_name}: {e}")
+        return {"error": str(e)}
+
+
+def run_agent_conversation(session_id, user_message, case_id, tenant_id, user_id):
+    """Ejecuta una conversación con el agente."""
+    start_time = time.time()
+    
+    session = AgentSession.query.filter_by(
+        id=session_id,
+        tenant_id=tenant_id,
+        user_id=user_id
+    ).first()
+    
+    if not session:
+        return {"error": "Sesión no encontrada"}
+    
+    user_msg = AgentMessage(
+        session_id=session_id,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        role="user",
+        content=user_message
+    )
+    db.session.add(user_msg)
+    db.session.commit()
+    
+    messages_history = AgentMessage.query.filter_by(
+        session_id=session_id,
+        tenant_id=tenant_id
+    ).order_by(AgentMessage.created_at).all()
+    
+    system_prompt = """Eres APC IA, un agente jurídico avanzado para la plataforma de gestión legal.
+
+Tu rol es asistir a abogados con:
+1. Lectura y análisis de documentos legales
+2. Redacción de demandas, contestaciones, recursos y escritos
+3. Diseño de estrategias legales
+4. Evaluación de costos de casos
+5. Gestión de tareas y plazos
+
+COMPORTAMIENTO:
+- Siempre identifica primero qué necesita el usuario
+- Si necesitas información del caso, usa obtener_info_caso
+- Si necesitas ver documentos, primero lista con listar_documentos_del_caso y luego lee con leer_documento
+- Para generar documentos, usa generar_documento_desde_plantilla
+- Para estrategias, genera un análisis completo y guárdalo con guardar_borrador_estrategia
+- Para plazos y tareas, usa crear_tarea
+- Para costos, usa calcular_costos_estimados
+
+El tono debe ser profesional, técnico-jurídico y orientado a la práctica legal en Perú.
+Siempre sé útil y proactivo, ofreciendo sugerencias cuando sea apropiado."""
+    
+    openai_messages = [{"role": "system", "content": system_prompt}]
+    
+    for msg in messages_history:
+        if msg.role in ["user", "assistant"]:
+            openai_messages.append({"role": msg.role, "content": msg.content})
+    
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=120.0)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=openai_messages,
+            tools=AGENT_TOOLS,
+            tool_choice="auto",
+            temperature=0.4,
+            max_tokens=4000
+        )
+        
+        assistant_message = response.choices[0].message
+        tool_calls = assistant_message.tool_calls
+        
+        tools_used = []
+        tool_results = []
+        
+        if tool_calls:
+            for tool_call in tool_calls:
+                tool_name = tool_call.function.name
+                tool_args = tool_call.function.arguments
+                
+                result = execute_agent_tool(tool_name, tool_args, tenant_id, user_id, session_id)
+                tools_used.append(tool_name)
+                tool_results.append({"tool": tool_name, "result": result})
+                
+                tool_msg = AgentMessage(
+                    session_id=session_id,
+                    tenant_id=tenant_id,
+                    role="tool",
+                    content=json.dumps(result, ensure_ascii=False),
+                    tool_used=tool_name,
+                    tool_result=result
+                )
+                db.session.add(tool_msg)
+            
+            openai_messages.append({"role": "assistant", "content": None, "tool_calls": [
+                {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in tool_calls
+            ]})
+            
+            for i, tool_call in enumerate(tool_calls):
+                openai_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(tool_results[i]["result"], ensure_ascii=False)
+                })
+            
+            final_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=openai_messages,
+                temperature=0.4,
+                max_tokens=4000
+            )
+            
+            final_content = final_response.choices[0].message.content
+        else:
+            final_content = assistant_message.content
+        
+        latency = int((time.time() - start_time) * 1000)
+        
+        assistant_msg = AgentMessage(
+            session_id=session_id,
+            tenant_id=tenant_id,
+            role="assistant",
+            content=final_content,
+            tool_used=",".join(tools_used) if tools_used else None,
+            latency_ms=latency
+        )
+        db.session.add(assistant_msg)
+        
+        session.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return {
+            "success": True,
+            "message": final_content,
+            "tools_used": tools_used,
+            "tool_results": tool_results,
+            "latency_ms": latency
+        }
+        
+    except Exception as e:
+        logging.error(f"Error en agente: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return {"error": str(e)}
+
+
+@app.route("/apc-ia")
+@login_required
+def apc_ia():
+    """Vista principal del agente APC IA."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.updated_at.desc()).all()
+    
+    sesiones = AgentSession.query.filter_by(
+        user_id=current_user.id,
+        tenant_id=tenant.id,
+        activo=True
+    ).order_by(AgentSession.updated_at.desc()).limit(20).all()
+    
+    return render_template("apc_ia.html", casos=casos, sesiones=sesiones)
+
+
+@app.route("/apc-ia/sesion/<int:session_id>")
+@login_required
+def apc_ia_sesion(session_id):
+    """Vista de una sesión específica del agente."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso a esta función.", "error")
+        return redirect(url_for('index'))
+    
+    sesion = AgentSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first_or_404()
+    
+    mensajes = AgentMessage.query.filter_by(
+        session_id=session_id,
+        tenant_id=tenant.id
+    ).order_by(AgentMessage.created_at).all()
+    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
+    
+    estrategias = LegalStrategy.query.filter_by(
+        session_id=session_id,
+        tenant_id=tenant.id
+    ).all()
+    estimaciones = CostEstimate.query.filter_by(
+        session_id=session_id,
+        tenant_id=tenant.id
+    ).all()
+    
+    return render_template("apc_ia_sesion.html",
+                          sesion=sesion,
+                          mensajes=mensajes,
+                          casos=casos,
+                          estrategias=estrategias,
+                          estimaciones=estimaciones)
+
+
+@app.route("/api/apc/sessions", methods=["GET", "POST"])
+@login_required
+def api_apc_sessions():
+    """API para gestionar sesiones del agente."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    if request.method == "GET":
+        sesiones = AgentSession.query.filter_by(
+            user_id=current_user.id,
+            tenant_id=tenant.id,
+            activo=True
+        ).order_by(AgentSession.updated_at.desc()).limit(20).all()
+        
+        return jsonify({
+            "success": True,
+            "sessions": [s.to_dict() for s in sesiones]
+        })
+    
+    elif request.method == "POST":
+        data = request.get_json() or {}
+        case_id = data.get("case_id")
+        titulo = data.get("titulo", "Nueva conversación")
+        
+        sesion = AgentSession(
+            user_id=current_user.id,
+            tenant_id=tenant.id,
+            case_id=case_id,
+            titulo=titulo
+        )
+        db.session.add(sesion)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "session": sesion.to_dict()
+        })
+
+
+@app.route("/api/apc/agent", methods=["POST"])
+@login_required
+def api_apc_agent():
+    """API principal del agente - procesa mensajes."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    data = request.get_json() or {}
+    session_id = data.get("session_id")
+    message = data.get("message", "").strip()
+    case_id = data.get("case_id")
+    
+    if not message:
+        return jsonify({"error": "Mensaje requerido"}), 400
+    
+    if not session_id:
+        sesion = AgentSession(
+            user_id=current_user.id,
+            tenant_id=tenant.id,
+            case_id=case_id,
+            titulo=message[:50] + "..." if len(message) > 50 else message
+        )
+        db.session.add(sesion)
+        db.session.commit()
+        session_id = sesion.id
+    else:
+        sesion = AgentSession.query.filter_by(
+            id=session_id,
+            user_id=current_user.id,
+            tenant_id=tenant.id
+        ).first()
+        
+        if not sesion:
+            return jsonify({"error": "Sesión no encontrada"}), 404
+        
+        if case_id and sesion.case_id != case_id:
+            sesion.case_id = case_id
+            db.session.commit()
+    
+    result = run_agent_conversation(session_id, message, case_id, tenant.id, current_user.id)
+    
+    if "error" in result:
+        return jsonify(result), 500
+    
+    result["session_id"] = session_id
+    return jsonify(result)
+
+
+@app.route("/api/apc/sessions/<int:session_id>/messages")
+@login_required
+def api_apc_session_messages(session_id):
+    """Obtiene los mensajes de una sesión."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    sesion = AgentSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if not sesion:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+    
+    mensajes = AgentMessage.query.filter_by(
+        session_id=session_id,
+        tenant_id=tenant.id
+    ).order_by(AgentMessage.created_at).all()
+    
+    return jsonify({
+        "success": True,
+        "session": sesion.to_dict(),
+        "messages": [m.to_dict() for m in mensajes]
+    })
+
+
+@app.route("/api/apc/sessions/<int:session_id>", methods=["DELETE"])
+@login_required
+def api_apc_delete_session(session_id):
+    """Elimina una sesión."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    sesion = AgentSession.query.filter_by(
+        id=session_id,
+        user_id=current_user.id,
+        tenant_id=tenant.id
+    ).first()
+    
+    if not sesion:
+        return jsonify({"error": "Sesión no encontrada"}), 404
+    
+    sesion.activo = False
+    db.session.commit()
+    
+    return jsonify({"success": True})
 
 
 with app.app_context():

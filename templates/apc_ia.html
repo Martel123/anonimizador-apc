@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}APC IA - Agente Legal{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex gap-6">
+        <div class="w-80 flex-shrink-0">
+            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Conversaciones</h2>
+                <button onclick="nuevaSesion()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition mb-4">
+                    <i data-feather="plus" class="inline w-4 h-4 mr-2"></i>
+                    Nueva conversación
+                </button>
+                <div id="sesiones-list" class="space-y-2 max-h-96 overflow-y-auto">
+                    {% for sesion in sesiones %}
+                    <a href="{{ url_for('apc_ia_sesion', session_id=sesion.id) }}" 
+                       class="block p-3 rounded-lg border hover:bg-gray-50 transition">
+                        <div class="font-medium text-gray-800 truncate">{{ sesion.titulo or 'Sin título' }}</div>
+                        <div class="text-xs text-gray-500">{{ sesion.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                        {% if sesion.case %}
+                        <div class="text-xs text-blue-600 mt-1">
+                            <i data-feather="folder" class="inline w-3 h-3"></i>
+                            {{ sesion.case.titulo }}
+                        </div>
+                        {% endif %}
+                    </a>
+                    {% else %}
+                    <p class="text-gray-500 text-sm text-center py-4">No hay conversaciones aún</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex-1">
+            <div class="bg-white rounded-xl shadow-sm border">
+                <div class="p-6 border-b">
+                    <div class="text-center">
+                        <h1 class="text-3xl font-bold text-gray-800">APC IA</h1>
+                        <p class="text-gray-600 mt-2">Tu agente jurídico inteligente</p>
+                    </div>
+                </div>
+                
+                <div class="p-6">
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Seleccionar caso/expediente</label>
+                        <select id="case-select" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Sin caso específico</option>
+                            {% for caso in casos %}
+                            <option value="{{ caso.id }}">{{ caso.titulo }} {% if caso.numero_expediente %}- {{ caso.numero_expediente }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-2 mb-6">
+                        <button onclick="setPrompt('Genera una demanda completa para este caso')" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm hover:bg-blue-100 transition">
+                            <i data-feather="file-text" class="inline w-4 h-4 mr-1"></i>
+                            Generar demanda
+                        </button>
+                        <button onclick="setPrompt('Diseña una estrategia legal para este caso, analizando fortalezas, debilidades y próximos pasos')" class="px-4 py-2 bg-purple-50 text-purple-700 rounded-full text-sm hover:bg-purple-100 transition">
+                            <i data-feather="compass" class="inline w-4 h-4 mr-1"></i>
+                            Diseñar estrategia
+                        </button>
+                        <button onclick="setPrompt('Calcula los costos estimados de este caso, incluyendo honorarios y gastos')" class="px-4 py-2 bg-green-50 text-green-700 rounded-full text-sm hover:bg-green-100 transition">
+                            <i data-feather="dollar-sign" class="inline w-4 h-4 mr-1"></i>
+                            Calcular costos
+                        </button>
+                        <button onclick="setPrompt('Lista los documentos del caso y dame un resumen')" class="px-4 py-2 bg-yellow-50 text-yellow-700 rounded-full text-sm hover:bg-yellow-100 transition">
+                            <i data-feather="folder" class="inline w-4 h-4 mr-1"></i>
+                            Ver documentos
+                        </button>
+                        <button onclick="setPrompt('Crea una tarea para presentar escrito en 5 días')" class="px-4 py-2 bg-red-50 text-red-700 rounded-full text-sm hover:bg-red-100 transition">
+                            <i data-feather="check-square" class="inline w-4 h-4 mr-1"></i>
+                            Crear tarea
+                        </button>
+                    </div>
+                    
+                    <div id="chat-container" class="bg-gray-50 rounded-xl p-4 min-h-[300px] max-h-[400px] overflow-y-auto mb-4 hidden">
+                    </div>
+                    
+                    <div class="relative">
+                        <textarea id="user-input" 
+                                  placeholder="Escribe tu mensaje aquí... Puedo ayudarte a redactar documentos, diseñar estrategias, calcular costos y más."
+                                  class="w-full border border-gray-300 rounded-xl px-4 py-4 pr-14 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  rows="4"></textarea>
+                        <button id="send-btn" onclick="sendMessage()" 
+                                class="absolute right-3 bottom-3 bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
+                            <i data-feather="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="loading-indicator" class="hidden mt-4 text-center">
+                        <div class="inline-flex items-center gap-2 text-blue-600">
+                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            <span>APC IA está procesando...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-6 border-t bg-gray-50 rounded-b-xl">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">Fuentes disponibles</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-white border rounded-full text-xs text-gray-600">
+                            <i data-feather="file" class="inline w-3 h-3 mr-1"></i>
+                            Plantillas APC
+                        </span>
+                        <span class="px-3 py-1 bg-white border rounded-full text-xs text-gray-600">
+                            <i data-feather="database" class="inline w-3 h-3 mr-1"></i>
+                            Base de datos del estudio
+                        </span>
+                        <span class="px-3 py-1 bg-white border rounded-full text-xs text-gray-600">
+                            <i data-feather="book" class="inline w-3 h-3 mr-1"></i>
+                            Normativa peruana
+                        </span>
+                        <span class="px-3 py-1 bg-white border rounded-full text-xs text-gray-600">
+                            <i data-feather="bookmark" class="inline w-3 h-3 mr-1"></i>
+                            Jurisprudencia
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSessionId = null;
+
+function setPrompt(text) {
+    document.getElementById('user-input').value = text;
+    document.getElementById('user-input').focus();
+}
+
+async function nuevaSesion() {
+    const caseId = document.getElementById('case-select').value;
+    try {
+        const response = await fetch('/api/apc/sessions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({case_id: caseId || null, titulo: 'Nueva conversación'})
+        });
+        const data = await response.json();
+        if (data.success) {
+            window.location.href = '/apc-ia/sesion/' + data.session.id;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    const caseId = document.getElementById('case-select').value;
+    const chatContainer = document.getElementById('chat-container');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const sendBtn = document.getElementById('send-btn');
+    
+    chatContainer.classList.remove('hidden');
+    
+    chatContainer.innerHTML += `
+        <div class="mb-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                    {{ current_user.username[0].upper() }}
+                </div>
+                <div class="flex-1 bg-white rounded-lg p-3 border">
+                    <p class="text-gray-800">${message}</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    input.value = '';
+    input.disabled = true;
+    sendBtn.disabled = true;
+    loadingIndicator.classList.remove('hidden');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    try {
+        const response = await fetch('/api/apc/agent', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: currentSessionId,
+                message: message,
+                case_id: caseId || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentSessionId = data.session_id;
+            
+            let toolsHtml = '';
+            if (data.tools_used && data.tools_used.length > 0) {
+                toolsHtml = `<div class="mt-2 flex flex-wrap gap-1">`;
+                data.tools_used.forEach(tool => {
+                    toolsHtml += `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${tool}</span>`;
+                });
+                toolsHtml += `</div>`;
+            }
+            
+            let contentHtml = data.message.replace(/\n/g, '<br>');
+            
+            chatContainer.innerHTML += `
+                <div class="mb-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                            IA
+                        </div>
+                        <div class="flex-1 bg-blue-50 rounded-lg p-3 border border-blue-100">
+                            <div class="text-gray-800">${contentHtml}</div>
+                            ${toolsHtml}
+                            <div class="text-xs text-gray-500 mt-2">${data.latency_ms}ms</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            chatContainer.innerHTML += `
+                <div class="mb-4">
+                    <div class="bg-red-50 rounded-lg p-3 border border-red-200 text-red-700">
+                        Error: ${data.error || 'Error desconocido'}
+                    </div>
+                </div>
+            `;
+        }
+        
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+    } catch (error) {
+        console.error('Error:', error);
+        chatContainer.innerHTML += `
+            <div class="mb-4">
+                <div class="bg-red-50 rounded-lg p-3 border border-red-200 text-red-700">
+                    Error de conexión. Por favor intenta de nuevo.
+                </div>
+            </div>
+        `;
+    } finally {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        loadingIndicator.classList.add('hidden');
+        input.focus();
+    }
+}
+
+document.getElementById('user-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+if (typeof feather !== 'undefined') {
+    feather.replace();
+}
+</script>
+{% endblock %}

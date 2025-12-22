@@ -259,3 +259,38 @@ Las plantillas pueden tener campos personalizados por tenant:
 2. Admin define campos en `/admin/campos/<plantilla_key>`
 3. Usuario ve campos personalizados en formulario
 4. Los datos se envían a OpenAI para generación
+
+## APC IA - Agente Legal Inteligente
+
+### Descripción
+APC IA es un agente jurídico que utiliza OpenAI function calling para ejecutar herramientas especializadas. Proporciona una interfaz de chat tipo ChatGPT para abogados.
+
+### Modelos
+- **AgentSession**: Sesión de conversación con el agente
+- **AgentMessage**: Mensajes de la conversación (role: user/assistant/tool)
+- **LegalStrategy**: Estrategias legales generadas por el agente
+- **CostEstimate**: Estimaciones de costos generadas
+
+### Herramientas del Agente (7 funciones)
+1. `obtener_info_caso`: Obtiene información del caso (partes, materia, juzgado, etc.)
+2. `listar_documentos_del_caso`: Lista documentos adjuntos al caso
+3. `leer_documento`: Lee el contenido de un documento específico
+4. `generar_documento_desde_plantilla`: Genera demandas, contestaciones, escritos
+5. `guardar_borrador_estrategia`: Guarda estrategia legal como borrador
+6. `crear_tarea`: Crea tareas y recordatorios ligados al caso
+7. `calcular_costos_estimados`: Calcula honorarios, tasas y otros gastos
+
+### Rutas
+- `/apc-ia` - Vista principal del agente con lista de conversaciones
+- `/apc-ia/sesion/<id>` - Chat con el agente en una sesión específica
+- `/api/apc/agent` (POST) - Procesa mensajes del usuario
+- `/api/apc/sessions` (GET/POST) - Gestión de sesiones
+- `/api/apc/sessions/<id>/messages` (GET) - Obtiene mensajes de sesión
+- `/api/apc/sessions/<id>` (DELETE) - Elimina sesión
+
+### Características
+- **Function calling**: OpenAI GPT-4o con herramientas tipadas
+- **Multi-tenant aislamiento**: Todas las consultas filtran por tenant_id y user_id
+- **Latencia tracking**: Se registra tiempo de respuesta en cada mensaje
+- **Chips de acciones rápidas**: Botones para generar demanda, estrategia, costos, etc.
+- **Selector de caso**: Vincula la conversación a un expediente específico

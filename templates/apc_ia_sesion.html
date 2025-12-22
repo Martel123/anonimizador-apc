@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}{{ sesion.titulo }} - APC IA{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex gap-6">
+        <div class="w-72 flex-shrink-0">
+            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+                <a href="{{ url_for('apc_ia') }}" class="flex items-center gap-2 text-gray-600 hover:text-blue-600 mb-4">
+                    <i data-feather="arrow-left" class="w-4 h-4"></i>
+                    Volver
+                </a>
+                
+                <h3 class="text-sm font-medium text-gray-700 mb-2">Caso vinculado</h3>
+                <select id="case-select" onchange="updateCase()" class="w-full border rounded-lg px-3 py-2 text-sm">
+                    <option value="">Sin caso</option>
+                    {% for caso in casos %}
+                    <option value="{{ caso.id }}" {% if sesion.case_id == caso.id %}selected{% endif %}>
+                        {{ caso.titulo }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            {% if estrategias %}
+            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Estrategias generadas</h3>
+                <div class="space-y-2">
+                    {% for estrategia in estrategias %}
+                    <div class="p-2 bg-purple-50 rounded-lg border border-purple-100">
+                        <div class="font-medium text-sm text-purple-800 truncate">{{ estrategia.titulo }}</div>
+                        <div class="text-xs text-purple-600">{{ estrategia.created_at.strftime('%d/%m/%Y') }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if estimaciones %}
+            <div class="bg-white rounded-xl shadow-sm border p-4">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Estimaciones de costos</h3>
+                <div class="space-y-2">
+                    {% for est in estimaciones %}
+                    <div class="p-2 bg-green-50 rounded-lg border border-green-100">
+                        <div class="font-medium text-sm text-green-800">S/. {{ "%.2f"|format(est.total_amount) }}</div>
+                        <div class="text-xs text-green-600">{{ est.created_at.strftime('%d/%m/%Y') }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="flex-1">
+            <div class="bg-white rounded-xl shadow-sm border">
+                <div class="p-4 border-b flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-semibold text-gray-800">{{ sesion.titulo or 'Conversación' }}</h1>
+                        <p class="text-sm text-gray-500">{{ sesion.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="setPrompt('Genera una contestación de demanda')" class="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100">
+                            Generar escrito
+                        </button>
+                        <button onclick="setPrompt('Diseña la estrategia legal')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm hover:bg-purple-100">
+                            Estrategia
+                        </button>
+                        <button onclick="setPrompt('Calcula costos')" class="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm hover:bg-green-100">
+                            Costos
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="chat-container" class="p-4 min-h-[400px] max-h-[500px] overflow-y-auto bg-gray-50">
+                    {% for msg in mensajes %}
+                    {% if msg.role == 'user' %}
+                    <div class="mb-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                {{ current_user.username[0].upper() }}
+                            </div>
+                            <div class="flex-1 bg-white rounded-lg p-3 border">
+                                <p class="text-gray-800">{{ msg.content }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% elif msg.role == 'assistant' %}
+                    <div class="mb-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                IA
+                            </div>
+                            <div class="flex-1 bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                <div class="text-gray-800 whitespace-pre-wrap">{{ msg.content }}</div>
+                                {% if msg.tool_used %}
+                                <div class="mt-2 flex flex-wrap gap-1">
+                                    {% for tool in msg.tool_used.split(',') %}
+                                    <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">{{ tool }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% if msg.latency_ms %}
+                                <div class="text-xs text-gray-500 mt-2">{{ msg.latency_ms }}ms</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% elif msg.role == 'tool' %}
+                    <div class="mb-2 ml-11">
+                        <div class="bg-gray-100 rounded px-3 py-1.5 text-xs text-gray-600 inline-block">
+                            <i data-feather="tool" class="inline w-3 h-3 mr-1"></i>
+                            {{ msg.tool_used }}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <div class="p-4 border-t">
+                    <div id="loading-indicator" class="hidden mb-3 text-center">
+                        <div class="inline-flex items-center gap-2 text-blue-600">
+                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            <span>APC IA está procesando...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <textarea id="user-input" 
+                                  placeholder="Escribe tu mensaje..."
+                                  class="flex-1 border border-gray-300 rounded-xl px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  rows="2"></textarea>
+                        <button id="send-btn" onclick="sendMessage()" 
+                                class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
+                            <i data-feather="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const sessionId = {{ sesion.id }};
+
+function setPrompt(text) {
+    document.getElementById('user-input').value = text;
+    document.getElementById('user-input').focus();
+}
+
+async function updateCase() {
+    const caseId = document.getElementById('case-select').value;
+}
+
+async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    const caseId = document.getElementById('case-select').value;
+    const chatContainer = document.getElementById('chat-container');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const sendBtn = document.getElementById('send-btn');
+    
+    chatContainer.innerHTML += `
+        <div class="mb-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {{ current_user.username[0].upper() }}
+                </div>
+                <div class="flex-1 bg-white rounded-lg p-3 border">
+                    <p class="text-gray-800">${message}</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    input.value = '';
+    input.disabled = true;
+    sendBtn.disabled = true;
+    loadingIndicator.classList.remove('hidden');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    try {
+        const response = await fetch('/api/apc/agent', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: sessionId,
+                message: message,
+                case_id: caseId || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            let toolsHtml = '';
+            if (data.tools_used && data.tools_used.length > 0) {
+                toolsHtml = `<div class="mt-2 flex flex-wrap gap-1">`;
+                data.tools_used.forEach(tool => {
+                    toolsHtml += `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${tool}</span>`;
+                });
+                toolsHtml += `</div>`;
+            }
+            
+            let contentHtml = data.message.replace(/\n/g, '<br>');
+            
+            chatContainer.innerHTML += `
+                <div class="mb-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                            IA
+                        </div>
+                        <div class="flex-1 bg-blue-50 rounded-lg p-3 border border-blue-100">
+                            <div class="text-gray-800">${contentHtml}</div>
+                            ${toolsHtml}
+                            <div class="text-xs text-gray-500 mt-2">${data.latency_ms}ms</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            chatContainer.innerHTML += `
+                <div class="mb-4">
+                    <div class="bg-red-50 rounded-lg p-3 border border-red-200 text-red-700">
+                        Error: ${data.error || 'Error desconocido'}
+                    </div>
+                </div>
+            `;
+        }
+        
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+    } catch (error) {
+        console.error('Error:', error);
+        chatContainer.innerHTML += `
+            <div class="mb-4">
+                <div class="bg-red-50 rounded-lg p-3 border border-red-200 text-red-700">
+                    Error de conexión. Por favor intenta de nuevo.
+                </div>
+            </div>
+        `;
+    } finally {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        loadingIndicator.classList.add('hidden');
+        input.focus();
+    }
+}
+
+document.getElementById('user-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+document.getElementById('chat-container').scrollTop = document.getElementById('chat-container').scrollHeight;
+
+if (typeof feather !== 'undefined') {
+    feather.replace();
+}
+</script>
+{% endblock %}
