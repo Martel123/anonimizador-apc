@@ -7,9 +7,9 @@
     <div class="flex gap-6">
         <div class="w-72 flex-shrink-0">
             <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
-                <a href="{{ url_for('apc_ia') }}" class="flex items-center gap-2 text-gray-600 hover:text-blue-600 mb-4">
-                    <i data-feather="arrow-left" class="w-4 h-4"></i>
-                    Volver
+                <a href="{{ url_for('apc_ia') }}" class="flex items-center gap-2 text-gray-600 hover:text-blue-600 mb-4 font-medium">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Volver</span>
                 </a>
                 
                 <h3 class="text-sm font-medium text-gray-700 mb-2">Caso vinculado</h3>
@@ -21,6 +21,46 @@
                     </option>
                     {% endfor %}
                 </select>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">
+                    <i class="fas fa-file-upload mr-1"></i>
+                    Subir documento
+                </h3>
+                <p class="text-xs text-gray-500 mb-3">Sube un documento para que la IA lo analice en esta conversación</p>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-blue-400 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
+                    <i class="fas fa-cloud-upload-alt text-2xl text-gray-400 mb-1"></i>
+                    <p class="text-xs text-gray-500">Arrastra o haz clic</p>
+                    <p class="text-xs text-gray-400">.docx, .pdf, .txt</p>
+                </div>
+                <input type="file" id="file-upload" class="hidden" accept=".docx,.pdf,.txt" onchange="handleFileUpload(this)">
+                <div id="uploaded-files" class="mt-3 space-y-2"></div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">
+                    <i class="fas fa-book mr-1"></i>
+                    Fuentes disponibles
+                </h3>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" id="source-plantillas" class="rounded text-blue-600" checked>
+                        <span>Plantillas APC</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" id="source-estudio" class="rounded text-blue-600" checked>
+                        <span>Base del estudio</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" id="source-normativa" class="rounded text-blue-600">
+                        <span>Normativa peruana</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input type="checkbox" id="source-jurisprudencia" class="rounded text-blue-600">
+                        <span>Jurisprudencia</span>
+                    </label>
+                </div>
             </div>
             
             {% if estrategias %}
@@ -61,13 +101,13 @@
                     </div>
                     <div class="flex gap-2">
                         <button onclick="setPrompt('Genera una contestación de demanda')" class="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100">
-                            Generar escrito
+                            <i class="fas fa-file-alt mr-1"></i>Generar escrito
                         </button>
                         <button onclick="setPrompt('Diseña la estrategia legal')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm hover:bg-purple-100">
-                            Estrategia
+                            <i class="fas fa-chess mr-1"></i>Estrategia
                         </button>
                         <button onclick="setPrompt('Calcula costos')" class="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm hover:bg-green-100">
-                            Costos
+                            <i class="fas fa-calculator mr-1"></i>Costos
                         </button>
                     </div>
                 </div>
@@ -109,7 +149,7 @@
                     {% elif msg.role == 'tool' %}
                     <div class="mb-2 ml-11">
                         <div class="bg-gray-100 rounded px-3 py-1.5 text-xs text-gray-600 inline-block">
-                            <i data-feather="tool" class="inline w-3 h-3 mr-1"></i>
+                            <i class="fas fa-cog mr-1"></i>
                             {{ msg.tool_used }}
                         </div>
                     </div>
@@ -125,14 +165,32 @@
                         </div>
                     </div>
                     
+                    <div id="file-preview" class="hidden mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-file-alt text-blue-600"></i>
+                                <span id="file-preview-name" class="text-sm text-gray-700"></span>
+                            </div>
+                            <button onclick="removeAttachedFile()" class="text-red-500 hover:text-red-700">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="flex gap-2">
+                        <button onclick="document.getElementById('chat-file-upload').click()" 
+                                class="bg-gray-100 text-gray-600 px-4 py-3 rounded-xl hover:bg-gray-200 transition" title="Adjuntar documento">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <input type="file" id="chat-file-upload" class="hidden" accept=".docx,.pdf,.txt" onchange="handleChatFileUpload(this)">
                         <textarea id="user-input" 
-                                  placeholder="Escribe tu mensaje..."
+                                  placeholder="Escribe tu mensaje aquí... Puedo ayudarte a redactar documentos, diseñar estrategias, calcular costos y más."
                                   class="flex-1 border border-gray-300 rounded-xl px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   rows="2"></textarea>
                         <button id="send-btn" onclick="sendMessage()" 
-                                class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
-                            <i data-feather="send" class="w-5 h-5"></i>
+                                class="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
+                            <i class="fas fa-paper-plane"></i>
+                            <span class="hidden sm:inline">Enviar</span>
                         </button>
                     </div>
                 </div>
@@ -143,6 +201,8 @@
 
 <script>
 const sessionId = {{ sesion.id }};
+let attachedFile = null;
+let attachedFileContent = null;
 
 function setPrompt(text) {
     document.getElementById('user-input').value = text;
@@ -153,15 +213,88 @@ async function updateCase() {
     const caseId = document.getElementById('case-select').value;
 }
 
+function handleFileUpload(input) {
+    if (input.files.length > 0) {
+        const file = input.files[0];
+        const uploadedFilesDiv = document.getElementById('uploaded-files');
+        
+        const fileItem = document.createElement('div');
+        fileItem.className = 'flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm';
+        fileItem.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i class="fas fa-file text-blue-600"></i>
+                <span class="truncate max-w-32">${file.name}</span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        uploadedFilesDiv.appendChild(fileItem);
+        
+        readFileContent(file);
+        input.value = '';
+    }
+}
+
+function handleChatFileUpload(input) {
+    if (input.files.length > 0) {
+        const file = input.files[0];
+        attachedFile = file;
+        
+        document.getElementById('file-preview').classList.remove('hidden');
+        document.getElementById('file-preview-name').textContent = file.name;
+        
+        readFileContent(file);
+        input.value = '';
+    }
+}
+
+function removeAttachedFile() {
+    attachedFile = null;
+    attachedFileContent = null;
+    document.getElementById('file-preview').classList.add('hidden');
+}
+
+async function readFileContent(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            attachedFileContent = e.target.result;
+            resolve(attachedFileContent);
+        };
+        reader.readAsText(file);
+    });
+}
+
+function getSelectedSources() {
+    const sources = [];
+    if (document.getElementById('source-plantillas').checked) sources.push('plantillas');
+    if (document.getElementById('source-estudio').checked) sources.push('estudio');
+    if (document.getElementById('source-normativa').checked) sources.push('normativa');
+    if (document.getElementById('source-jurisprudencia').checked) sources.push('jurisprudencia');
+    return sources;
+}
+
 async function sendMessage() {
     const input = document.getElementById('user-input');
-    const message = input.value.trim();
-    if (!message) return;
+    let message = input.value.trim();
+    if (!message && !attachedFileContent) return;
     
     const caseId = document.getElementById('case-select').value;
     const chatContainer = document.getElementById('chat-container');
     const loadingIndicator = document.getElementById('loading-indicator');
     const sendBtn = document.getElementById('send-btn');
+    const sources = getSelectedSources();
+    
+    if (attachedFileContent && attachedFile) {
+        message = `[Documento adjunto: ${attachedFile.name}]\n\n${message}\n\nContenido del documento:\n${attachedFileContent.substring(0, 10000)}`;
+    }
+    
+    let displayMessage = input.value.trim();
+    let fileIndicator = '';
+    if (attachedFile) {
+        fileIndicator = `<div class="text-xs text-blue-600 mb-1"><i class="fas fa-paperclip mr-1"></i>${attachedFile.name}</div>`;
+    }
     
     chatContainer.innerHTML += `
         <div class="mb-4">
@@ -170,13 +303,15 @@ async function sendMessage() {
                     {{ current_user.username[0].upper() }}
                 </div>
                 <div class="flex-1 bg-white rounded-lg p-3 border">
-                    <p class="text-gray-800">${message}</p>
+                    ${fileIndicator}
+                    <p class="text-gray-800">${displayMessage}</p>
                 </div>
             </div>
         </div>
     `;
     
     input.value = '';
+    removeAttachedFile();
     input.disabled = true;
     sendBtn.disabled = true;
     loadingIndicator.classList.remove('hidden');
@@ -189,7 +324,8 @@ async function sendMessage() {
             body: JSON.stringify({
                 session_id: sessionId,
                 message: message,
-                case_id: caseId || null
+                case_id: caseId || null,
+                sources: sources
             })
         });
         
@@ -258,9 +394,5 @@ document.getElementById('user-input').addEventListener('keydown', function(e) {
 });
 
 document.getElementById('chat-container').scrollTop = document.getElementById('chat-container').scrollHeight;
-
-if (typeof feather !== 'undefined') {
-    feather.replace();
-}
 </script>
 {% endblock %}
