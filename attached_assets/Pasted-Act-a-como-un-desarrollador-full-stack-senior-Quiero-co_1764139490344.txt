@@ -1,0 +1,254 @@
+Actúa como un desarrollador full-stack senior.
+Quiero convertir la sección “APC IA” de mi plataforma SaaS jurídica en un agente legal completo, no solo un chatbot.
+
+1. Contexto del sistema
+
+La plataforma es un SaaS multi-tenant para estudios jurídicos y abogados.
+
+Cada tenant = una empresa / estudio jurídico.
+
+Cada tenant tiene:
+
+Usuarios (abogados, asistentes, etc.).
+
+Casos/expedientes.
+
+Documentos subidos (escritos, demandas, resoluciones, contratos, etc.).
+
+Plantillas en .docx para generar documentos legales.
+
+Quiero que APC IA funcione como un agente que pueda:
+
+Leer documentos de un caso.
+
+Redactar documentos completos (demanda, contestación, escritos, etc.).
+
+Diseñar estrategias legales.
+
+Evaluar costos aproximados y escenarios de riesgo.
+
+Crear tareas ligadas al caso (vencimientos, audiencias, acciones).
+
+2. Diseño general de APC IA (vista “Generar”)
+
+Mantén el diseño que ya te pedí antes:
+
+Título “APC IA” centrado.
+
+Barra de contexto: “Seleccionar proyecto” / “Asignar expediente/cliente”.
+
+Gran caja de interacción tipo chat (input + botón “Enviar”).
+
+Chips inferiores: “Archivos y fuentes”, “Prompts guardados”, “Personalizar”, “Mejorar”.
+
+Chips de fuentes: “Plantillas APC”, “Base de datos del estudio”, “Google Drive”, “Normativa”, “Jurisprudencia”, etc.
+
+Sobre esa misma vista, ahora agrega funcionalidades de agente.
+
+3. Concepto de “Agente APC IA”
+
+Implementa APC IA como un agente que puede llamar herramientas (endpoints del backend) según lo que el usuario pida en el chat.
+
+3.1. Herramientas mínimas que debe tener el agente
+
+Crea en el backend funciones (y si usas OpenAI, define tools/function calling) para que el modelo pueda llamar a:
+
+listar_documentos_del_caso(case_id)
+
+Devuelve lista de documentos (id, nombre, tipo, fecha).
+
+leer_documento(doc_id)
+
+Devuelve texto completo o un extracto del documento (PDF/Word ya convertido a texto).
+
+generar_documento_desde_plantilla(case_id, plantilla_id, tipo_documento, instrucciones)
+
+Usa las plantillas .docx que ya tengo para generar:
+
+demanda, contestación, recurso, escrito, etc.
+
+Recibe instrucciones del modelo (por ejemplo: “contestar la demanda usando enfoque de guarda compartida”).
+
+Devuelve la ruta del .docx generado y un resumen.
+
+guardar_borrador_estrategia(case_id, contenido)
+
+Guarda un texto largo como “Estrategia legal propuesta” ligada al caso.
+
+crear_tarea(case_id, descripcion, fecha_vencimiento, tipo)
+
+Crea una tarea ligada al caso (ej.: “Presentar contestación antes del 15/03”).
+
+calcular_costos_estimados(case_id, parametros)
+
+Recibe parámetros (número de audiencias, tipo de proceso, horas estimadas, tarifas por hora, tasas judiciales) y devuelve un cálculo de costos.
+
+Por ahora puede ser una función simple con reglas fijas; más adelante se sofisticará.
+
+obtener_info_caso(case_id)
+
+Información básica del caso: partes, materia, juzgado, estado, etc.
+
+3.2. Comportamiento del agente
+
+En el prompt del sistema (para la API de IA) define a APC IA así:
+
+Eres APC IA, agente jurídico de la plataforma.
+
+Siempre:
+
+Lees y entiendes la instrucción del usuario.
+
+Si necesitas contexto, llamas primero a obtener_info_caso y/o listar_documentos_del_caso.
+
+Si el usuario menciona un archivo específico, usas leer_documento.
+
+Si el usuario pide una demanda, contestación u otro escrito final, usas generar_documento_desde_plantilla.
+
+Si el usuario habla de plazos, creas tareas con crear_tarea.
+
+Si habla de costos, usas calcular_costos_estimados.
+
+Si formula una pregunta estratégica (qué conviene hacer, fortalezas/debilidades), generas un texto de estrategia legal y lo guardas con guardar_borrador_estrategia.
+
+El tono es jurídico, claro y estructurado, orientado a la práctica real (Perú u otra jurisdicción que se indique).
+
+4. Flujos concretos que debe soportar
+
+Implementa al menos estos flujos end-to-end:
+
+4.1. “Generar demanda/contestación a partir de documentos”
+
+Escenario: el usuario sube o ya tiene documentos de un caso (demanda, contrato, correos, etc.) y escribe algo como:
+
+“Con estos documentos, genera una contestación completa de demanda de alimentos a favor del demandado.”
+
+Flujo esperado:
+
+El agente APC IA:
+
+Identifica que debe redactar un documento legal completo.
+
+Pide, si hace falta, que el usuario seleccione el caso y los documentos relevantes.
+
+Llama a leer_documento para todos los documentos seleccionados.
+
+Llama a generar_documento_desde_plantilla indicando tipo_documento = “contestación de demanda de alimentos” y pasando instrucciones detalladas basadas en la charla.
+
+El backend genera el .docx usando las plantillas actuales y devuelve la ruta/URL.
+
+APC IA responde en el chat con:
+
+Un resumen del contenido.
+
+Un enlace/botón para descargar el documento.
+
+Opcional: sugerencias de revisión.
+
+4.2. “Diseñar estrategia legal”
+
+Ejemplo de prompt del usuario:
+
+“Dame la estrategia legal para este caso de tenencia, considerando que la madre tiene ingresos bajos y el padre no participa activamente.”
+
+Flujo:
+
+APC IA llama a obtener_info_caso y listar_documentos_del_caso.
+
+Si faltan datos claves, hace preguntas aclaratorias dentro del chat.
+
+Genera un texto estructurado con:
+
+Objetivo principal.
+
+Principales argumentos.
+
+Pruebas claves.
+
+Riesgos.
+
+Escenarios posibles.
+
+Próximos pasos.
+
+Llama a guardar_borrador_estrategia para que esa estrategia quede guardada en la BD.
+
+Muestra la estrategia en el chat y, si es posible, un botón “Guardar/Estrategia” (ya guardado en BD).
+
+4.3. “Evaluar costos del caso”
+
+Ejemplo de prompt:
+
+“¿Cuánto podría costarle este caso al cliente, incluyendo audiencias y tiempo aproximado?”
+
+Flujo:
+
+APC IA:
+
+Revisa el tipo de proceso (desde obtener_info_caso o pregunta al usuario).
+
+Pregunta si hace falta: tarifa por hora, número aproximado de audiencias, duración estimada del proceso, etc.
+
+Llama a calcular_costos_estimados(case_id, parametros) con los datos recopilados.
+
+Devuelve al usuario:
+
+Un resumen de los costos estimados (honorarios, tasas, otros gastos).
+
+Una breve explicación de los supuestos utilizados.
+
+4.4. “Gestión de tareas vinculadas al caso”
+
+Ejemplos:
+
+“Crea una tarea para presentar este escrito en 5 días.”
+
+“Configura una tarea para revisar la estrategia antes de la audiencia.”
+
+Flujo:
+
+APC IA interpreta que debe crear una tarea.
+
+Calcula o pide la fecha exacta si es necesario.
+
+Llama a crear_tarea(case_id, descripcion, fecha_vencimiento, tipo).
+
+Responde al usuario confirmando la tarea creada.
+
+5. Aspectos técnicos
+
+Implementa los endpoints del backend para cada herramienta mencionada.
+
+Si se usa OpenAI u otro proveedor, configura function calling/tools con estos nombres y esquemas de parámetros.
+
+Asegúrate de que:
+
+Cada llamada incluya tenant_id, user_id y case_id para respetar el multi-tenant.
+
+No se mezclen datos entre empresas.
+
+El frontend de la vista “APC IA” debe:
+
+Enviar el mensaje del usuario a un endpoint tipo /api/apc/agent junto con case_id y contexto.
+
+Renderizar el historial de mensajes (usuario, APC IA, y eventualmente mensajes de “sistema” tipo confirmaciones de herramientas).
+
+6. Criterios de aceptación
+
+En “Documentos → Generar → APC IA” puedo:
+
+Subir o seleccionar documentos de un caso.
+
+Pedir una demanda o contestación completa y recibir un .docx descargable.
+
+Pedir una estrategia legal y ver un texto estructurado que quede guardado en BD.
+
+Pedir evaluación de costos y ver un cálculo razonable con explicación.
+
+Crear tareas ligadas al caso desde instrucciones naturales.
+
+APC IA usa las herramientas apropiadas según la intención del usuario.
+
+Todo funciona dentro del esquema multi-tenant y con el diseño minimalista de “APC IA”.
+
+Implementa toda esta lógica y estructura de agente, integrándola con la base de datos, endpoints y front existente de la plataforma.
