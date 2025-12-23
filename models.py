@@ -393,6 +393,7 @@ class Case(db.Model):
     cliente_telefono = db.Column(db.String(50))
     contraparte_nombre = db.Column(db.String(200))
     tipo_caso = db.Column(db.String(100))
+    case_type_id = db.Column(db.Integer, db.ForeignKey('case_types.id'), nullable=True)
     juzgado = db.Column(db.String(200))
     estado = db.Column(db.String(50), default='por_comenzar')
     prioridad = db.Column(db.String(20), default='media')
@@ -406,6 +407,7 @@ class Case(db.Model):
     
     tenant = db.relationship('Tenant', backref=db.backref('cases', lazy='dynamic'))
     created_by = db.relationship('User', backref=db.backref('created_cases', lazy='dynamic'))
+    case_type = db.relationship('CaseType', backref=db.backref('cases', lazy='dynamic'))
     assignments = db.relationship('CaseAssignment', backref='case', lazy='dynamic', cascade='all, delete-orphan')
     documents = db.relationship('CaseDocument', backref='case', lazy='dynamic', cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='case', lazy='dynamic', cascade='all, delete-orphan')
@@ -1561,4 +1563,89 @@ class CaseEvent(db.Model):
     __table_args__ = (
         db.Index('ix_case_events_tenant_case', 'tenant_id', 'case_id'),
         db.Index('ix_case_events_fecha', 'tenant_id', 'case_id', 'fecha_evento'),
+    )
+
+
+class CaseType(db.Model):
+    """Tipos de caso personalizados por tenant."""
+    __tablename__ = 'case_types'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    icono = db.Column(db.String(50), default='fa-folder')
+    color = db.Column(db.String(20), default='blue')
+    activo = db.Column(db.Boolean, default=True)
+    orden = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('case_types', lazy='dynamic'))
+    custom_fields = db.relationship('CaseCustomField', backref='case_type', lazy='dynamic', cascade='all, delete-orphan')
+    
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'nombre', name='uq_case_type_tenant_nombre'),
+    )
+
+
+class CaseCustomField(db.Model):
+    """Campos personalizados para casos, definidos por tipo de caso."""
+    __tablename__ = 'case_custom_fields'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_type_id = db.Column(db.Integer, db.ForeignKey('case_types.id'), nullable=True)
+    
+    nombre = db.Column(db.String(100), nullable=False)
+    label = db.Column(db.String(150), nullable=False)
+    tipo = db.Column(db.String(30), default='text')
+    placeholder = db.Column(db.String(200))
+    opciones = db.Column(db.Text)
+    requerido = db.Column(db.Boolean, default=False)
+    orden = db.Column(db.Integer, default=0)
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('case_custom_fields', lazy='dynamic'))
+    
+    TIPOS = {
+        'text': 'Texto',
+        'textarea': 'Texto largo',
+        'number': 'Número',
+        'date': 'Fecha',
+        'email': 'Email',
+        'tel': 'Teléfono',
+        'select': 'Lista desplegable',
+        'checkbox': 'Casilla de verificación',
+        'currency': 'Monto (S/.)'
+    }
+    
+    def get_opciones_list(self):
+        if self.opciones:
+            return [o.strip() for o in self.opciones.split(',') if o.strip()]
+        return []
+    
+    __table_args__ = (
+        db.Index('ix_case_custom_fields_tenant', 'tenant_id'),
+        db.Index('ix_case_custom_fields_type', 'tenant_id', 'case_type_id'),
+    )
+
+
+class CaseCustomFieldValue(db.Model):
+    """Valores de campos personalizados para cada caso."""
+    __tablename__ = 'case_custom_field_values'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    field_id = db.Column(db.Integer, db.ForeignKey('case_custom_fields.id'), nullable=False)
+    valor = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    case = db.relationship('Case', backref=db.backref('custom_field_values', lazy='dynamic', cascade='all, delete-orphan'))
+    field = db.relationship('CaseCustomField', backref=db.backref('values', lazy='dynamic'))
+    
+    __table_args__ = (
+        db.UniqueConstraint('case_id', 'field_id', name='uq_case_field_value'),
     )
