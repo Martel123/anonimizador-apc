@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue
 import qrcode
 import threading
 import queue
@@ -2983,6 +2983,145 @@ def preferencias_usuario():
         return redirect(url_for("preferencias_usuario"))
     
     return render_template("preferencias_usuario.html")
+
+
+@app.route("/admin/tipos-caso", methods=["GET", "POST"])
+@coordinador_or_admin_required
+def admin_tipos_caso():
+    """Gestionar tipos de caso y campos personalizados."""
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes un estudio asociado.", "error")
+        return redirect(url_for("index"))
+    
+    if request.method == "POST":
+        action = request.form.get("action")
+        
+        if action == "create_type":
+            nombre = request.form.get("nombre", "").strip()
+            descripcion = request.form.get("descripcion", "").strip()
+            icono = request.form.get("icono", "fa-folder")
+            color = request.form.get("color", "blue")
+            
+            if not nombre:
+                flash("El nombre del tipo de caso es obligatorio.", "error")
+            elif CaseType.query.filter_by(tenant_id=tenant.id, nombre=nombre).first():
+                flash("Ya existe un tipo de caso con ese nombre.", "error")
+            else:
+                case_type = CaseType(
+                    tenant_id=tenant.id,
+                    nombre=nombre,
+                    descripcion=descripcion,
+                    icono=icono,
+                    color=color
+                )
+                db.session.add(case_type)
+                db.session.commit()
+                flash(f"Tipo de caso '{nombre}' creado exitosamente.", "success")
+        
+        elif action == "update_type":
+            type_id = request.form.get("type_id")
+            case_type = CaseType.query.get(type_id)
+            if case_type and case_type.tenant_id == tenant.id:
+                case_type.nombre = request.form.get("nombre", case_type.nombre).strip()
+                case_type.descripcion = request.form.get("descripcion", "").strip()
+                case_type.icono = request.form.get("icono", case_type.icono)
+                case_type.color = request.form.get("color", case_type.color)
+                db.session.commit()
+                flash(f"Tipo de caso actualizado.", "success")
+        
+        elif action == "delete_type":
+            type_id = request.form.get("type_id")
+            case_type = CaseType.query.get(type_id)
+            if case_type and case_type.tenant_id == tenant.id:
+                if case_type.cases.count() > 0:
+                    flash("No se puede eliminar un tipo de caso que tiene casos asociados.", "error")
+                else:
+                    nombre = case_type.nombre
+                    db.session.delete(case_type)
+                    db.session.commit()
+                    flash(f"Tipo de caso '{nombre}' eliminado.", "success")
+        
+        elif action == "add_field":
+            type_id = request.form.get("type_id")
+            case_type = CaseType.query.get(type_id) if type_id else None
+            
+            nombre = request.form.get("field_nombre", "").strip().lower().replace(" ", "_")
+            label = request.form.get("field_label", "").strip()
+            tipo = request.form.get("field_tipo", "text")
+            placeholder = request.form.get("field_placeholder", "").strip()
+            opciones = request.form.get("field_opciones", "").strip()
+            requerido = request.form.get("field_requerido") == "on"
+            
+            if not nombre or not label:
+                flash("El nombre y la etiqueta del campo son obligatorios.", "error")
+            else:
+                field = CaseCustomField(
+                    tenant_id=tenant.id,
+                    case_type_id=type_id if type_id else None,
+                    nombre=nombre,
+                    label=label,
+                    tipo=tipo,
+                    placeholder=placeholder,
+                    opciones=opciones,
+                    requerido=requerido
+                )
+                db.session.add(field)
+                db.session.commit()
+                flash(f"Campo '{label}' agregado.", "success")
+        
+        elif action == "delete_field":
+            field_id = request.form.get("field_id")
+            field = CaseCustomField.query.get(field_id)
+            if field and field.tenant_id == tenant.id:
+                label = field.label
+                db.session.delete(field)
+                db.session.commit()
+                flash(f"Campo '{label}' eliminado.", "success")
+        
+        elif action == "toggle_type":
+            type_id = request.form.get("type_id")
+            case_type = CaseType.query.get(type_id)
+            if case_type and case_type.tenant_id == tenant.id:
+                case_type.activo = not case_type.activo
+                db.session.commit()
+                estado = "activado" if case_type.activo else "desactivado"
+                flash(f"Tipo de caso {estado}.", "success")
+        
+        return redirect(url_for("admin_tipos_caso"))
+    
+    tipos = CaseType.query.filter_by(tenant_id=tenant.id).order_by(CaseType.orden, CaseType.nombre).all()
+    campos_generales = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=None).order_by(CaseCustomField.orden).all()
+    
+    return render_template("admin_tipos_caso.html",
+                          tipos=tipos,
+                          campos_generales=campos_generales,
+                          tipos_campo=CaseCustomField.TIPOS)
+
+
+@app.route("/api/admin/tipos-caso/<int:type_id>/campos")
+@coordinador_or_admin_required
+def get_tipo_campos(type_id):
+    """Obtener campos de un tipo de caso específico."""
+    tenant = get_current_tenant()
+    case_type = CaseType.query.get_or_404(type_id)
+    
+    if case_type.tenant_id != tenant.id:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    campos = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=type_id).order_by(CaseCustomField.orden).all()
+    
+    return jsonify({
+        "campos": [{
+            "id": c.id,
+            "nombre": c.nombre,
+            "label": c.label,
+            "tipo": c.tipo,
+            "placeholder": c.placeholder,
+            "opciones": c.opciones,
+            "requerido": c.requerido
+        } for c in campos]
+    })
 
 
 @app.route("/admin/usuarios", methods=["GET", "POST"])
