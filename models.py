@@ -1464,3 +1464,101 @@ class CostEstimate(db.Model):
             'notas': self.notas,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+class CaseEvent(db.Model):
+    """Eventos cronológicos del caso - línea de tiempo."""
+    __tablename__ = 'case_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey('cases.id'), nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    tipo_evento = db.Column(db.String(50), nullable=False)
+    titulo = db.Column(db.String(300), nullable=False)
+    descripcion = db.Column(db.Text)
+    estado_resultado = db.Column(db.String(50))
+    metadata_json = db.Column(db.JSON)
+    
+    document_id = db.Column(db.Integer, db.ForeignKey('document_records.id'), nullable=True)
+    finished_document_id = db.Column(db.Integer, db.ForeignKey('finished_documents.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+    
+    fecha_evento = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('case_events', lazy='dynamic'))
+    case = db.relationship('Case', backref=db.backref('events', lazy='dynamic'))
+    created_by = db.relationship('User', backref=db.backref('created_case_events', lazy='dynamic'))
+    document = db.relationship('DocumentRecord', backref=db.backref('timeline_events', lazy='dynamic'))
+    finished_document = db.relationship('FinishedDocument', backref=db.backref('timeline_events', lazy='dynamic'))
+    task = db.relationship('Task', backref=db.backref('timeline_events', lazy='dynamic'))
+    
+    TIPOS_EVENTO = {
+        'caso_creado': {'label': 'Caso creado', 'icon': 'fa-plus-circle', 'color': 'blue'},
+        'estado_cambiado': {'label': 'Estado cambiado', 'icon': 'fa-sync-alt', 'color': 'purple'},
+        'documento_generado': {'label': 'Documento generado', 'icon': 'fa-file-alt', 'color': 'green'},
+        'documento_subido': {'label': 'Documento subido', 'icon': 'fa-upload', 'color': 'blue'},
+        'documento_terminado': {'label': 'Documento terminado', 'icon': 'fa-check-circle', 'color': 'green'},
+        'documento_improcedente': {'label': 'Declarado improcedente', 'icon': 'fa-times-circle', 'color': 'red'},
+        'documento_admitido': {'label': 'Admitido', 'icon': 'fa-thumbs-up', 'color': 'green'},
+        'documento_rechazado': {'label': 'Rechazado', 'icon': 'fa-ban', 'color': 'red'},
+        'tarea_creada': {'label': 'Tarea creada', 'icon': 'fa-tasks', 'color': 'yellow'},
+        'tarea_completada': {'label': 'Tarea completada', 'icon': 'fa-check-square', 'color': 'green'},
+        'asignacion': {'label': 'Usuario asignado', 'icon': 'fa-user-plus', 'color': 'blue'},
+        'desasignacion': {'label': 'Usuario removido', 'icon': 'fa-user-minus', 'color': 'gray'},
+        'nota_agregada': {'label': 'Nota agregada', 'icon': 'fa-sticky-note', 'color': 'yellow'},
+        'archivo_adjunto': {'label': 'Archivo adjuntado', 'icon': 'fa-paperclip', 'color': 'orange'},
+        'audiencia': {'label': 'Audiencia', 'icon': 'fa-gavel', 'color': 'purple'},
+        'notificacion': {'label': 'Notificación judicial', 'icon': 'fa-bell', 'color': 'blue'},
+        'resolucion': {'label': 'Resolución emitida', 'icon': 'fa-stamp', 'color': 'purple'},
+        'sentencia': {'label': 'Sentencia', 'icon': 'fa-balance-scale', 'color': 'red'},
+        'apelacion': {'label': 'Apelación presentada', 'icon': 'fa-level-up-alt', 'color': 'orange'},
+        'otro': {'label': 'Otro evento', 'icon': 'fa-circle', 'color': 'gray'}
+    }
+    
+    ESTADOS_RESULTADO = {
+        'exitoso': {'label': 'Exitoso', 'color': 'green'},
+        'pendiente': {'label': 'Pendiente', 'color': 'yellow'},
+        'rechazado': {'label': 'Rechazado', 'color': 'red'},
+        'improcedente': {'label': 'Improcedente', 'color': 'red'},
+        'admitido': {'label': 'Admitido', 'color': 'green'},
+        'parcial': {'label': 'Parcialmente favorable', 'color': 'yellow'},
+        'archivado': {'label': 'Archivado', 'color': 'gray'}
+    }
+    
+    def get_tipo_info(self):
+        return self.TIPOS_EVENTO.get(self.tipo_evento, self.TIPOS_EVENTO['otro'])
+    
+    def get_estado_info(self):
+        if self.estado_resultado:
+            return self.ESTADOS_RESULTADO.get(self.estado_resultado, {'label': self.estado_resultado, 'color': 'gray'})
+        return None
+    
+    @classmethod
+    def registrar(cls, tenant_id, case_id, user_id, tipo_evento, titulo, descripcion=None, 
+                  estado_resultado=None, fecha_evento=None, document_id=None, 
+                  finished_document_id=None, task_id=None, metadata_json=None):
+        """Registra un nuevo evento en la línea de tiempo del caso."""
+        evento = cls(
+            tenant_id=tenant_id,
+            case_id=case_id,
+            created_by_id=user_id,
+            tipo_evento=tipo_evento,
+            titulo=titulo,
+            descripcion=descripcion,
+            estado_resultado=estado_resultado,
+            fecha_evento=fecha_evento or datetime.utcnow(),
+            document_id=document_id,
+            finished_document_id=finished_document_id,
+            task_id=task_id,
+            metadata_json=metadata_json
+        )
+        db.session.add(evento)
+        return evento
+    
+    __table_args__ = (
+        db.Index('ix_case_events_tenant_case', 'tenant_id', 'case_id'),
+        db.Index('ix_case_events_fecha', 'tenant_id', 'case_id', 'fecha_evento'),
+    )

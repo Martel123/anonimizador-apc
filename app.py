@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent
 import qrcode
 import threading
 import queue
@@ -3724,11 +3724,19 @@ def caso_detalle(caso_id):
     case_documents = CaseDocument.query.filter_by(case_id=caso_id).order_by(CaseDocument.created_at.desc()).all()
     tasks = Task.query.filter_by(case_id=caso_id).order_by(Task.fecha_vencimiento).all()
     
+    eventos = CaseEvent.query.filter_by(
+        tenant_id=tenant.id, 
+        case_id=caso_id
+    ).order_by(CaseEvent.fecha_evento.desc()).all()
+    
     return render_template("caso_detalle.html",
                           caso=caso,
                           assignments=assignments,
                           case_documents=case_documents,
                           tasks=tasks,
+                          eventos=eventos,
+                          tipos_evento=CaseEvent.TIPOS_EVENTO,
+                          estados_resultado=CaseEvent.ESTADOS_RESULTADO,
                           estados=Case.ESTADOS,
                           prioridades=Case.PRIORIDADES,
                           current_tenant=tenant,
@@ -3886,6 +3894,49 @@ def caso_cambiar_estado(caso_id):
         db.session.commit()
         flash(f"Estado actualizado a: {Case.ESTADOS[nuevo_estado]}", "success")
     
+    return redirect(url_for("caso_detalle", caso_id=caso_id))
+
+
+@app.route("/casos/<int:caso_id>/evento", methods=["POST"])
+@case_access_required
+def caso_agregar_evento(caso_id):
+    """Agregar un evento manualmente a la línea de tiempo del caso."""
+    tenant = get_current_tenant()
+    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
+    
+    tipo_evento = request.form.get("tipo_evento", "otro")
+    titulo = request.form.get("titulo", "").strip()
+    descripcion = request.form.get("descripcion", "").strip()
+    estado_resultado = request.form.get("estado_resultado", "").strip() or None
+    fecha_evento_str = request.form.get("fecha_evento", "").strip()
+    
+    if not titulo:
+        flash("El título del evento es requerido.", "error")
+        return redirect(url_for("caso_detalle", caso_id=caso_id))
+    
+    fecha_evento = datetime.utcnow()
+    if fecha_evento_str:
+        try:
+            fecha_evento = datetime.strptime(fecha_evento_str, "%Y-%m-%dT%H:%M")
+        except ValueError:
+            try:
+                fecha_evento = datetime.strptime(fecha_evento_str, "%Y-%m-%d")
+            except ValueError:
+                pass
+    
+    CaseEvent.registrar(
+        tenant_id=tenant.id,
+        case_id=caso_id,
+        user_id=current_user.id,
+        tipo_evento=tipo_evento,
+        titulo=titulo,
+        descripcion=descripcion or None,
+        estado_resultado=estado_resultado,
+        fecha_evento=fecha_evento
+    )
+    db.session.commit()
+    
+    flash("Evento agregado a la línea de tiempo.", "success")
     return redirect(url_for("caso_detalle", caso_id=caso_id))
 
 

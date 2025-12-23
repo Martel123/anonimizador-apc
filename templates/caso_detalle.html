@@ -192,6 +192,79 @@
             <p class="text-gray-700 whitespace-pre-line">{{ caso.notas }}</p>
         </div>
         {% endif %}
+        
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-history text-indigo-500 mr-2"></i>Línea de Tiempo
+                </h3>
+                <button onclick="document.getElementById('modal-evento').classList.remove('hidden')" 
+                        class="text-blue-600 hover:text-blue-800 text-sm">
+                    <i class="fas fa-plus mr-1"></i> Agregar evento
+                </button>
+            </div>
+            
+            {% if eventos %}
+            <div class="relative">
+                <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                
+                <div class="space-y-4">
+                    {% for evento in eventos %}
+                    {% set tipo_info = evento.get_tipo_info() %}
+                    {% set estado_info = evento.get_estado_info() %}
+                    <div class="relative pl-10">
+                        <div class="absolute left-0 w-8 h-8 rounded-full flex items-center justify-center
+                            {% if tipo_info.color == 'blue' %}bg-blue-100 text-blue-600
+                            {% elif tipo_info.color == 'green' %}bg-green-100 text-green-600
+                            {% elif tipo_info.color == 'red' %}bg-red-100 text-red-600
+                            {% elif tipo_info.color == 'yellow' %}bg-yellow-100 text-yellow-600
+                            {% elif tipo_info.color == 'purple' %}bg-purple-100 text-purple-600
+                            {% elif tipo_info.color == 'orange' %}bg-orange-100 text-orange-600
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            <i class="fas {{ tipo_info.icon }} text-sm"></i>
+                        </div>
+                        
+                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-medium text-gray-900">{{ evento.titulo }}</span>
+                                        {% if estado_info %}
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                                            {% if estado_info.color == 'green' %}bg-green-100 text-green-700
+                                            {% elif estado_info.color == 'red' %}bg-red-100 text-red-700
+                                            {% elif estado_info.color == 'yellow' %}bg-yellow-100 text-yellow-700
+                                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                            {{ estado_info.label }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    {% if evento.descripcion %}
+                                    <p class="text-sm text-gray-600 mt-1">{{ evento.descripcion }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="text-right text-xs text-gray-500 ml-4 whitespace-nowrap">
+                                    <div>{{ evento.fecha_evento.strftime('%d/%m/%Y') }}</div>
+                                    <div>{{ evento.fecha_evento.strftime('%H:%M') }}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                <span class="px-2 py-0.5 bg-gray-100 rounded">{{ tipo_info.label }}</span>
+                                <span>por {{ evento.created_by.username }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-history text-4xl text-gray-300 mb-3"></i>
+                <p class="text-gray-500">No hay eventos registrados aún</p>
+                <p class="text-sm text-gray-400 mt-1">Los eventos se irán registrando automáticamente</p>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
     <div class="space-y-6">
@@ -307,6 +380,84 @@
                 {% endif %}
             </div>
         </div>
+    </div>
+</div>
+
+<div id="modal-evento" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-plus-circle text-blue-500 mr-2"></i>Agregar Evento
+                </h3>
+                <button onclick="document.getElementById('modal-evento').classList.add('hidden')" 
+                        class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+        </div>
+        <form method="post" action="{{ url_for('caso_agregar_evento', caso_id=caso.id) }}" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Evento</label>
+                <select name="tipo_evento" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                    <option value="documento_generado">Documento generado</option>
+                    <option value="documento_subido">Documento subido</option>
+                    <option value="documento_terminado">Documento terminado</option>
+                    <option value="documento_improcedente">Declarado improcedente</option>
+                    <option value="documento_admitido">Admitido</option>
+                    <option value="documento_rechazado">Rechazado</option>
+                    <option value="audiencia">Audiencia</option>
+                    <option value="notificacion">Notificación judicial</option>
+                    <option value="resolucion">Resolución emitida</option>
+                    <option value="sentencia">Sentencia</option>
+                    <option value="apelacion">Apelación presentada</option>
+                    <option value="nota_agregada">Nota agregada</option>
+                    <option value="otro">Otro</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                <input type="text" name="titulo" required 
+                       placeholder="Ej: Demanda presentada, Audiencia programada..."
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
+                <textarea name="descripcion" rows="3" 
+                          placeholder="Detalles adicionales del evento..."
+                          class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Resultado (opcional)</label>
+                <select name="estado_resultado" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                    <option value="">Sin resultado específico</option>
+                    <option value="exitoso">Exitoso</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="admitido">Admitido</option>
+                    <option value="rechazado">Rechazado</option>
+                    <option value="improcedente">Improcedente</option>
+                    <option value="parcial">Parcialmente favorable</option>
+                    <option value="archivado">Archivado</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha del Evento</label>
+                <input type="datetime-local" name="fecha_evento" 
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                <p class="text-xs text-gray-500 mt-1">Si no se especifica, se usará la fecha actual</p>
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="button" 
+                        onclick="document.getElementById('modal-evento').classList.add('hidden')"
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    Cancelar
+                </button>
+                <button type="submit" 
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i class="fas fa-check mr-1"></i> Agregar Evento
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
