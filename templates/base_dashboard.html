@@ -170,6 +170,10 @@
                     <i class="fas fa-cog w-5 mr-3"></i>
                     <span>Panel Admin</span>
                 </a>
+                <a href="{{ url_for('admin_tipos_caso') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin_tipos_caso' %}active{% endif %}">
+                    <i class="fas fa-tags w-5 mr-3"></i>
+                    <span>Tipos de Caso</span>
+                </a>
                 {% if current_user.is_admin_estudio() or current_user.is_super_admin() %}
                 <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin_usuarios' %}active{% endif %}">
                     <i class="fas fa-users w-5 mr-3"></i>
