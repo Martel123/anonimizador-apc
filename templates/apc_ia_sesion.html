@@ -25,41 +25,44 @@
             
             <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
                 <h3 class="text-sm font-medium text-gray-700 mb-3">
-                    <i class="fas fa-file-upload mr-1"></i>
-                    Subir documento
-                </h3>
-                <p class="text-xs text-gray-500 mb-3">Sube un documento para que la IA lo analice en esta conversación</p>
-                <div class="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-blue-400 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
-                    <i class="fas fa-cloud-upload-alt text-2xl text-gray-400 mb-1"></i>
-                    <p class="text-xs text-gray-500">Arrastra o haz clic</p>
-                    <p class="text-xs text-gray-400">.docx, .pdf, .txt</p>
-                </div>
-                <input type="file" id="file-upload" class="hidden" accept=".docx,.pdf,.txt" onchange="handleFileUpload(this)">
-                <div id="uploaded-files" class="mt-3 space-y-2"></div>
-            </div>
-            
-            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
-                <h3 class="text-sm font-medium text-gray-700 mb-3">
                     <i class="fas fa-book mr-1"></i>
                     Fuentes disponibles
                 </h3>
                 <div class="space-y-2">
                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input type="checkbox" id="source-plantillas" class="rounded text-blue-600" checked>
+                        <i class="fas fa-file-alt text-blue-500"></i>
                         <span>Plantillas APC</span>
                     </label>
                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input type="checkbox" id="source-estudio" class="rounded text-blue-600" checked>
+                        <i class="fas fa-database text-green-500"></i>
                         <span>Base del estudio</span>
                     </label>
                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input type="checkbox" id="source-normativa" class="rounded text-blue-600">
+                        <i class="fas fa-gavel text-purple-500"></i>
                         <span>Normativa peruana</span>
                     </label>
                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input type="checkbox" id="source-jurisprudencia" class="rounded text-blue-600">
+                        <i class="fas fa-balance-scale text-yellow-600"></i>
                         <span>Jurisprudencia</span>
                     </label>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-cloud-upload-alt mr-1 text-indigo-500"></i>
+                        Sube tus fuentes
+                    </h4>
+                    <p class="text-xs text-gray-500 mb-2">Documentos propios para que la IA los use</p>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-blue-400 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
+                        <i class="fas fa-plus text-gray-400 mb-1"></i>
+                        <p class="text-xs text-gray-500">Subir archivo</p>
+                    </div>
+                    <input type="file" id="file-upload" class="hidden" accept=".docx,.pdf,.txt" onchange="handleFileUpload(this)" multiple>
+                    <div id="uploaded-files" class="mt-2 space-y-1"></div>
                 </div>
             </div>
             

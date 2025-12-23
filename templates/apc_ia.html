@@ -33,21 +33,6 @@
                 </div>
             </div>
             
-            <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
-                <h3 class="text-sm font-medium text-gray-700 mb-3">
-                    <i class="fas fa-file-upload mr-1"></i>
-                    Subir documento
-                </h3>
-                <p class="text-xs text-gray-500 mb-3">Sube un documento para que la IA lo analice</p>
-                <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
-                    <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
-                    <p class="text-sm text-gray-500">Arrastra o haz clic</p>
-                    <p class="text-xs text-gray-400">.docx, .pdf, .txt</p>
-                </div>
-                <input type="file" id="file-upload" class="hidden" accept=".docx,.pdf,.txt" onchange="handleFileUpload(this)">
-                <div id="uploaded-files" class="mt-3 space-y-2"></div>
-            </div>
-            
             <div class="bg-white rounded-xl shadow-sm border p-4">
                 <h3 class="text-sm font-medium text-gray-700 mb-3">
                     <i class="fas fa-book mr-1"></i>
@@ -74,6 +59,20 @@
                         <i class="fas fa-balance-scale text-yellow-600"></i>
                         <span>Jurisprudencia</span>
                     </label>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-cloud-upload-alt mr-1 text-indigo-500"></i>
+                        Sube tus fuentes
+                    </h4>
+                    <p class="text-xs text-gray-500 mb-2">Documentos propios para que la IA los use</p>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-blue-400 transition cursor-pointer" onclick="document.getElementById('file-upload').click()">
+                        <i class="fas fa-plus text-gray-400 mb-1"></i>
+                        <p class="text-xs text-gray-500">Subir archivo</p>
+                    </div>
+                    <input type="file" id="file-upload" class="hidden" accept=".docx,.pdf,.txt" onchange="handleFileUpload(this)" multiple>
+                    <div id="uploaded-files" class="mt-2 space-y-1"></div>
                 </div>
             </div>
         </div>
