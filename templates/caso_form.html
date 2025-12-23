@@ -26,9 +26,25 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Caso</label>
+                    {% if tipos_caso %}
+                    <select name="case_type_id" id="case-type-select" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Seleccionar tipo...</option>
+                        {% for tipo in tipos_caso %}
+                        <option value="{{ tipo.id }}" data-icon="{{ tipo.icono }}" data-color="{{ tipo.color }}"
+                                {% if caso and caso.case_type_id == tipo.id %}selected{% endif %}>
+                            {{ tipo.nombre }}
+                        </option>
+                        {% endfor %}
+                        <option value="otro">Otro (escribir)</option>
+                    </select>
+                    <input type="text" name="tipo_caso" id="tipo-caso-manual" value="{{ caso.tipo_caso if caso and not caso.case_type_id else '' }}"
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mt-2 hidden"
+                           placeholder="Ej: Derecho de Familia">
+                    {% else %}
                     <input type="text" name="tipo_caso" value="{{ caso.tipo_caso if caso else '' }}"
                            class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                            placeholder="Ej: Derecho de Familia">
+                    {% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
@@ -91,6 +107,58 @@
                 </div>
             </div>
         </div>
+
+        {% if campos_generales or tipos_caso %}
+        <div class="bg-white rounded-xl shadow-sm p-6" id="campos-personalizados-section">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-th-list text-indigo-500 mr-2"></i>Campos Adicionales
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="campos-container">
+                {% for campo in campos_generales %}
+                <div class="campo-general">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ campo.label }}{% if campo.requerido %} *{% endif %}
+                    </label>
+                    {% if campo.tipo == 'textarea' %}
+                    <textarea name="custom_{{ campo.nombre }}" rows="3" 
+                              class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                              {% if campo.requerido %}required{% endif %}
+                              placeholder="{{ campo.placeholder or '' }}"></textarea>
+                    {% elif campo.tipo == 'select' %}
+                    <select name="custom_{{ campo.nombre }}" 
+                            class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            {% if campo.requerido %}required{% endif %}>
+                        <option value="">Seleccionar...</option>
+                        {% for opcion in campo.get_opciones_list() %}
+                        <option value="{{ opcion }}">{{ opcion }}</option>
+                        {% endfor %}
+                    </select>
+                    {% elif campo.tipo == 'checkbox' %}
+                    <label class="flex items-center">
+                        <input type="checkbox" name="custom_{{ campo.nombre }}" value="si" class="rounded text-blue-600 mr-2">
+                        <span class="text-sm text-gray-700">{{ campo.placeholder or 'Si' }}</span>
+                    </label>
+                    {% elif campo.tipo == 'date' %}
+                    <input type="date" name="custom_{{ campo.nombre }}"
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           {% if campo.requerido %}required{% endif %}>
+                    {% elif campo.tipo == 'number' or campo.tipo == 'currency' %}
+                    <input type="number" name="custom_{{ campo.nombre }}" step="0.01"
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           {% if campo.requerido %}required{% endif %}
+                           placeholder="{{ campo.placeholder or '' }}">
+                    {% else %}
+                    <input type="{{ campo.tipo }}" name="custom_{{ campo.nombre }}"
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           {% if campo.requerido %}required{% endif %}
+                           placeholder="{{ campo.placeholder or '' }}">
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <div id="campos-tipo-especifico" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
+        </div>
+        {% endif %}
 
         {% if not caso %}
         <div class="bg-white rounded-xl shadow-sm p-6">
@@ -219,6 +287,69 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.remove();
                 const hiddenInput = archivosContainer.querySelector(`input[data-file-id="${fileId}"]`);
                 if (hiddenInput) hiddenInput.remove();
+            }
+        });
+    }
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const caseTypeSelect = document.getElementById('case-type-select');
+    const tipoCasoManual = document.getElementById('tipo-caso-manual');
+    const camposTipoEspecifico = document.getElementById('campos-tipo-especifico');
+    
+    if (caseTypeSelect) {
+        caseTypeSelect.addEventListener('change', function() {
+            const typeId = this.value;
+            
+            if (typeId === 'otro') {
+                tipoCasoManual.classList.remove('hidden');
+                tipoCasoManual.focus();
+                camposTipoEspecifico.innerHTML = '';
+            } else {
+                tipoCasoManual.classList.add('hidden');
+                tipoCasoManual.value = '';
+                
+                if (typeId) {
+                    fetch(`/api/admin/tipos-caso/${typeId}/campos`)
+                        .then(r => r.json())
+                        .then(data => {
+                            camposTipoEspecifico.innerHTML = '';
+                            data.campos.forEach(campo => {
+                                const div = document.createElement('div');
+                                div.className = 'campo-tipo-especifico';
+                                
+                                let inputHtml = '';
+                                const req = campo.requerido ? 'required' : '';
+                                const placeholder = campo.placeholder || '';
+                                
+                                if (campo.tipo === 'textarea') {
+                                    inputHtml = `<textarea name="custom_${campo.nombre}" rows="3" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" ${req} placeholder="${placeholder}"></textarea>`;
+                                } else if (campo.tipo === 'select') {
+                                    const opts = campo.opciones ? campo.opciones.split(',').map(o => `<option value="${o.trim()}">${o.trim()}</option>`).join('') : '';
+                                    inputHtml = `<select name="custom_${campo.nombre}" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" ${req}><option value="">Seleccionar...</option>${opts}</select>`;
+                                } else if (campo.tipo === 'checkbox') {
+                                    inputHtml = `<label class="flex items-center"><input type="checkbox" name="custom_${campo.nombre}" value="si" class="rounded text-blue-600 mr-2"><span class="text-sm text-gray-700">${placeholder || 'Si'}</span></label>`;
+                                } else if (campo.tipo === 'date') {
+                                    inputHtml = `<input type="date" name="custom_${campo.nombre}" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" ${req}>`;
+                                } else if (campo.tipo === 'number' || campo.tipo === 'currency') {
+                                    inputHtml = `<input type="number" name="custom_${campo.nombre}" step="0.01" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" ${req} placeholder="${placeholder}">`;
+                                } else {
+                                    inputHtml = `<input type="${campo.tipo}" name="custom_${campo.nombre}" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" ${req} placeholder="${placeholder}">`;
+                                }
+                                
+                                div.innerHTML = `
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                                        ${campo.label}${campo.requerido ? ' *' : ''}
+                                    </label>
+                                    ${inputHtml}
+                                `;
+                                camposTipoEspecifico.appendChild(div);
+                            });
+                        });
+                } else {
+                    camposTipoEspecifico.innerHTML = '';
+                }
             }
         });
     }

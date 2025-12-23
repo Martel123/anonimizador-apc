@@ -3761,7 +3761,19 @@ def caso_nuevo():
         
         if not titulo or not cliente_nombre:
             flash("El título y nombre del cliente son obligatorios.", "error")
-            return render_template("caso_form.html", caso=None, usuarios=User.query.filter_by(tenant_id=tenant.id, activo=True).all())
+            usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
+            tipos_caso = CaseType.query.filter_by(tenant_id=tenant.id, activo=True).order_by(CaseType.orden, CaseType.nombre).all()
+            campos_generales = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=None, activo=True).order_by(CaseCustomField.orden).all()
+            return render_template("caso_form.html", caso=None, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES,
+                                  tipos_caso=tipos_caso, campos_generales=campos_generales, tipos_campo=CaseCustomField.TIPOS)
+        
+        case_type_id = request.form.get("case_type_id", type=int)
+        tipo_caso_texto = request.form.get("tipo_caso", "").strip()
+        
+        if case_type_id:
+            case_type = CaseType.query.get(case_type_id)
+            if case_type and case_type.tenant_id == tenant.id:
+                tipo_caso_texto = case_type.nombre
         
         caso = Case(
             tenant_id=tenant.id,
@@ -3772,7 +3784,8 @@ def caso_nuevo():
             cliente_email=request.form.get("cliente_email", "").strip(),
             cliente_telefono=request.form.get("cliente_telefono", "").strip(),
             contraparte_nombre=request.form.get("contraparte_nombre", "").strip(),
-            tipo_caso=request.form.get("tipo_caso", "").strip(),
+            tipo_caso=tipo_caso_texto,
+            case_type_id=case_type_id,
             juzgado=request.form.get("juzgado", "").strip(),
             estado=request.form.get("estado", "por_comenzar"),
             prioridad=request.form.get("prioridad", "media"),
@@ -3789,6 +3802,24 @@ def caso_nuevo():
         
         db.session.add(caso)
         db.session.flush()
+        
+        campos_a_guardar = []
+        campos_generales = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=None, activo=True).all()
+        campos_a_guardar.extend(campos_generales)
+        
+        if case_type_id:
+            campos_tipo = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=case_type_id, activo=True).all()
+            campos_a_guardar.extend(campos_tipo)
+        
+        for campo in campos_a_guardar:
+            valor = request.form.get(f"custom_{campo.nombre}", "").strip()
+            if valor:
+                field_value = CaseCustomFieldValue(
+                    case_id=caso.id,
+                    field_id=campo.id,
+                    valor=valor
+                )
+                db.session.add(field_value)
         
         colaboradores_ids = request.form.getlist("colaboradores")
         responsable_id = request.form.get("responsable_id", type=int)
@@ -3844,7 +3875,11 @@ def caso_nuevo():
         return redirect(url_for("caso_detalle", caso_id=caso.id))
     
     usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
-    return render_template("caso_form.html", caso=None, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES)
+    tipos_caso = CaseType.query.filter_by(tenant_id=tenant.id, activo=True).order_by(CaseType.orden, CaseType.nombre).all()
+    campos_generales = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=None, activo=True).order_by(CaseCustomField.orden).all()
+    
+    return render_template("caso_form.html", caso=None, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES,
+                          tipos_caso=tipos_caso, campos_generales=campos_generales, tipos_campo=CaseCustomField.TIPOS)
 
 
 @app.route("/casos/<int:caso_id>")

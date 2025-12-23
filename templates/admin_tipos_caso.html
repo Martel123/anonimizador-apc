@@ -1,0 +1,247 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Tipos de Caso{% endblock %}
+{% block page_title %}Tipos de Caso{% endblock %}
+{% block page_subtitle %}Configura los tipos de caso y campos personalizados para tu estudio{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-folder-plus text-blue-500 mr-2"></i>Crear Tipo de Caso
+            </h3>
+            <form method="post" class="space-y-4">
+                <input type="hidden" name="action" value="create_type">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                    <input type="text" name="nombre" required
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ej: Derecho de Familia">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+                    <textarea name="descripcion" rows="2"
+                              class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                              placeholder="Descripcion breve del tipo de caso..."></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Icono</label>
+                        <select name="icono" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="fa-folder">Carpeta</option>
+                            <option value="fa-users">Familia</option>
+                            <option value="fa-gavel">Judicial</option>
+                            <option value="fa-building">Corporativo</option>
+                            <option value="fa-briefcase">Laboral</option>
+                            <option value="fa-home">Inmobiliario</option>
+                            <option value="fa-car">Transito</option>
+                            <option value="fa-shield-alt">Penal</option>
+                            <option value="fa-file-contract">Contratos</option>
+                            <option value="fa-balance-scale">Civil</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                        <select name="color" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="blue">Azul</option>
+                            <option value="green">Verde</option>
+                            <option value="purple">Morado</option>
+                            <option value="red">Rojo</option>
+                            <option value="yellow">Amarillo</option>
+                            <option value="orange">Naranja</option>
+                            <option value="pink">Rosa</option>
+                            <option value="gray">Gris</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Crear Tipo de Caso
+                </button>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-plus-circle text-green-500 mr-2"></i>Agregar Campo Personalizado
+            </h3>
+            <form method="post" class="space-y-4">
+                <input type="hidden" name="action" value="add_field">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Aplicar a Tipo de Caso</label>
+                    <select name="type_id" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todos los casos (campo general)</option>
+                        {% for tipo in tipos %}
+                        <option value="{{ tipo.id }}">{{ tipo.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Si seleccionas un tipo, el campo solo aparecera en casos de ese tipo</p>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Etiqueta *</label>
+                        <input type="text" name="field_label" required
+                               class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                               placeholder="Ej: Cuantia del caso">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre interno *</label>
+                        <input type="text" name="field_nombre" required
+                               class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                               placeholder="Ej: cuantia">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Campo</label>
+                        <select name="field_tipo" id="field-tipo-select" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            {% for key, label in tipos_campo.items() %}
+                            <option value="{{ key }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Placeholder</label>
+                        <input type="text" name="field_placeholder"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                               placeholder="Texto de ayuda...">
+                    </div>
+                </div>
+                <div id="opciones-container" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Opciones (separadas por coma)</label>
+                    <input type="text" name="field_opciones"
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ej: Opcion 1, Opcion 2, Opcion 3">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" name="field_requerido" id="field_requerido" class="rounded text-blue-600 mr-2">
+                    <label for="field_requerido" class="text-sm text-gray-700">Campo obligatorio</label>
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Agregar Campo
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-list text-purple-500 mr-2"></i>Tipos de Caso Configurados
+        </h3>
+        {% if tipos %}
+        <div class="space-y-4">
+            {% for tipo in tipos %}
+            <div class="border border-gray-200 rounded-lg p-4 {% if not tipo.activo %}opacity-60{% endif %}">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-{{ tipo.color }}-100 flex items-center justify-center">
+                            <i class="fas {{ tipo.icono }} text-{{ tipo.color }}-600"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-gray-900">{{ tipo.nombre }}</h4>
+                            {% if tipo.descripcion %}
+                            <p class="text-sm text-gray-500">{{ tipo.descripcion }}</p>
+                            {% endif %}
+                        </div>
+                        {% if not tipo.activo %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">Inactivo</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-500">{{ tipo.cases.count() }} casos</span>
+                        <form method="post" class="inline">
+                            <input type="hidden" name="action" value="toggle_type">
+                            <input type="hidden" name="type_id" value="{{ tipo.id }}">
+                            <button type="submit" class="px-3 py-1 text-sm {% if tipo.activo %}bg-yellow-50 text-yellow-700 hover:bg-yellow-100{% else %}bg-green-50 text-green-700 hover:bg-green-100{% endif %} rounded-lg transition-colors">
+                                <i class="fas {% if tipo.activo %}fa-eye-slash{% else %}fa-eye{% endif %} mr-1"></i>
+                                {% if tipo.activo %}Desactivar{% else %}Activar{% endif %}
+                            </button>
+                        </form>
+                        {% if tipo.cases.count() == 0 %}
+                        <form method="post" class="inline" onsubmit="return confirm('Seguro que quieres eliminar este tipo de caso?')">
+                            <input type="hidden" name="action" value="delete_type">
+                            <input type="hidden" name="type_id" value="{{ tipo.id }}">
+                            <button type="submit" class="px-3 py-1 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors">
+                                <i class="fas fa-trash mr-1"></i>Eliminar
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% set campos = tipo.custom_fields.all() %}
+                {% if campos %}
+                <div class="mt-3 pt-3 border-t border-gray-100">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Campos personalizados:</p>
+                    <div class="flex flex-wrap gap-2">
+                        {% for campo in campos %}
+                        <div class="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-sm">
+                            <span>{{ campo.label }}</span>
+                            <span class="text-xs text-gray-500">({{ tipos_campo.get(campo.tipo, campo.tipo) }})</span>
+                            {% if campo.requerido %}
+                            <span class="text-red-500">*</span>
+                            {% endif %}
+                            <form method="post" class="inline">
+                                <input type="hidden" name="action" value="delete_field">
+                                <input type="hidden" name="field_id" value="{{ campo.id }}">
+                                <button type="submit" class="text-red-500 hover:text-red-700">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-400 mt-2">Sin campos personalizados</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500">
+            <i class="fas fa-folder-open text-4xl mb-3"></i>
+            <p>No has creado tipos de caso aun.</p>
+            <p class="text-sm">Crea tu primer tipo de caso usando el formulario de arriba.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if campos_generales %}
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-th-list text-indigo-500 mr-2"></i>Campos Generales (aplican a todos los casos)
+        </h3>
+        <div class="flex flex-wrap gap-2">
+            {% for campo in campos_generales %}
+            <div class="inline-flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg text-sm border border-indigo-100">
+                <span class="font-medium">{{ campo.label }}</span>
+                <span class="text-xs text-indigo-600">({{ tipos_campo.get(campo.tipo, campo.tipo) }})</span>
+                {% if campo.requerido %}
+                <span class="text-red-500">*</span>
+                {% endif %}
+                <form method="post" class="inline">
+                    <input type="hidden" name="action" value="delete_field">
+                    <input type="hidden" name="field_id" value="{{ campo.id }}">
+                    <button type="submit" class="text-red-500 hover:text-red-700 ml-1">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.getElementById('field-tipo-select').addEventListener('change', function() {
+    const opcionesContainer = document.getElementById('opciones-container');
+    if (this.value === 'select') {
+        opcionesContainer.classList.remove('hidden');
+    } else {
+        opcionesContainer.classList.add('hidden');
+    }
+});
+</script>
+{% endblock %}
