@@ -3792,6 +3792,11 @@ def caso_nuevo():
             cliente_email=request.form.get("cliente_email", "").strip(),
             cliente_telefono=request.form.get("cliente_telefono", "").strip(),
             contraparte_nombre=request.form.get("contraparte_nombre", "").strip(),
+            demandante=request.form.get("demandante", "").strip(),
+            demandado=request.form.get("demandado", "").strip(),
+            asesor_externo=request.form.get("asesor_externo", "").strip(),
+            abogado_interno=request.form.get("abogado_interno", "").strip(),
+            tipo_proceso=request.form.get("tipo_proceso", "").strip(),
             tipo_caso=tipo_caso_texto,
             case_type_id=case_type_id,
             juzgado=request.form.get("juzgado", "").strip(),
@@ -3939,6 +3944,11 @@ def caso_editar(caso_id):
         caso.cliente_email = request.form.get("cliente_email", "").strip()
         caso.cliente_telefono = request.form.get("cliente_telefono", "").strip()
         caso.contraparte_nombre = request.form.get("contraparte_nombre", "").strip()
+        caso.demandante = request.form.get("demandante", "").strip()
+        caso.demandado = request.form.get("demandado", "").strip()
+        caso.asesor_externo = request.form.get("asesor_externo", "").strip()
+        caso.abogado_interno = request.form.get("abogado_interno", "").strip()
+        caso.tipo_proceso = request.form.get("tipo_proceso", "").strip()
         caso.tipo_caso = request.form.get("tipo_caso", "").strip()
         caso.juzgado = request.form.get("juzgado", "").strip()
         caso.estado = request.form.get("estado", "por_comenzar")
@@ -3964,7 +3974,10 @@ def caso_editar(caso_id):
         return redirect(url_for("caso_detalle", caso_id=caso.id))
     
     usuarios = User.query.filter_by(tenant_id=tenant.id, activo=True).all()
-    return render_template("caso_form.html", caso=caso, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES)
+    tipos_caso = CaseType.query.filter_by(tenant_id=tenant.id, activo=True).order_by(CaseType.orden, CaseType.nombre).all()
+    campos_generales = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=None, activo=True).order_by(CaseCustomField.orden).all()
+    return render_template("caso_form.html", caso=caso, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES,
+                          tipos_caso=tipos_caso, campos_generales=campos_generales, tipos_campo=CaseCustomField.TIPOS)
 
 
 @app.route("/casos/<int:caso_id>/asignar", methods=["POST"])
