@@ -3767,13 +3767,21 @@ def caso_nuevo():
             return render_template("caso_form.html", caso=None, usuarios=usuarios, estados=Case.ESTADOS, prioridades=Case.PRIORIDADES,
                                   tipos_caso=tipos_caso, campos_generales=campos_generales, tipos_campo=CaseCustomField.TIPOS)
         
-        case_type_id = request.form.get("case_type_id", type=int)
+        case_type_id_raw = request.form.get("case_type_id", "").strip()
         tipo_caso_texto = request.form.get("tipo_caso", "").strip()
+        case_type_id = None
         
-        if case_type_id:
-            case_type = CaseType.query.get(case_type_id)
-            if case_type and case_type.tenant_id == tenant.id:
-                tipo_caso_texto = case_type.nombre
+        if case_type_id_raw and case_type_id_raw != "otro":
+            try:
+                case_type_id_int = int(case_type_id_raw)
+                case_type = CaseType.query.filter_by(id=case_type_id_int, tenant_id=tenant.id).first()
+                if case_type:
+                    case_type_id = case_type.id
+                    tipo_caso_texto = case_type.nombre
+                else:
+                    case_type_id = None
+            except (ValueError, TypeError):
+                case_type_id = None
         
         caso = Case(
             tenant_id=tenant.id,
