@@ -6,6 +6,45 @@
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
+    <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg shadow-md p-6 md:p-8 mb-8 border border-purple-200">
+        <h3 class="text-xl font-medium text-gray-900 mb-4">
+            <i class="fas fa-qrcode text-purple-600 mr-2"></i>Cargar desde Formulario
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">Ingrese el código del formulario para auto-completar los campos con la información del cliente.</p>
+        <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1">
+                <input type="text" id="codigo_formulario" 
+                       placeholder="Ej: APC-EA-AB12CD"
+                       class="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 uppercase"
+                       style="text-transform: uppercase;">
+            </div>
+            <button type="button" onclick="cargarFormulario()" id="btnCargarFormulario"
+                    class="h-12 px-6 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center">
+                <span id="btnCargarText"><i class="fas fa-search mr-2"></i>Cargar Datos</span>
+                <span id="btnCargarLoading" class="hidden">
+                    <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </span>
+            </button>
+        </div>
+        <div id="formularioInfo" class="hidden mt-4 p-4 bg-white rounded-lg border border-green-300">
+            <div class="flex items-center justify-between">
+                <div>
+                    <span class="text-sm font-medium text-green-700"><i class="fas fa-check-circle mr-1"></i>Formulario cargado:</span>
+                    <span id="formularioCode" class="ml-2 font-mono text-green-800"></span>
+                </div>
+                <span id="formularioStatus" class="px-2 py-1 text-xs rounded-full"></span>
+            </div>
+            <p class="text-sm text-gray-600 mt-1">Modelo: <span id="formularioModelo" class="font-medium"></span></p>
+        </div>
+        <div id="formularioError" class="hidden mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-200">
+            <i class="fas fa-exclamation-circle mr-1"></i><span id="formularioErrorMsg"></span>
+        </div>
+        <input type="hidden" name="form_response_id" id="form_response_id" value="">
+    </div>
+
     <form id="documentForm" action="{{ url_for('procesar_ia') }}" method="POST" class="space-y-8">
         <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
             <h3 class="text-xl font-medium text-gray-900 mb-6">Tipo de Documento</h3>
@@ -140,6 +179,95 @@
 {% block extra_scripts %}
 <script>
     let camposCache = {};
+    let formularioCargado = null;
+
+    function cargarFormulario() {
+        const code = document.getElementById('codigo_formulario').value.trim().toUpperCase();
+        if (!code) {
+            mostrarError('Por favor ingrese un código de formulario.');
+            return;
+        }
+
+        document.getElementById('btnCargarText').classList.add('hidden');
+        document.getElementById('btnCargarLoading').classList.remove('hidden');
+        document.getElementById('btnCargarFormulario').disabled = true;
+
+        fetch('/api/formulario/buscar/' + encodeURIComponent(code))
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('btnCargarText').classList.remove('hidden');
+                document.getElementById('btnCargarLoading').classList.add('hidden');
+                document.getElementById('btnCargarFormulario').disabled = false;
+
+                if (data.error) {
+                    mostrarError(data.error);
+                    return;
+                }
+
+                formularioCargado = data;
+                document.getElementById('form_response_id').value = data.form_id;
+
+                document.getElementById('formularioInfo').classList.remove('hidden');
+                document.getElementById('formularioError').classList.add('hidden');
+                document.getElementById('formularioCode').textContent = data.code;
+                document.getElementById('formularioModelo').textContent = data.template_name;
+
+                const statusEl = document.getElementById('formularioStatus');
+                if (data.can_use) {
+                    statusEl.textContent = data.status_label;
+                    statusEl.className = 'px-2 py-1 text-xs rounded-full bg-green-100 text-green-800';
+                } else {
+                    statusEl.textContent = data.status_label + ' (No disponible)';
+                    statusEl.className = 'px-2 py-1 text-xs rounded-full bg-red-100 text-red-800';
+                }
+
+                const tipoDocSelect = document.getElementById('tipo_documento');
+                for (let i = 0; i < tipoDocSelect.options.length; i++) {
+                    if (tipoDocSelect.options[i].value === data.template_key) {
+                        tipoDocSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+
+                cargarCampos().then(() => {
+                    setTimeout(() => {
+                        llenarCamposConRespuestas(data.answers);
+                    }, 300);
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('btnCargarText').classList.remove('hidden');
+                document.getElementById('btnCargarLoading').classList.add('hidden');
+                document.getElementById('btnCargarFormulario').disabled = false;
+                mostrarError('Error al buscar el formulario. Intente nuevamente.');
+            });
+    }
+
+    function mostrarError(mensaje) {
+        document.getElementById('formularioInfo').classList.add('hidden');
+        document.getElementById('formularioError').classList.remove('hidden');
+        document.getElementById('formularioErrorMsg').textContent = mensaje;
+    }
+
+    function llenarCamposConRespuestas(answers) {
+        if (!answers) return;
+
+        for (const [campo, valor] of Object.entries(answers)) {
+            const input = document.querySelector(`[name="${campo}"], [name="campo_${campo}"]`);
+            if (input) {
+                input.value = valor;
+                input.classList.add('bg-purple-50', 'border-purple-300');
+            }
+        }
+    }
+
+    document.getElementById('codigo_formulario').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            cargarFormulario();
+        }
+    });
 
     function cargarCampos() {
         const tipoDoc = document.getElementById('tipo_documento').value;
@@ -150,15 +278,15 @@
         if (!tipoDoc) {
             camposDinamicos.classList.add('hidden');
             camposEstaticos.classList.remove('hidden');
-            return;
+            return Promise.resolve();
         }
 
         if (camposCache[tipoDoc] !== undefined) {
             renderizarCampos(camposCache[tipoDoc]);
-            return;
+            return Promise.resolve();
         }
 
-        fetch('/api/campos/' + tipoDoc)
+        return fetch('/api/campos/' + tipoDoc)
             .then(response => response.json())
             .then(data => {
                 const campos = data.campos || data || [];

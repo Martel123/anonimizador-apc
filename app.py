@@ -4126,6 +4126,40 @@ def get_campos_plantilla(plantilla_key):
     })
 
 
+@app.route("/api/formulario/buscar/<code>")
+@login_required
+def api_buscar_formulario(code):
+    """Busca un formulario por código y retorna sus datos."""
+    from models import FormResponse, Modelo
+    
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({'error': 'No tienes acceso'}), 403
+    
+    code = code.strip().upper()
+    form_response = FormResponse.query.filter_by(code=code, tenant_id=tenant.id).first()
+    
+    if not form_response:
+        return jsonify({'error': 'Código no encontrado'}), 404
+    
+    modelo = form_response.template
+    if not modelo:
+        return jsonify({'error': 'Modelo no encontrado'}), 404
+    
+    return jsonify({
+        'success': True,
+        'form_id': form_response.id,
+        'code': form_response.code,
+        'status': form_response.status,
+        'status_label': FormResponse.STATUSES.get(form_response.status, form_response.status),
+        'can_use': form_response.can_be_used(),
+        'template_key': modelo.key,
+        'template_name': modelo.nombre,
+        'answers': form_response.answers_json or {},
+        'created_at': form_response.created_at.strftime('%d/%m/%Y %H:%M') if form_response.created_at else None
+    })
+
+
 # ==================== GESTIÓN DE CASOS ====================
 
 def case_access_required(f):
