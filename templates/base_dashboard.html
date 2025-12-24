@@ -111,34 +111,26 @@
                     <i class="fas fa-calendar-alt w-5 mr-3"></i>
                     <span>Calendario</span>
                 </a>
-                <a href="{{ url_for('apc_ia') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint in ['apc_ia', 'apc_ia_sesion'] %}active{% endif %}">
-                    <i class="fas fa-robot w-5 mr-3"></i>
-                    <span>Generar</span>
-                </a>
                 <div class="sidebar-submenu">
-                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}active{% endif %}">
+                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados'] %}active{% endif %}">
                         <span class="flex items-center">
                             <i class="fas fa-file-alt w-5 mr-3"></i>
                             <span>Documentos</span>
                         </span>
-                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}rotate{% endif %}" id="documentos-arrow"></i>
+                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados'] %}rotate{% endif %}" id="documentos-arrow"></i>
                     </button>
-                    <div id="documentos-submenu" class="{% if request.endpoint not in ['historial', 'documentos_terminados', 'revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial', 'buscar_similares', 'buscar_similares_consultar'] %}hidden{% endif %} pl-4">
-                        <a href="{{ url_for('historial') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'historial' %}active{% endif %}">
-                            <i class="fas fa-history w-4 mr-3 text-xs"></i>
-                            <span>Historial</span>
+                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados'] %}hidden{% endif %} pl-4">
+                        <a href="{{ url_for('generador') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'generador' %}active{% endif %}">
+                            <i class="fas fa-magic w-4 mr-3 text-xs"></i>
+                            <span>Generar</span>
+                        </a>
+                        <a href="{{ url_for('mis_modelos') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['mis_modelos', 'mi_modelo'] %}active{% endif %}">
+                            <i class="fas fa-folder w-4 mr-3 text-xs"></i>
+                            <span>Mis Modelos</span>
                         </a>
                         <a href="{{ url_for('documentos_terminados') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'documentos_terminados' %}active{% endif %}">
                             <i class="fas fa-check-circle w-4 mr-3 text-xs"></i>
                             <span>Terminados</span>
-                        </a>
-                        <a href="{{ url_for('revisor_ia') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['revisor_ia', 'revisor_ia_analizar', 'revisor_ia_resultado', 'revisor_ia_historial'] %}active{% endif %}">
-                            <i class="fas fa-search-plus w-4 mr-3 text-xs"></i>
-                            <span>Revisor IA</span>
-                        </a>
-                        <a href="{{ url_for('buscar_similares') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['buscar_similares', 'buscar_similares_consultar'] %}active{% endif %}">
-                            <i class="fas fa-search w-4 mr-3 text-xs"></i>
-                            <span>Buscar Similares</span>
                         </a>
                     </div>
                 </div>
@@ -157,10 +149,6 @@
                     <span class="ml-auto bg-yellow-500 text-yellow-900 text-xs px-2 py-0.5 rounded-full">!</span>
                     {% endif %}
                 </a>
-                <a href="{{ url_for('preferencias_usuario') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'preferencias_usuario' %}active{% endif %}">
-                    <i class="fas fa-sliders-h w-5 mr-3"></i>
-                    <span>Preferencias</span>
-                </a>
 
                 {% if current_user.is_admin_estudio() or current_user.is_super_admin() or current_user.is_coordinador() %}
                 <div class="px-3 mt-6 mb-2">
@@ -169,10 +157,6 @@
                 <a href="{{ url_for('admin') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin' %}active{% endif %}">
                     <i class="fas fa-cog w-5 mr-3"></i>
                     <span>Panel Admin</span>
-                </a>
-                <a href="{{ url_for('admin_tipos_caso') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin_tipos_caso' %}active{% endif %}">
-                    <i class="fas fa-tags w-5 mr-3"></i>
-                    <span>Tipos de Caso</span>
                 </a>
                 {% if current_user.is_admin_estudio() or current_user.is_super_admin() %}
                 <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link flex items-center px-4 py-3 text-sm {% if request.endpoint == 'admin_usuarios' %}active{% endif %}">

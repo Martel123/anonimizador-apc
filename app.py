@@ -6,7 +6,7 @@ import requests
 import resend
 from functools import wraps
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, flash, jsonify, session, g
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, flash, jsonify, session, g, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -2968,27 +2968,19 @@ def estilos_documentos():
 @app.route("/preferencias_usuario", methods=["GET", "POST"])
 @login_required
 def preferencias_usuario():
-    """Configura preferencias visuales del usuario."""
-    if request.method == "POST":
-        tema = request.form.get("tema_preferido", "claro")
-        densidad = request.form.get("densidad_visual", "normal")
-        
-        if tema in ['claro', 'oscuro']:
-            current_user.tema_preferido = tema
-        if densidad in ['normal', 'compacta']:
-            current_user.densidad_visual = densidad
-        
-        db.session.commit()
-        flash("Preferencias actualizadas.", "success")
-        return redirect(url_for("preferencias_usuario"))
-    
-    return render_template("preferencias_usuario.html")
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/admin/tipos-caso", methods=["GET", "POST"])
 @coordinador_or_admin_required
 def admin_tipos_caso():
-    """Gestionar tipos de caso y campos personalizados."""
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _admin_tipos_caso_disabled():
+    """Gestionar tipos de caso y campos personalizados - DESHABILITADO."""
     tenant = get_current_tenant()
     if not tenant:
         flash("No tienes un estudio asociado.", "error")
@@ -3102,26 +3094,8 @@ def admin_tipos_caso():
 @app.route("/api/admin/tipos-caso/<int:type_id>/campos")
 @coordinador_or_admin_required
 def get_tipo_campos(type_id):
-    """Obtener campos de un tipo de caso específico."""
-    tenant = get_current_tenant()
-    case_type = CaseType.query.get_or_404(type_id)
-    
-    if case_type.tenant_id != tenant.id:
-        return jsonify({"error": "No autorizado"}), 403
-    
-    campos = CaseCustomField.query.filter_by(tenant_id=tenant.id, case_type_id=type_id).order_by(CaseCustomField.orden).all()
-    
-    return jsonify({
-        "campos": [{
-            "id": c.id,
-            "nombre": c.nombre,
-            "label": c.label,
-            "tipo": c.tipo,
-            "placeholder": c.placeholder,
-            "opciones": c.opciones,
-            "requerido": c.requerido
-        } for c in campos]
-    })
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/admin/usuarios", methods=["GET", "POST"])
@@ -6123,17 +6097,18 @@ def descargar_anonimizado(nombre):
 @app.route("/buscar-similares")
 @login_required
 def buscar_similares():
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    return render_template("buscar_similares.html")
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/buscar-similares/consultar", methods=["POST"])
 @login_required
 def buscar_similares_consultar():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _buscar_similares_consultar_disabled():
     tenant = get_current_tenant()
     if not tenant:
         return jsonify({"error": "No tienes acceso"}), 403
@@ -6301,31 +6276,18 @@ Si el documento está bien, devuelve issues como array vacío."""
 @app.route("/revisor-ia")
 @login_required
 def revisor_ia():
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    # Obtener revisiones anteriores del usuario
-    revisiones = ReviewSession.query.filter_by(
-        tenant_id=tenant.id,
-        user_id=current_user.id
-    ).order_by(ReviewSession.created_at.desc()).limit(10).all()
-    
-    # Obtener documentos recientes para seleccionar
-    documentos_recientes = FinishedDocument.query.filter_by(
-        tenant_id=tenant.id,
-        user_id=current_user.id
-    ).order_by(FinishedDocument.created_at.desc()).limit(20).all()
-    
-    return render_template("revisor_ia.html",
-                          revisiones=revisiones,
-                          documentos_recientes=documentos_recientes)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/revisor-ia/analizar", methods=["POST"])
 @login_required
 def revisor_ia_analizar():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _revisor_ia_analizar_disabled():
     tenant = get_current_tenant()
     if not tenant:
         flash("No tienes acceso a esta función.", "error")
@@ -6465,6 +6427,11 @@ def revisor_ia_analizar():
 @app.route("/revisor-ia/resultado/<int:review_id>")
 @login_required
 def revisor_ia_resultado(review_id):
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _revisor_ia_resultado_disabled(review_id):
     tenant = get_current_tenant()
     if not tenant:
         flash("No tienes acceso a esta función.", "error")
@@ -6496,17 +6463,8 @@ def revisor_ia_resultado(review_id):
 @app.route("/revisor-ia/historial")
 @login_required
 def revisor_ia_historial():
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    revisiones = ReviewSession.query.filter_by(
-        tenant_id=tenant.id,
-        user_id=current_user.id
-    ).order_by(ReviewSession.created_at.desc()).all()
-    
-    return render_template("revisor_ia_historial.html", revisiones=revisiones)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 def send_task_reminders():
@@ -6615,68 +6573,25 @@ def get_argumentacion_folder(tenant_id):
 @app.route("/argumentacion")
 @login_required
 def argumentacion():
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    sesiones = ArgumentationSession.query.filter_by(
-        user_id=current_user.id,
-        tenant_id=tenant.id,
-        activo=True
-    ).order_by(ArgumentationSession.updated_at.desc()).limit(10).all()
-    
-    estilos_personalizados = UserArgumentationStyle.query.filter_by(
-        user_id=current_user.id,
-        tenant_id=tenant.id,
-        activo=True
-    ).all()
-    
-    estilos_predefinidos = UserArgumentationStyle.ESTILOS_PREDEFINIDOS
-    
-    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
-    
-    return render_template("argumentacion.html",
-                          sesiones=sesiones,
-                          estilos_personalizados=estilos_personalizados,
-                          estilos_predefinidos=estilos_predefinidos,
-                          casos=casos)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/sesion/<int:session_id>")
 @login_required
 def argumentacion_sesion(session_id):
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    sesion = ArgumentationSession.query.filter_by(
-        id=session_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first_or_404()
-    
-    mensajes = ArgumentationMessage.query.filter_by(session_id=sesion.id).order_by(ArgumentationMessage.created_at.asc()).all()
-    
-    estilos_personalizados = UserArgumentationStyle.query.filter_by(
-        user_id=current_user.id,
-        tenant_id=tenant.id,
-        activo=True
-    ).all()
-    
-    estilos_predefinidos = UserArgumentationStyle.ESTILOS_PREDEFINIDOS
-    
-    return render_template("argumentacion_sesion.html",
-                          sesion=sesion,
-                          mensajes=mensajes,
-                          estilos_personalizados=estilos_personalizados,
-                          estilos_predefinidos=estilos_predefinidos)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/nueva", methods=["POST"])
 @login_required
 def argumentacion_nueva():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _argumentacion_nueva_disabled():
     tenant = get_current_tenant()
     if not tenant:
         flash("No tienes acceso a esta función.", "error")
@@ -6753,6 +6668,11 @@ def argumentacion_nueva():
 @app.route("/argumentacion/mejorar/<int:session_id>", methods=["POST"])
 @login_required
 def argumentacion_mejorar(session_id):
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _argumentacion_mejorar_disabled(session_id):
     tenant = get_current_tenant()
     if not tenant:
         return jsonify({"error": "No autorizado"}), 403
@@ -6862,6 +6782,11 @@ Devuelve SIEMPRE el documento modificado completo, listo para copiar, sin coment
 @app.route("/argumentacion/start", methods=["POST"])
 @login_required
 def argumentacion_start_job():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _argumentacion_start_job_disabled():
     """Inicia un job asíncrono de argumentación."""
     start_argumentation_worker()
     
@@ -6918,29 +6843,18 @@ def argumentacion_start_job():
 @app.route("/argumentacion/jobs/<int:job_id>")
 @login_required
 def argumentacion_job_status(job_id):
-    """Consulta el estado de un job de argumentación."""
-    tenant = get_current_tenant()
-    if not tenant:
-        return jsonify({"success": False, "error": "No autorizado"}), 403
-    
-    job = ArgumentationJob.query.filter_by(
-        id=job_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first()
-    
-    if not job:
-        return jsonify({"success": False, "error": "Job no encontrado"}), 404
-    
-    return jsonify({
-        "success": True,
-        "job": job.to_dict()
-    })
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/descargar/<int:session_id>")
 @login_required
 def argumentacion_descargar(session_id):
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _argumentacion_descargar_disabled(session_id):
     tenant = get_current_tenant()
     if not tenant:
         flash("No autorizado", "error")
@@ -7036,122 +6950,36 @@ def argumentacion_descargar(session_id):
 @app.route("/argumentacion/copiar/<int:session_id>")
 @login_required
 def argumentacion_copiar_texto(session_id):
-    tenant = get_current_tenant()
-    if not tenant:
-        return jsonify({"error": "No autorizado"}), 403
-    
-    sesion = ArgumentationSession.query.filter_by(
-        id=session_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first()
-    
-    if not sesion:
-        return jsonify({"error": "Sesión no encontrada"}), 404
-    
-    texto = sesion.ultima_version_mejorada or sesion.documento_original
-    return jsonify({"texto": texto})
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/estilo/nuevo", methods=["POST"])
 @login_required
 def argumentacion_estilo_nuevo():
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No autorizado", "error")
-        return redirect(url_for('argumentacion'))
-    
-    nombre = request.form.get("nombre", "").strip()
-    descripcion = request.form.get("descripcion", "").strip()
-    instrucciones = request.form.get("instrucciones", "").strip()
-    
-    if not nombre or not instrucciones:
-        flash("Nombre e instrucciones son requeridos.", "error")
-        return redirect(url_for('argumentacion'))
-    
-    existe = UserArgumentationStyle.query.filter_by(
-        user_id=current_user.id,
-        nombre=nombre,
-        activo=True
-    ).first()
-    
-    if existe:
-        flash("Ya tienes un estilo con ese nombre.", "error")
-        return redirect(url_for('argumentacion'))
-    
-    estilo = UserArgumentationStyle(
-        user_id=current_user.id,
-        tenant_id=tenant.id,
-        nombre=nombre,
-        descripcion=descripcion,
-        instrucciones=instrucciones
-    )
-    db.session.add(estilo)
-    db.session.commit()
-    
-    flash("Estilo guardado correctamente.", "success")
-    return redirect(url_for('argumentacion'))
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/estilo/eliminar/<int:estilo_id>", methods=["POST"])
 @login_required
 def argumentacion_estilo_eliminar(estilo_id):
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No autorizado", "error")
-        return redirect(url_for('argumentacion'))
-    
-    estilo = UserArgumentationStyle.query.filter_by(
-        id=estilo_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first()
-    
-    if estilo:
-        estilo.activo = False
-        db.session.commit()
-        flash("Estilo eliminado.", "success")
-    
-    return redirect(url_for('argumentacion'))
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/eliminar/<int:session_id>", methods=["POST"])
 @login_required
 def argumentacion_eliminar(session_id):
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No autorizado", "error")
-        return redirect(url_for('argumentacion'))
-    
-    sesion = ArgumentationSession.query.filter_by(
-        id=session_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first()
-    
-    if sesion:
-        sesion.activo = False
-        db.session.commit()
-        flash("Sesión eliminada.", "success")
-    
-    return redirect(url_for('argumentacion'))
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/argumentacion/historial")
 @login_required
 def argumentacion_historial():
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    sesiones = ArgumentationSession.query.filter_by(
-        user_id=current_user.id,
-        tenant_id=tenant.id,
-        activo=True
-    ).order_by(ArgumentationSession.updated_at.desc()).all()
-    
-    return render_template("argumentacion_historial.html", sesiones=sesiones)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 # ==================== APC IA AGENT ====================
@@ -7804,104 +7632,32 @@ Siempre sé útil y proactivo, ofreciendo sugerencias cuando sea apropiado."""
 @app.route("/apc-ia")
 @login_required
 def apc_ia():
-    """Vista principal del agente APC IA."""
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.updated_at.desc()).all()
-    
-    sesiones = AgentSession.query.filter_by(
-        user_id=current_user.id,
-        tenant_id=tenant.id,
-        activo=True
-    ).order_by(AgentSession.updated_at.desc()).limit(20).all()
-    
-    return render_template("apc_ia.html", casos=casos, sesiones=sesiones)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/apc-ia/sesion/<int:session_id>")
 @login_required
 def apc_ia_sesion(session_id):
-    """Vista de una sesión específica del agente."""
-    tenant = get_current_tenant()
-    if not tenant:
-        flash("No tienes acceso a esta función.", "error")
-        return redirect(url_for('index'))
-    
-    sesion = AgentSession.query.filter_by(
-        id=session_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first_or_404()
-    
-    mensajes = AgentMessage.query.filter_by(
-        session_id=session_id,
-        tenant_id=tenant.id
-    ).order_by(AgentMessage.created_at).all()
-    casos = Case.query.filter_by(tenant_id=tenant.id).order_by(Case.titulo).all()
-    
-    estrategias = LegalStrategy.query.filter_by(
-        session_id=session_id,
-        tenant_id=tenant.id
-    ).all()
-    estimaciones = CostEstimate.query.filter_by(
-        session_id=session_id,
-        tenant_id=tenant.id
-    ).all()
-    
-    return render_template("apc_ia_sesion.html",
-                          sesion=sesion,
-                          mensajes=mensajes,
-                          casos=casos,
-                          estrategias=estrategias,
-                          estimaciones=estimaciones)
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/api/apc/sessions", methods=["GET", "POST"])
 @login_required
 def api_apc_sessions():
-    """API para gestionar sesiones del agente."""
-    tenant = get_current_tenant()
-    if not tenant:
-        return jsonify({"error": "No autorizado"}), 403
-    
-    if request.method == "GET":
-        sesiones = AgentSession.query.filter_by(
-            user_id=current_user.id,
-            tenant_id=tenant.id,
-            activo=True
-        ).order_by(AgentSession.updated_at.desc()).limit(20).all()
-        
-        return jsonify({
-            "success": True,
-            "sessions": [s.to_dict() for s in sesiones]
-        })
-    
-    elif request.method == "POST":
-        data = request.get_json() or {}
-        case_id = data.get("case_id")
-        titulo = data.get("titulo", "Nueva conversación")
-        
-        sesion = AgentSession(
-            user_id=current_user.id,
-            tenant_id=tenant.id,
-            case_id=case_id,
-            titulo=titulo
-        )
-        db.session.add(sesion)
-        db.session.commit()
-        
-        return jsonify({
-            "success": True,
-            "session": sesion.to_dict()
-        })
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/api/apc/agent", methods=["POST"])
 @login_required
 def api_apc_agent():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _api_apc_agent_disabled():
     """API principal del agente - procesa mensajes."""
     tenant = get_current_tenant()
     if not tenant:
@@ -7951,53 +7707,15 @@ def api_apc_agent():
 @app.route("/api/apc/sessions/<int:session_id>/messages")
 @login_required
 def api_apc_session_messages(session_id):
-    """Obtiene los mensajes de una sesión."""
-    tenant = get_current_tenant()
-    if not tenant:
-        return jsonify({"error": "No autorizado"}), 403
-    
-    sesion = AgentSession.query.filter_by(
-        id=session_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first()
-    
-    if not sesion:
-        return jsonify({"error": "Sesión no encontrada"}), 404
-    
-    mensajes = AgentMessage.query.filter_by(
-        session_id=session_id,
-        tenant_id=tenant.id
-    ).order_by(AgentMessage.created_at).all()
-    
-    return jsonify({
-        "success": True,
-        "session": sesion.to_dict(),
-        "messages": [m.to_dict() for m in mensajes]
-    })
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/api/apc/sessions/<int:session_id>", methods=["DELETE"])
 @login_required
 def api_apc_delete_session(session_id):
-    """Elimina una sesión."""
-    tenant = get_current_tenant()
-    if not tenant:
-        return jsonify({"error": "No autorizado"}), 403
-    
-    sesion = AgentSession.query.filter_by(
-        id=session_id,
-        user_id=current_user.id,
-        tenant_id=tenant.id
-    ).first()
-    
-    if not sesion:
-        return jsonify({"error": "Sesión no encontrada"}), 404
-    
-    sesion.activo = False
-    db.session.commit()
-    
-    return jsonify({"success": True})
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 with app.app_context():
