@@ -34,7 +34,7 @@
                         <p class="text-sm text-gray-600">{{ form.template.nombre }}</p>
                     </a>
                     <div class="flex items-center gap-3">
-                        <button onclick="copiarCodigo('{{ form.code }}')" 
+                        <button onclick="copiarCodigo('{{ form.code }}', this)" 
                                 class="px-3 py-1 text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition flex items-center gap-1"
                                 title="Copiar codigo">
                             <i class="fas fa-copy"></i> Copiar
@@ -61,9 +61,8 @@
 
 {% block extra_scripts %}
 <script>
-function copiarCodigo(codigo) {
+function copiarCodigo(codigo, btn) {
     navigator.clipboard.writeText(codigo).then(() => {
-        const btn = event.currentTarget;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-check"></i> Copiado';
         btn.classList.remove('bg-purple-100', 'text-purple-700');
