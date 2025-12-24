@@ -8168,7 +8168,7 @@ def api_apc_delete_session(session_id):
 @app.route("/f/<public_id>", methods=["GET", "POST"])
 def public_form(public_id):
     """Formulario público para que clientes llenen datos de plantilla."""
-    from models import Modelo, FormResponse, Tenant
+    from models import Modelo, FormResponse, Tenant, CampoPlantilla
     
     modelo = Modelo.query.filter_by(public_id=public_id, activa=True).first()
     if not modelo or not modelo.is_public_form_enabled:
@@ -8178,15 +8178,16 @@ def public_form(public_id):
     if not tenant or not tenant.activo:
         return render_template("public_form_not_found.html"), 404
     
-    placeholders = modelo.get_placeholders()
-    if not placeholders and modelo.contenido:
-        placeholders = extract_placeholders_from_text(modelo.contenido)
+    campos = CampoPlantilla.query.filter_by(
+        plantilla_key=modelo.key,
+        tenant_id=modelo.tenant_id
+    ).order_by(CampoPlantilla.orden).all()
     
-    if not placeholders and modelo.archivo_original:
-        placeholders = extract_placeholders_from_docx(modelo.archivo_original)
-        if placeholders:
-            modelo.placeholders_json = placeholders
-            db.session.commit()
+    if not campos:
+        campos = CampoPlantilla.query.filter_by(
+            plantilla_key=modelo.key,
+            tenant_id=None
+        ).order_by(CampoPlantilla.orden).all()
     
     if request.method == "POST":
         accepted = request.form.get('accepted_terms') == 'on'
@@ -8194,13 +8195,12 @@ def public_form(public_id):
             return render_template("public_form.html", 
                                   modelo=modelo, 
                                   tenant_nombre=tenant.nombre,
-                                  placeholders=placeholders,
-                                  is_campo_largo=is_campo_largo,
+                                  campos=campos,
                                   error="Debe aceptar la declaración de veracidad para continuar.")
         
         answers = {}
-        for ph in placeholders:
-            answers[ph] = request.form.get(f"campo_{ph}", "").strip()
+        for campo in campos:
+            answers[campo.nombre_campo] = request.form.get(f"campo_{campo.nombre_campo}", "").strip()
         
         code = FormResponse.generate_code(tenant.id)
         while FormResponse.query.filter_by(code=code).first():
@@ -8231,8 +8231,7 @@ def public_form(public_id):
     return render_template("public_form.html",
                           modelo=modelo,
                           tenant_nombre=tenant.nombre,
-                          placeholders=placeholders,
-                          is_campo_largo=is_campo_largo,
+                          campos=campos,
                           error=None)
 
 
