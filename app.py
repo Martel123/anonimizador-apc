@@ -1894,6 +1894,20 @@ def generador():
                     "plantilla": f"{p.key}.txt",
                     "carpeta_estilos": p.carpeta_estilos or p.key
                 }
+        
+        if current_user.can_manage_cases() or current_user.role in ['admin_estudio', 'super_admin', 'coordinador']:
+            modelos_usuario = Modelo.query.filter_by(tenant_id=tenant_id, activa=True).all()
+        else:
+            modelos_usuario = Modelo.query.filter_by(tenant_id=tenant_id, created_by_id=current_user.id, activa=True).all()
+        
+        for m in modelos_usuario:
+            if m.key not in modelos_completos:
+                modelos_completos[m.key] = {
+                    "nombre": m.nombre,
+                    "plantilla": f"{m.key}.txt",
+                    "carpeta_estilos": m.carpeta_estilos or m.key,
+                    "es_modelo_usuario": True
+                }
     
     return render_template("generador.html", modelos=modelos_completos, tenant=tenant)
 

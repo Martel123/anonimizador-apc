@@ -714,9 +714,29 @@ function handleTextSelection(e) {
     const selectedText = selection.toString().trim();
     
     if (selectedText && selectedText.length > 1 && selectedText.length < 200) {
+        const range = selection.getRangeAt(0);
+        const startContainer = range.startContainer;
+        const endContainer = range.endContainer;
+        
+        const isInsidePlaceholder = (node) => {
+            while (node && node !== document.getElementById('preview-content')) {
+                if (node.classList && node.classList.contains('placeholder-highlight')) {
+                    return true;
+                }
+                node = node.parentNode;
+            }
+            return false;
+        };
+        
+        if (isInsidePlaceholder(startContainer) || isInsidePlaceholder(endContainer)) {
+            hideSelectionPopup();
+            window.getSelection().removeAllRanges();
+            return;
+        }
+        
         currentSelection = {
             text: selectedText,
-            range: selection.getRangeAt(0).cloneRange()
+            range: range.cloneRange()
         };
         
         const popup = document.getElementById('selection-popup');
@@ -724,7 +744,7 @@ function handleTextSelection(e) {
         
         selectionTextEl.textContent = selectedText.length > 50 ? selectedText.substring(0, 50) + '...' : selectedText;
         
-        const rect = selection.getRangeAt(0).getBoundingClientRect();
+        const rect = range.getBoundingClientRect();
         popup.style.left = `${rect.left + window.scrollX}px`;
         popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
         popup.classList.remove('hidden');
@@ -813,11 +833,16 @@ function createFieldFromSelection() {
 
 function highlightSelectionInPreview(text, index, colorClass) {
     const previewContent = document.getElementById('preview-content');
-    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(?<!data-campo-[^>]*>)(${escapedText})(?![^<]*<\/span>)`, 'g');
     
     let found = false;
-    const walker = document.createTreeWalker(previewContent, NodeFilter.SHOW_TEXT, null, false);
+    const walker = document.createTreeWalker(previewContent, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+            if (node.parentNode.classList && node.parentNode.classList.contains('placeholder-highlight')) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    }, false);
     const nodesToReplace = [];
     
     while (walker.nextNode()) {
@@ -832,6 +857,11 @@ function highlightSelectionInPreview(text, index, colorClass) {
     if (found && nodesToReplace.length > 0) {
         const node = nodesToReplace[0];
         const parent = node.parentNode;
+        
+        if (parent.classList && parent.classList.contains('placeholder-highlight')) {
+            return;
+        }
+        
         const textContent = node.textContent;
         const startIndex = textContent.indexOf(text);
         
@@ -856,6 +886,8 @@ function highlightSelectionInPreview(text, index, colorClass) {
             parent.replaceChild(fragment, node);
         }
     }
+    
+    window.getSelection().removeAllRanges();
 }
 
 function escapeHtml(text) {
