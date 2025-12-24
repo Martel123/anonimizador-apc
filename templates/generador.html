@@ -160,7 +160,8 @@
 
         fetch('/api/campos/' + tipoDoc)
             .then(response => response.json())
-            .then(campos => {
+            .then(data => {
+                const campos = data.campos || data || [];
                 camposCache[tipoDoc] = campos;
                 renderizarCampos(campos);
             })
