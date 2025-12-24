@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa
 import qrcode
 import threading
 import queue
@@ -110,6 +110,73 @@ def get_tenant_user_limit(tenant):
     """Obtiene el límite de usuarios del tenant según su plan."""
     plan_config = get_plan_config(tenant)
     return plan_config['max_usuarios']
+
+
+def has_feature(tenant, feature_name):
+    """Verifica si el Centro tiene acceso a una feature según su plan."""
+    if not tenant:
+        return False
+    plan_config = get_plan_config(tenant)
+    return feature_name in plan_config.get('features', [])
+
+
+def require_feature(feature_name):
+    """Decorador para verificar que el Centro tiene acceso a una feature."""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for('login'))
+            tenant = get_current_tenant()
+            if not tenant:
+                flash("No tienes acceso a esta funcionalidad.", "error")
+                return redirect(url_for('dashboard'))
+            if not has_feature(tenant, feature_name):
+                flash("Esta funcionalidad no está disponible en tu plan actual. Contacta al administrador para actualizar tu plan.", "warning")
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def log_audit(tenant_id, evento, descripcion=None, extra_data=None, user_id=None):
+    """Registra un evento de auditoría."""
+    try:
+        if user_id is None and current_user.is_authenticated:
+            user_id = current_user.id
+        
+        ip_address = request.remote_addr if request else None
+        
+        audit = AuditLog(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            evento=evento,
+            descripcion=descripcion,
+            extra_data=extra_data,
+            ip_address=ip_address
+        )
+        db.session.add(audit)
+        db.session.commit()
+    except Exception as e:
+        logging.error(f"Error al registrar auditoría: {e}")
+        db.session.rollback()
+
+
+def create_default_tipos_acta(tenant_id):
+    """Crea los tipos de acta predeterminados para un Centro nuevo."""
+    from models import TipoActa
+    for orden, tipo_default in enumerate(TipoActa.TIPOS_DEFAULT):
+        tipo = TipoActa(
+            tenant_id=tenant_id,
+            nombre=tipo_default['nombre'],
+            categoria=tipo_default['categoria'],
+            icono=tipo_default['icono'],
+            orden=orden,
+            activo=True
+        )
+        db.session.add(tipo)
+    db.session.commit()
+
 
 CARPETA_MODELOS = "modelos_legales"
 CARPETA_ESTILOS = "estilos_estudio"
@@ -2781,8 +2848,147 @@ def eliminar_estudio(tenant_id):
     db.session.delete(tenant)
     db.session.commit()
     
-    flash(f"Estudio '{nombre}' eliminado correctamente junto con todos sus datos.", "success")
+    flash(f"Centro '{nombre}' eliminado correctamente junto con todos sus datos.", "success")
+    log_audit(tenant_id, 'CENTRO_DELETED', f'Centro eliminado: {nombre}')
     return redirect(url_for('super_admin'))
+
+
+@app.route("/super_admin/crear_centro", methods=["GET", "POST"])
+@super_admin_required
+def super_admin_crear_centro():
+    """Crear un nuevo Centro de Conciliación."""
+    if request.method == "POST":
+        nombre = request.form.get('nombre', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        plan = request.form.get('plan', 'basico')
+        
+        if not nombre or not email or not password:
+            flash("Nombre, email y contraseña son requeridos.", "error")
+            return render_template("super_admin_crear_centro.html", plan_config=PLAN_CONFIG)
+        
+        if User.query.filter_by(email=email).first():
+            flash("Ya existe un usuario con ese email.", "error")
+            return render_template("super_admin_crear_centro.html", plan_config=PLAN_CONFIG)
+        
+        slug = nombre.lower().replace(' ', '_').replace('.', '')[:50]
+        slug = re.sub(r'[^a-z0-9_]', '', slug)
+        base_slug = slug
+        counter = 1
+        while Tenant.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}_{counter}"
+            counter += 1
+        
+        tenant = Tenant(
+            nombre=nombre,
+            slug=slug,
+            plan=plan,
+            activo=True,
+            subscription_status='active',
+            onboarding_completed=False
+        )
+        db.session.add(tenant)
+        db.session.flush()
+        
+        user = User(
+            username=nombre.split()[0] if ' ' in nombre else nombre,
+            email=email,
+            tenant_id=tenant.id,
+            role='admin_estudio',
+            activo=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        
+        create_default_tipos_acta(tenant.id)
+        
+        db.session.commit()
+        
+        log_audit(tenant.id, 'USER_CREATED', f'Centro creado con admin: {email}', {'plan': plan})
+        
+        flash(f"Centro '{nombre}' creado exitosamente con plan {PLAN_CONFIG[plan]['nombre']}.", "success")
+        return redirect(url_for('super_admin'))
+    
+    return render_template("super_admin_crear_centro.html", plan_config=PLAN_CONFIG)
+
+
+@app.route("/super_admin/editar_centro/<int:tenant_id>", methods=["GET", "POST"])
+@super_admin_required
+def super_admin_editar_centro(tenant_id):
+    """Editar un Centro de Conciliación existente."""
+    tenant = Tenant.query.get_or_404(tenant_id)
+    
+    if request.method == "POST":
+        action = request.form.get('action', 'update')
+        
+        if action == 'update':
+            tenant.nombre = request.form.get('nombre', tenant.nombre).strip()
+            tenant.direccion = request.form.get('direccion', '').strip()
+            tenant.telefono = request.form.get('telefono', '').strip()
+            tenant.pagina_web = request.form.get('pagina_web', '').strip()
+            tenant.resolucion_directoral = request.form.get('resolucion_directoral', '').strip()
+            db.session.commit()
+            log_audit(tenant_id, 'CENTRO_UPDATED', f'Centro actualizado: {tenant.nombre}')
+            flash("Centro actualizado correctamente.", "success")
+        
+        elif action == 'change_plan':
+            old_plan = tenant.plan
+            new_plan = request.form.get('plan', 'basico')
+            if new_plan in PLAN_CONFIG:
+                tenant.plan = new_plan
+                db.session.commit()
+                log_audit(tenant_id, 'PLAN_CHANGED', f'Plan cambiado de {old_plan} a {new_plan}', 
+                         {'old_plan': old_plan, 'new_plan': new_plan})
+                flash(f"Plan cambiado a {PLAN_CONFIG[new_plan]['nombre']}.", "success")
+        
+        elif action == 'toggle_active':
+            tenant.activo = not tenant.activo
+            db.session.commit()
+            estado = "activado" if tenant.activo else "desactivado"
+            log_audit(tenant_id, 'CENTRO_UPDATED', f'Centro {estado}: {tenant.nombre}')
+            flash(f"Centro {estado}.", "success")
+        
+        elif action == 'add_user':
+            username = request.form.get('username', '').strip()
+            email = request.form.get('user_email', '').strip()
+            password = request.form.get('user_password', '')
+            role = request.form.get('user_role', 'usuario_estudio')
+            
+            if not username or not email or not password:
+                flash("Todos los campos son requeridos para crear usuario.", "error")
+            elif User.query.filter_by(email=email).first():
+                flash("Ya existe un usuario con ese email.", "error")
+            else:
+                if not tenant_can_add_user(tenant):
+                    flash(f"El Centro ha alcanzado el límite de usuarios de su plan ({PLAN_CONFIG[tenant.plan]['max_usuarios']}).", "error")
+                else:
+                    user = User(
+                        username=username,
+                        email=email,
+                        tenant_id=tenant_id,
+                        role=role,
+                        activo=True
+                    )
+                    user.set_password(password)
+                    db.session.add(user)
+                    db.session.commit()
+                    log_audit(tenant_id, 'USER_CREATED', f'Usuario creado: {email}', {'role': role})
+                    flash(f"Usuario '{username}' creado exitosamente.", "success")
+        
+        return redirect(url_for('super_admin_editar_centro', tenant_id=tenant_id))
+    
+    usuarios = User.query.filter_by(tenant_id=tenant_id).all()
+    plan_config = get_plan_config(tenant)
+    usuarios_actuales = User.query.filter_by(tenant_id=tenant_id, activo=True).count()
+    puede_agregar = usuarios_actuales < plan_config['max_usuarios']
+    
+    return render_template("super_admin_editar_centro.html", 
+                          tenant=tenant, 
+                          usuarios=usuarios,
+                          plan_config=plan_config,
+                          all_plans=PLAN_CONFIG,
+                          usuarios_actuales=usuarios_actuales,
+                          puede_agregar=puede_agregar)
 
 
 @app.route("/system/pricing", methods=["GET", "POST"])

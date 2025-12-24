@@ -1,0 +1,229 @@
+ROL
+Eres un ingeniero senior full-stack. Debes modificar el proyecto existente sin romper funcionalidades actuales. No inventes pantallas nuevas innecesarias ni rehagas el sistema. Implementa cambios incrementales y seguros. Si algo ya existe, reutilízalo.
+
+RESTRICCIÓN PRINCIPAL
+“AÚN NO AGREGUES DISEÑO” (no cambies estilos visuales de la landing ni UI estética). Solo agrega la lógica, rutas y estructura. Mantén lo actual funcionando.
+
+OBJETIVO GENERAL
+Convertir el SaaS para “Estudios” en una versión para “Centros de Conciliación” (sin perder el multi-tenant). Agregar:
+1) Reemplazo de palabras “estudio” -> “Centro” en toda la plataforma (UI y labels).
+2) Superadministrador con panel para crear Centros, añadir usuarios y asignar roles (Administrador/Coordinador/Usuario), y dejar lista la configuración del Centro.
+3) Planes por niveles (Básico/Medio/Avanzado) que desbloqueen funciones. El Superadmin elige el plan al crear un Centro y puede cambiarlo (upgrade/downgrade) luego.
+4) Landing page: convertirla en página de venta “APC Juridica” con beneficios (solo contenido/estructura lógica; no diseño).
+5) Trial 10 días con tarjeta obligatoria; si no cancela dentro de 10 días, cobrar automáticamente 30 días (mensual).
+6) Funciones recomendadas a añadir: B (catálogo de actas/plantillas), C (auditoría), E (onboarding automático).
+
+ENTREGABLE FINAL
+- La app corre sin errores.
+- Superadmin puede: crear Centro + elegir plan + crear usuarios + roles + configuración.
+- Plan gating funcionando: cada Centro ve/habilita solo lo permitido.
+- Trial con cobro automático implementado con Stripe (o el sistema de pago ya existente si lo hay).
+- Catálogo de plantillas por “tipo de acta” + auditoría + onboarding automático mínimo.
+
+================================================================================
+A) TERMINOLOGÍA: “ESTUDIO” -> “CENTRO”
+================================================================================
+1) Reemplaza en toda la UI (templates y textos) “Estudio/estudios” por “Centro/centros”.
+2) NO renombres tablas o columnas en DB si ya están en producción; solo cambia “labels” y strings en UI.
+3) Si hay variables tipo tenant_name="estudio", mantén internamente pero muestra “Centro” al usuario.
+
+================================================================================
+B) ROLES Y MULTI-TENANT: SUPERADMIN CREA CENTROS
+================================================================================
+1) Asegura que exista un rol de SUPERADMIN (global, fuera de un Centro).
+   - Si ya hay superadmin, reutilizar.
+2) Crear panel del superadmin (rutas protegidas) para:
+   - Crear Centro (nombre, correo de contacto, logo opcional, configuración básica)
+   - Seleccionar plan del Centro (Básico/Medio/Avanzado)
+   - Crear usuarios dentro del Centro e invitar/crear credenciales
+   - Asignar roles dentro del Centro: Administrador, Coordinador, Usuario
+3) Un Centro debe tener aislamiento total por centro_id (tenancy):
+   - usuarios, plantillas, estilos, documentos, auditoría, etc.
+4) Agregar función para que el superadmin pueda:
+   - cambiar plan de un Centro (upgrade/downgrade)
+   - activar/desactivar el Centro (opcional)
+
+Estructura recomendada (si aplica a tu proyecto):
+- Tabla Centro (o Tenant/Estudio existente): agregar campos:
+  - plan (basic|pro|advanced)
+  - trial_end_at
+  - subscription_status
+  - stripe_customer_id
+  - stripe_subscription_id
+  - is_active
+- Tabla Usuario: centro_id, role_in_centro (admin/coordinator/user), y rol global superadmin.
+- Asegurar permisos en middleware/decorators.
+
+================================================================================
+C) PLANES: BÁSICO / MEDIO / AVANZADO (FEATURE GATING)
+================================================================================
+Crear un sistema central de “features por plan” que:
+- Defina un diccionario/tabla de flags por plan.
+- Permita verificar permisos en:
+  1) backend (rutas/acciones)
+  2) frontend (ocultar/mostrar ítems del menú y botones)
+
+Plan propuesto (guíate de las funciones actuales del sistema: generar, modelos, terminados, dashboard, casos, tareas, calendario, historial, etc.):
+
+PLAN BÁSICO (para centros pequeños)
+- Generar documentos (por formulario)
+- Mis Modelos / Plantillas (subir/gestionar)
+- Terminados (ver descarga de documentos finales)
+- Catálogo de tipos de acta (B) básico (sin personalización avanzada)
+- Auditoría (C) básica: quién generó qué y cuándo
+Límites sugeridos:
+- 3 usuarios
+- 20 documentos/mes
+- 10 plantillas
+- 1 administrador (rol)
+
+PLAN MEDIO (centros en crecimiento)
+Incluye Básico +:
+- Casos (gestión simple de expediente/audiencia)
+- Calendario (audiencias + vencimientos)
+- Tareas (seguimiento interno)
+- Historial completo
+- Onboarding (E) automático con plantillas base precargadas
+Límites sugeridos:
+- 10 usuarios
+- 200 documentos/mes
+- 50 plantillas
+- 2 administradores / coordinadores
+
+PLAN AVANZADO (operación completa)
+Incluye Medio +:
+- Multi-sede o múltiples conciliadores (si existe)
+- Reportes/estadísticas (Mis estadísticas)
+- Workflows más completos (si ya existe algo parecido)
+- Auditoría avanzada (C): exportar registro, filtros por usuario/fecha/caso
+- Mayor control de permisos por rol
+Límites sugeridos:
+- usuarios ilimitados (o 30)
+- documentos ilimitados (o 1000)
+- plantillas ilimitadas
+
+IMPORTANTE:
+- NO elimines módulos existentes; solo aplícales gating por plan.
+- Implementa helpers:
+  - has_feature(user_or_centro, "feature_name")
+  - require_feature("feature_name") decorator para rutas
+- En el menú, oculta secciones si el plan no lo permite.
+
+Features sugeridas (flags):
+- feature_generate
+- feature_models
+- feature_terminados
+- feature_casos
+- feature_tareas
+- feature_calendario
+- feature_historial
+- feature_estadisticas
+- feature_auditoria_basic
+- feature_auditoria_advanced
+- feature_onboarding
+- feature_actas_catalogo
+
+================================================================================
+D) CATÁLOGO DE ACTAS (B) + ONBOARDING (E)
+================================================================================
+1) Implementa un “Catálogo de Actas/Plantillas” por Centro:
+- Tipos sugeridos:
+  - Acta con acuerdo total
+  - Acta con acuerdo parcial
+  - Acta sin acuerdo
+  - Invitación/Citación
+  - Constancia
+  - Acta de inasistencia
+2) Cada tipo se vincula a una Plantilla/Modelo (docx) y su formulario.
+3) ONBOARDING AUTOMÁTICO (E):
+Al crear un Centro, automáticamente:
+- crea estructura mínima
+- carga plantillas base (si existen en repo) o crea placeholders
+- crea al menos 1 admin (si el superadmin lo indicó)
+- deja el Centro listo para usar
+
+================================================================================
+E) AUDITORÍA (C)
+================================================================================
+Crear registro de auditoría por Centro:
+- evento: DOCUMENT_CREATED, TEMPLATE_UPLOADED, USER_CREATED, PLAN_CHANGED, etc.
+- actor_user_id
+- centro_id
+- timestamp
+- metadata (json): doc_id, plantilla_id, ip opcional
+Debe ser consultable por Admin/Coordinador (según plan).
+
+================================================================================
+F) LANDING PAGE (solo lógica, NO DISEÑO)
+================================================================================
+1) Mantén la landing existente pero cambia copy/estructura lógica:
+- Producto: “Plataforma para Centros de Conciliación”
+- Beneficios: generación rápida de actas, control de audiencias, plantillas, auditoría, multiusuario, etc.
+2) CTA: “Comenzar prueba de 10 días”
+3) CTA lleva al flujo de registro + pago (trial with card).
+NO aplicar cambios de CSS ni rediseño visual aún.
+
+================================================================================
+G) TRIAL 10 DÍAS CON TARJETA + COBRO AUTOMÁTICO MENSUAL
+================================================================================
+Implementar suscripciones con trial y tarjeta obligatoria:
+- Al registrarse un Centro (self-serve desde landing):
+  1) crear Centro en estado trial
+  2) solicitar tarjeta (checkout/portal)
+  3) crear suscripción Stripe con:
+     - trial_period_days = 10
+     - billing mensual (30 días)
+     - auto-cobro al terminar trial
+- Si cancela dentro de 10 días -> no cobrar
+- Si no cancela -> cobrar automáticamente el mes
+Agregar:
+- Página “Billing” mínima (sin diseño nuevo) para:
+  - ver estado
+  - cancelar
+  - actualizar tarjeta
+- Enviar alertas por email (si ya hay sistema de email):
+  - faltan 3 días
+  - faltan 1 día
+  - hoy vence
+Si no hay email system, deja stubs con TODO listo para integrar.
+
+IMPORTANTE:
+- No hardcodear claves: usar ENV vars
+- Manejar webhooks Stripe:
+  - checkout.session.completed
+  - customer.subscription.updated
+  - customer.subscription.deleted
+  - invoice.paid
+  - invoice.payment_failed
+Actualizar en DB subscription_status y access control.
+
+================================================================================
+H) SUPERADMIN: GESTIÓN DE PLANES (UPGRADE/DOWNGRADE)
+================================================================================
+En el panel superadmin:
+- lista de Centros
+- ver plan actual + estado de suscripción
+- botón cambiar plan (basic/medium/advanced)
+Cuando cambia plan:
+- registrar auditoría PLAN_CHANGED
+- aplicar gating inmediatamente
+
+================================================================================
+I) PRUEBAS / VALIDACIÓN
+================================================================================
+1) Crear Centro desde superadmin y seleccionar plan:
+- basic: debe ocultar/denegar Casos/Tareas/Calendario/Estadísticas
+- medium: habilitar Casos/Tareas/Calendario/Historial
+- advanced: habilitar Estadísticas + auditoría avanzada
+2) Registrar un Centro desde landing:
+- debe pedir tarjeta
+- iniciar trial 10 días
+3) Generar documento:
+- queda registro de auditoría
+4) Onboarding:
+- Centro nuevo ya tiene plantillas base o placeholders.
+
+PROCEDE DIRECTAMENTE IMPLEMENTANDO ESTO.
+NO PROPONGAS OPCIONES.
+NO PREGUNTES CONFIRMACIÓN.
+NO TOQUES EL DISEÑO (CSS) AÚN.

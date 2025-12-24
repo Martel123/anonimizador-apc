@@ -20,7 +20,7 @@ db = SQLAlchemy(model_class=Base)
 
 
 class Tenant(db.Model):
-    """Estudio jurídico / Organización."""
+    """Centro de Conciliación / Organización."""
     __tablename__ = 'tenants'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -38,7 +38,11 @@ class Tenant(db.Model):
     areas_practica = db.Column(db.Text)
     activo = db.Column(db.Boolean, default=True)
     subscription_status = db.Column(db.String(20), default='pending')
-    plan = db.Column(db.String(20), default='basico')  # basico, medio, avanzado
+    plan = db.Column(db.String(20), default='basico')
+    trial_end_at = db.Column(db.DateTime, nullable=True)
+    stripe_customer_id = db.Column(db.String(100), nullable=True)
+    stripe_subscription_id = db.Column(db.String(100), nullable=True)
+    onboarding_completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -1654,4 +1658,88 @@ class CaseCustomFieldValue(db.Model):
     
     __table_args__ = (
         db.UniqueConstraint('case_id', 'field_id', name='uq_case_field_value'),
+    )
+
+
+class AuditLog(db.Model):
+    """Registro de auditoría por Centro."""
+    __tablename__ = 'audit_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    evento = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.String(500))
+    extra_data = db.Column(db.JSON)
+    ip_address = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('audit_logs', lazy='dynamic'))
+    actor = db.relationship('User', backref=db.backref('audit_actions', lazy='dynamic'))
+    
+    EVENTOS = {
+        'USER_LOGIN': 'Inicio de sesión',
+        'USER_LOGOUT': 'Cierre de sesión',
+        'USER_CREATED': 'Usuario creado',
+        'USER_UPDATED': 'Usuario actualizado',
+        'USER_DELETED': 'Usuario eliminado',
+        'DOCUMENT_CREATED': 'Documento generado',
+        'DOCUMENT_DOWNLOADED': 'Documento descargado',
+        'TEMPLATE_CREATED': 'Plantilla creada',
+        'TEMPLATE_UPDATED': 'Plantilla actualizada',
+        'TEMPLATE_DELETED': 'Plantilla eliminada',
+        'STYLE_CREATED': 'Estilo creado',
+        'STYLE_UPDATED': 'Estilo actualizado',
+        'PLAN_CHANGED': 'Plan cambiado',
+        'CENTRO_UPDATED': 'Centro actualizado',
+        'CASO_CREATED': 'Caso creado',
+        'TAREA_CREATED': 'Tarea creada'
+    }
+    
+    def get_evento_display(self):
+        return self.EVENTOS.get(self.evento, self.evento)
+    
+    __table_args__ = (
+        db.Index('ix_audit_logs_tenant', 'tenant_id', 'created_at'),
+    )
+
+
+class TipoActa(db.Model):
+    """Catálogo de tipos de acta para Centros de Conciliación."""
+    __tablename__ = 'tipos_acta'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    categoria = db.Column(db.String(50), default='general')
+    plantilla_id = db.Column(db.Integer, db.ForeignKey('plantillas.id'), nullable=True)
+    icono = db.Column(db.String(50), default='fa-file-alt')
+    orden = db.Column(db.Integer, default=0)
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    tenant = db.relationship('Tenant', backref=db.backref('tipos_acta', lazy='dynamic'))
+    plantilla = db.relationship('Modelo', backref=db.backref('tipos_acta', lazy='dynamic'))
+    
+    CATEGORIAS = {
+        'acuerdo': 'Actas de Acuerdo',
+        'inasistencia': 'Actas de Inasistencia',
+        'citacion': 'Citaciones e Invitaciones',
+        'constancia': 'Constancias',
+        'general': 'General'
+    }
+    
+    TIPOS_DEFAULT = [
+        {'nombre': 'Acta con acuerdo total', 'categoria': 'acuerdo', 'icono': 'fa-check-double'},
+        {'nombre': 'Acta con acuerdo parcial', 'categoria': 'acuerdo', 'icono': 'fa-check'},
+        {'nombre': 'Acta sin acuerdo', 'categoria': 'acuerdo', 'icono': 'fa-times'},
+        {'nombre': 'Invitación a conciliar', 'categoria': 'citacion', 'icono': 'fa-envelope'},
+        {'nombre': 'Citación', 'categoria': 'citacion', 'icono': 'fa-paper-plane'},
+        {'nombre': 'Constancia de asistencia', 'categoria': 'constancia', 'icono': 'fa-certificate'},
+        {'nombre': 'Acta de inasistencia', 'categoria': 'inasistencia', 'icono': 'fa-user-times'},
+    ]
+    
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'nombre', name='uq_tipo_acta_tenant_nombre'),
     )
