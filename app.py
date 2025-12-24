@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse
 import qrcode
 import threading
 import queue
