@@ -32,12 +32,30 @@
         <div id="formularioInfo" class="hidden mt-4 p-4 bg-white rounded-lg border border-green-300">
             <div class="flex items-center justify-between">
                 <div>
-                    <span class="text-sm font-medium text-green-700"><i class="fas fa-check-circle mr-1"></i>Formulario cargado:</span>
+                    <span class="text-sm font-medium text-green-700"><i class="fas fa-check-circle mr-1"></i>Formulario encontrado:</span>
                     <span id="formularioCode" class="ml-2 font-mono text-green-800"></span>
                 </div>
                 <span id="formularioStatus" class="px-2 py-1 text-xs rounded-full"></span>
             </div>
-            <p class="text-sm text-gray-600 mt-1">Modelo: <span id="formularioModelo" class="font-medium"></span></p>
+            <p class="text-sm text-gray-600 mt-2">Tipo de documento: <span id="formularioModelo" class="font-medium text-gray-800"></span></p>
+            <p class="text-sm text-gray-500 mt-1">Fecha: <span id="formularioFecha"></span></p>
+            <div class="mt-4 flex gap-3">
+                <button type="button" onclick="confirmarYCargarCampos()" id="btnConfirmar"
+                        class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition flex items-center gap-2">
+                    <i class="fas fa-check"></i> Confirmar y Rellenar Campos
+                </button>
+                <button type="button" onclick="cancelarFormulario()"
+                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+        <div id="formularioCargado" class="hidden mt-4 p-4 bg-green-50 rounded-lg border border-green-400">
+            <div class="flex items-center gap-2 text-green-700">
+                <i class="fas fa-check-circle text-lg"></i>
+                <span class="font-medium">Campos rellenados con datos del formulario</span>
+                <span id="formularioCodeCargado" class="font-mono ml-2"></span>
+            </div>
         </div>
         <div id="formularioError" class="hidden mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-200">
             <i class="fas fa-exclamation-circle mr-1"></i><span id="formularioErrorMsg"></span>
@@ -208,9 +226,11 @@
                 document.getElementById('form_response_id').value = data.form_id;
 
                 document.getElementById('formularioInfo').classList.remove('hidden');
+                document.getElementById('formularioCargado').classList.add('hidden');
                 document.getElementById('formularioError').classList.add('hidden');
                 document.getElementById('formularioCode').textContent = data.code;
                 document.getElementById('formularioModelo').textContent = data.template_name;
+                document.getElementById('formularioFecha').textContent = data.created_at || '';
 
                 const statusEl = document.getElementById('formularioStatus');
                 if (data.can_use) {
@@ -220,20 +240,6 @@
                     statusEl.textContent = data.status_label + ' (No disponible)';
                     statusEl.className = 'px-2 py-1 text-xs rounded-full bg-red-100 text-red-800';
                 }
-
-                const tipoDocSelect = document.getElementById('tipo_documento');
-                for (let i = 0; i < tipoDocSelect.options.length; i++) {
-                    if (tipoDocSelect.options[i].value === data.template_key) {
-                        tipoDocSelect.selectedIndex = i;
-                        break;
-                    }
-                }
-
-                cargarCampos().then(() => {
-                    setTimeout(() => {
-                        llenarCamposConRespuestas(data.answers);
-                    }, 300);
-                });
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -246,8 +252,40 @@
 
     function mostrarError(mensaje) {
         document.getElementById('formularioInfo').classList.add('hidden');
+        document.getElementById('formularioCargado').classList.add('hidden');
         document.getElementById('formularioError').classList.remove('hidden');
         document.getElementById('formularioErrorMsg').textContent = mensaje;
+    }
+
+    function confirmarYCargarCampos() {
+        if (!formularioCargado) return;
+
+        const data = formularioCargado;
+        const tipoDocSelect = document.getElementById('tipo_documento');
+        
+        for (let i = 0; i < tipoDocSelect.options.length; i++) {
+            if (tipoDocSelect.options[i].value === data.template_key) {
+                tipoDocSelect.selectedIndex = i;
+                break;
+            }
+        }
+
+        cargarCampos().then(() => {
+            setTimeout(() => {
+                llenarCamposConRespuestas(data.answers);
+                document.getElementById('formularioInfo').classList.add('hidden');
+                document.getElementById('formularioCargado').classList.remove('hidden');
+                document.getElementById('formularioCodeCargado').textContent = data.code;
+            }, 300);
+        });
+    }
+
+    function cancelarFormulario() {
+        formularioCargado = null;
+        document.getElementById('form_response_id').value = '';
+        document.getElementById('formularioInfo').classList.add('hidden');
+        document.getElementById('formularioCargado').classList.add('hidden');
+        document.getElementById('codigo_formulario').value = '';
     }
 
     function llenarCamposConRespuestas(answers) {
