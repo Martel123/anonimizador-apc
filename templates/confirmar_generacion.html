@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmar Generacion - {{ form_response.code }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Confirmar Generacion de Documento</h1>
+        <p class="text-gray-600">Revise los datos antes de generar el documento final</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+        <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">{{ modelo.nombre }}</h2>
+                    <p class="text-sm text-gray-600">Codigo: <span class="font-mono font-bold">{{ form_response.code }}</span></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6">
+            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Resumen de Datos</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for key, value in answers.items() %}
+                <div class="bg-gray-50 rounded p-3">
+                    <dt class="text-xs font-medium text-gray-500 uppercase">{{ key.replace('_', ' ') }}</dt>
+                    <dd class="mt-1 text-gray-900 text-sm">{{ value[:100] }}{% if value|length > 100 %}...{% endif %}</dd>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <p class="text-sm text-yellow-800">
+            <strong>Atencion:</strong> Al generar el documento, este formulario quedara marcado como USADO y no podra ser utilizado nuevamente sin autorizacion de un administrador.
+        </p>
+    </div>
+    
+    <div class="flex justify-between">
+        <a href="{{ url_for('vista_previa_formulario', form_id=form_response.id) }}" 
+           class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-medium">
+            Volver
+        </a>
+        
+        <form method="POST">
+            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-medium">
+                Confirmar y Generar Documento
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

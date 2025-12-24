@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulario Enviado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Roboto', sans-serif; }</style>
+</head>
+<body class="bg-gray-100 min-h-screen py-8">
+    <div class="max-w-md mx-auto px-4">
+        <div class="bg-white rounded-lg shadow-md overflow-hidden text-center">
+            <div class="bg-green-600 px-6 py-8">
+                <div class="w-16 h-16 bg-white rounded-full mx-auto flex items-center justify-center mb-4">
+                    <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-white">Formulario Enviado</h1>
+                <p class="text-green-100 mt-2">Su informacion ha sido recibida correctamente</p>
+            </div>
+            
+            <div class="p-6">
+                <p class="text-gray-600 mb-4">Su codigo de referencia es:</p>
+                
+                <div class="bg-gray-100 rounded-lg p-4 mb-6">
+                    <p class="text-3xl font-mono font-bold text-gray-800">{{ code }}</p>
+                </div>
+                
+                <div class="mb-6">
+                    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code" class="mx-auto w-48 h-48">
+                </div>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                    <p class="text-sm text-blue-800">
+                        <strong>Importante:</strong> Envie este codigo a su conciliador o abogado para que pueda procesar su documento.
+                    </p>
+                </div>
+                
+                <p class="text-gray-500 text-sm mt-6">{{ tenant_nombre }}</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

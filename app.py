@@ -206,6 +206,86 @@ CARPETA_ESTILOS_SUBIDOS = "estilos_subidos"
 CARPETA_IMAGENES_MODELOS = "static/imagenes_modelos"
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
+CAMPOS_LARGOS = ['HECHOS', 'FUNDAMENTOS', 'DETALLE', 'NARRACION', 'DESCRIPCION', 
+                 'PETITORIO', 'PRETENSION', 'CONCLUSION', 'OBSERVACIONES', 'ANTECEDENTES']
+
+
+def extract_placeholders_from_docx(docx_path):
+    """Extrae todos los placeholders {{CAMPO}} de un archivo docx."""
+    import re
+    from docx import Document
+    
+    placeholders = set()
+    pattern = r'\{\{([^}]+)\}\}'
+    
+    try:
+        doc = Document(docx_path)
+        
+        for para in doc.paragraphs:
+            matches = re.findall(pattern, para.text)
+            for match in matches:
+                placeholders.add(match.strip())
+        
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        matches = re.findall(pattern, para.text)
+                        for match in matches:
+                            placeholders.add(match.strip())
+        
+        for section in doc.sections:
+            if section.header:
+                for para in section.header.paragraphs:
+                    matches = re.findall(pattern, para.text)
+                    for match in matches:
+                        placeholders.add(match.strip())
+            if section.footer:
+                for para in section.footer.paragraphs:
+                    matches = re.findall(pattern, para.text)
+                    for match in matches:
+                        placeholders.add(match.strip())
+    except Exception as e:
+        logging.error(f"Error extrayendo placeholders de {docx_path}: {e}")
+        return []
+    
+    return sorted(list(placeholders))
+
+
+def extract_placeholders_from_text(text):
+    """Extrae placeholders {{CAMPO}} de texto plano."""
+    import re
+    pattern = r'\{\{([^}]+)\}\}'
+    matches = re.findall(pattern, text)
+    return sorted(list(set(m.strip() for m in matches)))
+
+
+def is_campo_largo(campo_nombre):
+    """Determina si un campo debe usar textarea."""
+    campo_upper = campo_nombre.upper()
+    for largo in CAMPOS_LARGOS:
+        if largo in campo_upper:
+            return True
+    return False
+
+
+def generate_qr_code_base64(data):
+    """Genera un QR code y lo retorna como base64."""
+    import qrcode
+    import io
+    import base64
+    
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    
+    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
 argumentation_job_queue = queue.Queue()
 argumentation_worker_started = False
 
@@ -8083,6 +8163,300 @@ def api_apc_session_messages(session_id):
 def api_apc_delete_session(session_id):
     """Ruta deshabilitada."""
     abort(404)
+
+
+@app.route("/f/<public_id>", methods=["GET", "POST"])
+def public_form(public_id):
+    """Formulario público para que clientes llenen datos de plantilla."""
+    from models import Modelo, FormResponse, Tenant
+    
+    modelo = Modelo.query.filter_by(public_id=public_id, activa=True).first()
+    if not modelo or not modelo.is_public_form_enabled:
+        return render_template("public_form_not_found.html"), 404
+    
+    tenant = Tenant.query.get(modelo.tenant_id)
+    if not tenant or not tenant.activo:
+        return render_template("public_form_not_found.html"), 404
+    
+    placeholders = modelo.get_placeholders()
+    if not placeholders and modelo.contenido:
+        placeholders = extract_placeholders_from_text(modelo.contenido)
+    
+    if not placeholders and modelo.archivo_original:
+        placeholders = extract_placeholders_from_docx(modelo.archivo_original)
+        if placeholders:
+            modelo.placeholders_json = placeholders
+            db.session.commit()
+    
+    if request.method == "POST":
+        accepted = request.form.get('accepted_terms') == 'on'
+        if not accepted:
+            return render_template("public_form.html", 
+                                  modelo=modelo, 
+                                  tenant_nombre=tenant.nombre,
+                                  placeholders=placeholders,
+                                  is_campo_largo=is_campo_largo,
+                                  error="Debe aceptar la declaración de veracidad para continuar.")
+        
+        answers = {}
+        for ph in placeholders:
+            answers[ph] = request.form.get(f"campo_{ph}", "").strip()
+        
+        code = FormResponse.generate_code(tenant.id)
+        while FormResponse.query.filter_by(code=code).first():
+            code = FormResponse.generate_code(tenant.id)
+        
+        form_response = FormResponse(
+            tenant_id=tenant.id,
+            template_id=modelo.id,
+            code=code,
+            answers_json=answers,
+            status='NEW',
+            accepted_terms=True,
+            accepted_terms_at=datetime.utcnow()
+        )
+        db.session.add(form_response)
+        db.session.commit()
+        
+        log_audit(tenant.id, 'FORM_SUBMITTED', f'Formulario enviado: {code}', 
+                 {'template_id': modelo.id, 'code': code}, user_id=None)
+        
+        qr_base64 = generate_qr_code_base64(code)
+        
+        return render_template("public_form_success.html",
+                              code=code,
+                              qr_base64=qr_base64,
+                              tenant_nombre=tenant.nombre)
+    
+    return render_template("public_form.html",
+                          modelo=modelo,
+                          tenant_nombre=tenant.nombre,
+                          placeholders=placeholders,
+                          is_campo_largo=is_campo_largo,
+                          error=None)
+
+
+@app.route("/cargar_formulario", methods=["GET", "POST"])
+@login_required
+def cargar_formulario_por_codigo():
+    """Cargar un formulario por código para generar documento."""
+    from models import FormResponse, Modelo
+    
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso.", "error")
+        return redirect(url_for('dashboard'))
+    
+    if request.method == "POST":
+        code = request.form.get('code', '').strip().upper()
+        if not code:
+            flash("Ingrese un código de formulario.", "error")
+            return render_template("cargar_formulario.html")
+        
+        form_response = FormResponse.query.filter_by(code=code, tenant_id=tenant.id).first()
+        if not form_response:
+            flash("Código no encontrado. Verifique e intente nuevamente.", "error")
+            return render_template("cargar_formulario.html")
+        
+        log_audit(tenant.id, 'FORM_LOADED_BY_STAFF', f'Formulario cargado: {code}', 
+                 {'code': code, 'user_id': current_user.id})
+        
+        return redirect(url_for('vista_previa_formulario', form_id=form_response.id))
+    
+    formularios = FormResponse.query.filter_by(tenant_id=tenant.id).order_by(FormResponse.created_at.desc()).limit(20).all()
+    return render_template("cargar_formulario.html", formularios=formularios)
+
+
+@app.route("/formulario/<int:form_id>/preview", methods=["GET", "POST"])
+@login_required
+def vista_previa_formulario(form_id):
+    """Vista previa del formulario antes de generar documento."""
+    from models import FormResponse, Modelo
+    
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso.", "error")
+        return redirect(url_for('dashboard'))
+    
+    form_response = FormResponse.query.filter_by(id=form_id, tenant_id=tenant.id).first()
+    if not form_response:
+        flash("Formulario no encontrado.", "error")
+        return redirect(url_for('cargar_formulario_por_codigo'))
+    
+    modelo = form_response.template
+    can_generate = form_response.can_be_used()
+    is_admin = current_user.is_admin
+    
+    if request.method == "POST":
+        action = request.form.get('action', '')
+        
+        if action == 'generate' and can_generate:
+            return redirect(url_for('generar_desde_formulario', form_id=form_id))
+        
+        elif action == 'reopen' and is_admin and form_response.status == 'USED':
+            form_response.reopen(current_user.id)
+            db.session.commit()
+            log_audit(tenant.id, 'FORM_REOPENED', f'Formulario reabierto: {form_response.code}',
+                     {'code': form_response.code, 'user_id': current_user.id})
+            flash("Formulario reabierto exitosamente.", "success")
+            return redirect(url_for('vista_previa_formulario', form_id=form_id))
+    
+    return render_template("vista_previa_formulario.html",
+                          form_response=form_response,
+                          modelo=modelo,
+                          can_generate=can_generate,
+                          is_admin=is_admin)
+
+
+@app.route("/formulario/<int:form_id>/generar", methods=["GET", "POST"])
+@login_required
+def generar_desde_formulario(form_id):
+    """Genera documento final desde un formulario completado."""
+    from models import FormResponse, Modelo
+    
+    tenant = get_current_tenant()
+    if not tenant:
+        flash("No tienes acceso.", "error")
+        return redirect(url_for('dashboard'))
+    
+    form_response = FormResponse.query.filter_by(id=form_id, tenant_id=tenant.id).first()
+    if not form_response:
+        flash("Formulario no encontrado.", "error")
+        return redirect(url_for('cargar_formulario_por_codigo'))
+    
+    if not form_response.can_be_used():
+        flash("Este formulario ya fue utilizado. Contacte al administrador para reabrirlo.", "warning")
+        return redirect(url_for('vista_previa_formulario', form_id=form_id))
+    
+    modelo = form_response.template
+    answers = form_response.answers_json or {}
+    
+    if request.method == "POST":
+        try:
+            fecha_actual = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            nombre_base = modelo.nombre.replace(" ", "_")[:30]
+            nombre_archivo = f"{nombre_base}_{form_response.code}_{fecha_actual}.docx"
+            
+            if modelo.archivo_original and os.path.exists(modelo.archivo_original):
+                from docx import Document
+                doc = Document(modelo.archivo_original)
+                
+                for para in doc.paragraphs:
+                    for key, value in answers.items():
+                        placeholder = "{{" + key + "}}"
+                        if placeholder in para.text:
+                            para.text = para.text.replace(placeholder, str(value))
+                
+                for table in doc.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for para in cell.paragraphs:
+                                for key, value in answers.items():
+                                    placeholder = "{{" + key + "}}"
+                                    if placeholder in para.text:
+                                        para.text = para.text.replace(placeholder, str(value))
+                
+                output_path = os.path.join(CARPETA_RESULTADOS, nombre_archivo)
+                doc.save(output_path)
+            else:
+                texto_contenido = modelo.contenido or ""
+                for key, value in answers.items():
+                    placeholder = "{{" + key + "}}"
+                    texto_contenido = texto_contenido.replace(placeholder, str(value))
+                
+                guardar_docx(texto_contenido, nombre_archivo, tenant, None)
+            
+            demandante = answers.get('DEMANDANTE', answers.get('NOMBRE', answers.get('CLIENTE', 'N/A')))
+            
+            record = DocumentRecord(
+                user_id=current_user.id,
+                tenant_id=tenant.id,
+                fecha=datetime.utcnow(),
+                tipo_documento=modelo.nombre,
+                tipo_documento_key=modelo.key,
+                demandante=demandante[:200] if demandante else 'Formulario',
+                archivo=nombre_archivo,
+                texto_generado=str(answers),
+                datos_caso=answers
+            )
+            db.session.add(record)
+            db.session.flush()
+            
+            form_response.mark_as_used(current_user.id, record.id)
+            db.session.commit()
+            
+            log_audit(tenant.id, 'DOCUMENT_CREATED', f'Documento creado desde formulario: {form_response.code}',
+                     {'code': form_response.code, 'document_id': record.id, 'archivo': nombre_archivo})
+            
+            flash(f"Documento generado exitosamente: {nombre_archivo}", "success")
+            return redirect(url_for('terminados'))
+            
+        except Exception as e:
+            logging.error(f"Error generando documento desde formulario: {e}")
+            db.session.rollback()
+            flash(f"Error al generar el documento: {str(e)}", "error")
+            return redirect(url_for('vista_previa_formulario', form_id=form_id))
+    
+    return render_template("confirmar_generacion.html",
+                          form_response=form_response,
+                          modelo=modelo,
+                          answers=answers)
+
+
+@app.route("/modelo/<int:modelo_id>/toggle_public_form", methods=["POST"])
+@login_required
+def toggle_public_form(modelo_id):
+    """Habilitar/deshabilitar formulario público para un modelo."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    modelo = Modelo.query.filter_by(id=modelo_id, tenant_id=tenant.id).first()
+    if not modelo:
+        return jsonify({"error": "Modelo no encontrado"}), 404
+    
+    modelo.is_public_form_enabled = not modelo.is_public_form_enabled
+    
+    if modelo.is_public_form_enabled and not modelo.public_id:
+        modelo.generate_public_id()
+        if modelo.archivo_original and os.path.exists(modelo.archivo_original):
+            modelo.placeholders_json = extract_placeholders_from_docx(modelo.archivo_original)
+        elif modelo.contenido:
+            modelo.placeholders_json = extract_placeholders_from_text(modelo.contenido)
+    
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "is_enabled": modelo.is_public_form_enabled,
+        "public_id": modelo.public_id
+    })
+
+
+@app.route("/modelo/<int:modelo_id>/get_public_link")
+@login_required
+def get_modelo_public_link(modelo_id):
+    """Obtener el link público de un modelo."""
+    tenant = get_current_tenant()
+    if not tenant:
+        return jsonify({"error": "No autorizado"}), 403
+    
+    modelo = Modelo.query.filter_by(id=modelo_id, tenant_id=tenant.id).first()
+    if not modelo:
+        return jsonify({"error": "Modelo no encontrado"}), 404
+    
+    if not modelo.public_id:
+        modelo.generate_public_id()
+        db.session.commit()
+    
+    public_url = url_for('public_form', public_id=modelo.public_id, _external=True)
+    
+    return jsonify({
+        "success": True,
+        "public_id": modelo.public_id,
+        "public_url": public_url,
+        "is_enabled": modelo.is_public_form_enabled
+    })
 
 
 with app.app_context():

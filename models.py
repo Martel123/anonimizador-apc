@@ -261,6 +261,10 @@ class Modelo(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    public_id = db.Column(db.String(16), unique=True, nullable=True, index=True)
+    is_public_form_enabled = db.Column(db.Boolean, default=True)
+    placeholders_json = db.Column(db.JSON, nullable=True)
+    
     created_by = db.relationship('User', backref=db.backref('modelos', lazy='dynamic'))
     
     __table_args__ = (
@@ -276,8 +280,87 @@ class Modelo(db.Model):
         if user.is_admin:
             return True
         return self.created_by_id == user.id
+    
+    def generate_public_id(self):
+        """Genera un public_id único para el formulario público."""
+        if not self.public_id:
+            self.public_id = secrets.token_urlsafe(8)[:12]
+        return self.public_id
+    
+    def get_placeholders(self):
+        """Retorna la lista de placeholders."""
+        if self.placeholders_json:
+            return self.placeholders_json
+        return []
 
 Plantilla = Modelo
+
+
+class FormResponse(db.Model):
+    """Respuestas de formularios públicos enviados por clientes."""
+    __tablename__ = 'form_responses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey('plantillas.id'), nullable=False)
+    code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    answers_json = db.Column(db.JSON, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    status = db.Column(db.String(20), default='NEW')
+    accepted_terms = db.Column(db.Boolean, default=False)
+    accepted_terms_at = db.Column(db.DateTime, nullable=True)
+    
+    used_at = db.Column(db.DateTime, nullable=True)
+    used_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
+    reopened_at = db.Column(db.DateTime, nullable=True)
+    reopened_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
+    document_record_id = db.Column(db.Integer, db.ForeignKey('document_records.id'), nullable=True)
+    
+    template = db.relationship('Modelo', backref=db.backref('form_responses', lazy='dynamic'))
+    tenant = db.relationship('Tenant', backref=db.backref('form_responses', lazy='dynamic'))
+    used_by = db.relationship('User', foreign_keys=[used_by_user_id], backref=db.backref('used_forms', lazy='dynamic'))
+    reopened_by = db.relationship('User', foreign_keys=[reopened_by_user_id])
+    document_record = db.relationship('DocumentRecord', backref=db.backref('form_response', uselist=False))
+    
+    STATUSES = {
+        'NEW': 'Nuevo',
+        'USED': 'Usado',
+        'REOPENED': 'Reabierto',
+        'ARCHIVED': 'Archivado'
+    }
+    
+    @staticmethod
+    def generate_code(tenant_id):
+        """Genera un código único legible tipo APC-CC-XXXXXX."""
+        import random
+        import string
+        chars = string.ascii_uppercase + string.digits
+        random_part = ''.join(random.choices(chars, k=6))
+        return f"APC-{tenant_id:02d}-{random_part}"
+    
+    def get_status_display(self):
+        return self.STATUSES.get(self.status, self.status)
+    
+    def can_be_used(self):
+        """Verifica si el formulario puede ser usado para generar documento."""
+        return self.status in ['NEW', 'REOPENED']
+    
+    def mark_as_used(self, user_id, document_record_id=None):
+        """Marca el formulario como usado."""
+        self.status = 'USED'
+        self.used_at = datetime.utcnow()
+        self.used_by_user_id = user_id
+        if document_record_id:
+            self.document_record_id = document_record_id
+    
+    def reopen(self, user_id):
+        """Reabre el formulario para permitir nuevo uso."""
+        self.status = 'REOPENED'
+        self.reopened_at = datetime.utcnow()
+        self.reopened_by_user_id = user_id
 
 
 class Estilo(db.Model):

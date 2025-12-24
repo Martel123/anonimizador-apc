@@ -1,0 +1,209 @@
+OBJETIVO GENERAL
+Implementar un sistema completo de “Formulario por Plantilla con link compartible” para Centros de Conciliación.
+
+Cada plantilla/modelo debe tener un link público que se pueda compartir con el cliente.
+El cliente abre el link, llena un formulario generado automáticamente según los placeholders de la plantilla, acepta una declaración de veracidad y envía la información.
+El sistema guarda las respuestas, genera un código único y un QR.
+Luego, dentro de la plataforma (usuarios autenticados), el conciliador/abogado carga ese código, revisa una vista previa y genera automáticamente el documento final usando la plantilla ya establecida.
+El formulario pasa a estado USADO y queda trazabilidad completa.
+
+RESTRICCIONES IMPORTANTES
+- NO agregar ni modificar diseño visual (CSS) todavía.
+- UI mínima y funcional solamente.
+- NO romper el flujo actual de:
+  - Generar
+  - Mis Modelos
+  - Terminados
+- Reutilizar el sistema actual de plantillas y generación de documentos.
+- NO reimplementar la generación de docx si ya existe.
+
+====================================================
+1) EXTRACCIÓN DE PLACEHOLDERS DE PLANTILLAS
+====================================================
+- Las plantillas docx usan placeholders con formato {{CAMPO}}.
+- Implementar función extract_placeholders(template_docx_path) que:
+  - lea el docx
+  - extraiga todos los placeholders únicos
+  - los normalice (trim de espacios, sin romper nombres).
+- Guardar los placeholders en base de datos (placeholders_json) asociados a cada plantilla/modelo para no recalcular siempre.
+
+====================================================
+2) LINK PÚBLICO COMPARTIBLE POR PLANTILLA
+====================================================
+En “Mis Modelos” o en el detalle de cada plantilla:
+- Mostrar un botón: “Copiar link de formulario”.
+
+El link debe ser público y con formato similar a:
+- /f/<template_public_id>
+
+Base de datos:
+- En la tabla de plantillas/modelos agregar:
+  - public_id (string único, hash o uuid corto)
+  - is_public_form_enabled (boolean, default true)
+  - placeholders_json (json)
+
+Reglas:
+- Si una plantilla no tiene public_id, generarlo automáticamente.
+- Permitir habilitar/deshabilitar el link público por plantilla.
+
+====================================================
+3) FORMULARIO PÚBLICO DEL CLIENTE
+====================================================
+Rutas públicas:
+- GET  /f/<public_id>
+- POST /f/<public_id>
+
+GET /f/<public_id>:
+- Renderizar un formulario HTML dinámico con un campo por cada placeholder.
+- Usar input text por defecto.
+- Usar textarea para campos largos (por nombre, ej.: HECHOS, FUNDAMENTOS, DETALLE, NARRACION).
+- NO exponer información interna del Centro.
+
+OBLIGATORIO al final del formulario:
+- Checkbox requerido:
+  “Declaro que la información brindada es veraz y completa.”
+- Nota visible:
+  “Los datos serán utilizados exclusivamente para elaborar documentos del Centro de Conciliación.”
+
+POST /f/<public_id>:
+- Validar que el checkbox esté marcado.
+- Guardar las respuestas en una nueva tabla “form_responses” con:
+  - id
+  - centro_id
+  - template_id
+  - code (código único legible, ej.: APC-CC-XXXXXX)
+  - answers_json (diccionario placeholder -> valor)
+  - created_at
+  - status (NEW / USED / REOPENED / ARCHIVED)
+  - accepted_terms (boolean)
+  - accepted_terms_at (datetime)
+  - used_at (nullable)
+  - used_by_user_id (nullable)
+  - reopened_at (nullable)
+  - reopened_by_user_id (nullable)
+
+Respuesta al cliente:
+- Página “Gracias”
+- Mostrar claramente:
+  - Código generado
+  - QR del código (generar QR)
+  - Mensaje: “Envíe este código a su conciliador o abogado.”
+
+====================================================
+4) GENERACIÓN DE QR
+====================================================
+- Generar un QR del código usando librería estándar (ej. python-qrcode).
+- Mostrar el QR en la página final (imagen base64 o archivo servido).
+- El QR solo contiene el código (no datos sensibles).
+
+====================================================
+5) CARGAR FORMULARIO POR CÓDIGO (INTERNO)
+====================================================
+Dentro de la sección “Generar” (usuario autenticado):
+- Agregar campo: “Cargar por código”.
+- Al ingresar el código:
+  - buscar en form_responses
+  - si no existe, mostrar error claro
+  - obtener template_id y answers_json
+  - autoseleccionar la plantilla correspondiente
+  - autollenar el formulario interno con answers_json
+
+Si el formulario tiene status=USED:
+- Mostrar advertencia “Este formulario ya fue usado”.
+- Permitir:
+  - solo vista previa
+  - opción “Reabrir” SOLO para Admin/Coordinador (si corresponde).
+
+====================================================
+6) VISTA PREVIA ANTES DE GENERAR (OBLIGATORIA)
+====================================================
+Antes del botón final de generación:
+- Mostrar una vista previa simple (lista o tabla):
+  - plantilla seleccionada
+  - campos principales con sus valores
+- Botón: “Confirmar y Generar documento”.
+
+====================================================
+7) GENERACIÓN AUTOMÁTICA DEL DOCUMENTO FINAL
+====================================================
+Al confirmar:
+- Usar la plantilla docx vinculada al template_id.
+- Aplicar el merge con answers_json.
+- Generar el docx final.
+- Guardar el documento en “Terminados” como se hace actualmente, agregando referencia:
+  - template_id
+  - form_response_id
+  - code
+
+Actualizar form_responses:
+- status = USED
+- used_at = now
+- used_by_user_id = usuario actual
+
+====================================================
+8) REABRIR FORMULARIO (CONTROLADO)
+====================================================
+Para Admin (y Coordinador si aplica):
+- Acción “Reabrir formulario”:
+  - cambiar status a REOPENED o NEW
+  - guardar reopened_at y reopened_by_user_id
+- Opcional si es sencillo:
+  - “Duplicar formulario” → crear nuevo registro con nuevo código y mismas respuestas.
+
+====================================================
+9) AUDITORÍA
+====================================================
+Registrar eventos en auditoría:
+- FORM_SUBMITTED (template_id, code)
+- FORM_LOADED_BY_STAFF (code, user_id)
+- FORM_REOPENED (code, user_id)
+- DOCUMENT_CREATED (code, document_id)
+
+Si no existe sistema de auditoría, crear tabla audit_logs con:
+- id
+- centro_id
+- actor_user_id
+- event
+- metadata_json
+- created_at
+
+====================================================
+10) SEGURIDAD BÁSICA
+====================================================
+- Los links públicos solo permiten:
+  - ver formulario
+  - enviar respuestas
+- El público NO puede consultar datos por código.
+- Cargar por código solo usuarios autenticados.
+- Implementar rate-limit básico por IP en /f/<public_id> (o dejar stub preparado).
+
+====================================================
+11) ONBOARDING AUTOMÁTICO
+====================================================
+Cuando se crea un Centro:
+- Para cada plantilla base:
+  - generar public_id
+  - habilitar link público
+  - guardar placeholders_json
+- El Centro queda listo para compartir links inmediatamente.
+
+====================================================
+CONDICIÓN FINAL
+====================================================
+- Cada plantilla tiene un link público de formulario.
+- El cliente llena el formulario, acepta declaración, envía y recibe código + QR.
+- El conciliador carga el código en “Generar”.
+- Se muestra vista previa.
+- Se genera el docx final automáticamente.
+- El formulario pasa a estado USED.
+- Todo queda auditado.
+- El sistema corre sin errores.
+- NO se modificó diseño visual.
+
+PROCEDE IMPLEMENTANDO TODO DIRECTAMENTE EN EL CÓDIGO.
+NO PREGUNTES CONFIRMACIÓN.
+NO REHAGAS LA APP.
+
+DETALLE FINAL (IMPORTANTE):
+Si tienes dudas sobre dónde están las plantillas o cómo se genera el docx:
+“Reutiliza el flujo actual de generación; solo agrega la capa de formulario público + carga por código + vista previa + control de estado”.

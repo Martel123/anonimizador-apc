@@ -108,17 +108,21 @@
                     <span>Calendario</span>
                 </a>
                 <div class="sidebar-submenu">
-                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados'] %}active{% endif %}">
+                    <button onclick="toggleSubmenu('documentos')" class="sidebar-link flex items-center justify-between w-full px-4 py-3 text-sm {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados', 'cargar_formulario_por_codigo', 'vista_previa_formulario', 'generar_desde_formulario'] %}active{% endif %}">
                         <span class="flex items-center">
                             <i class="fas fa-file-alt w-5 mr-3"></i>
                             <span>Documentos</span>
                         </span>
-                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados'] %}rotate{% endif %}" id="documentos-arrow"></i>
+                        <i class="fas fa-chevron-down text-xs submenu-arrow {% if request.endpoint in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados', 'cargar_formulario_por_codigo'] %}rotate{% endif %}" id="documentos-arrow"></i>
                     </button>
-                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados'] %}hidden{% endif %} pl-4">
+                    <div id="documentos-submenu" class="{% if request.endpoint not in ['generador', 'mis_modelos', 'mi_modelo', 'documentos_terminados', 'cargar_formulario_por_codigo', 'vista_previa_formulario', 'generar_desde_formulario'] %}hidden{% endif %} pl-4">
                         <a href="{{ url_for('generador') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint == 'generador' %}active{% endif %}">
                             <i class="fas fa-magic w-4 mr-3 text-xs"></i>
                             <span>Generar</span>
+                        </a>
+                        <a href="{{ url_for('cargar_formulario_por_codigo') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['cargar_formulario_por_codigo', 'vista_previa_formulario', 'generar_desde_formulario'] %}active{% endif %}">
+                            <i class="fas fa-qrcode w-4 mr-3 text-xs"></i>
+                            <span>Cargar Formulario</span>
                         </a>
                         <a href="{{ url_for('mis_modelos') }}" class="submenu-item flex items-center px-4 py-2 text-sm text-gray-300 {% if request.endpoint in ['mis_modelos', 'mi_modelo'] %}active{% endif %}">
                             <i class="fas fa-folder w-4 mr-3 text-xs"></i>
