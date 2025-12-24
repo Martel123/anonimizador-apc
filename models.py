@@ -38,6 +38,7 @@ class Tenant(db.Model):
     areas_practica = db.Column(db.Text)
     activo = db.Column(db.Boolean, default=True)
     subscription_status = db.Column(db.String(20), default='pending')
+    plan = db.Column(db.String(20), default='basico')  # basico, medio, avanzado
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

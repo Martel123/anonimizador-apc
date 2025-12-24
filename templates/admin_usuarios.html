@@ -119,6 +119,35 @@
         </div>
 
         <div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 bg-indigo-100 rounded-lg">
+                            <i class="fas fa-crown text-indigo-600 text-xl"></i>
+                        </div>
+                        <h2 class="text-lg font-semibold text-gray-800">{{ plan_config.nombre }}</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-sm text-gray-600">Usuarios activos</span>
+                        <span class="text-lg font-bold {% if puede_agregar %}text-green-600{% else %}text-red-600{% endif %}">
+                            {{ usuarios_actuales }} / {{ plan_config.max_usuarios }}
+                        </span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="{% if puede_agregar %}bg-green-600{% else %}bg-red-600{% endif %} h-2.5 rounded-full" 
+                             style="width: {{ (usuarios_actuales / plan_config.max_usuarios * 100)|int }}%"></div>
+                    </div>
+                    {% if not puede_agregar %}
+                    <p class="mt-3 text-sm text-red-600">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        Has alcanzado el limite de usuarios de tu plan.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
                     <div class="flex items-center space-x-3">
@@ -128,7 +157,18 @@
                         <h2 class="text-lg font-semibold text-gray-800">Agregar Usuario</h2>
                     </div>
                 </div>
+                {% if puede_agregar %}
                 <form method="POST" class="p-6 space-y-4">
+                {% else %}
+                <div class="p-6 text-center">
+                    <div class="text-gray-400 mb-4">
+                        <i class="fas fa-lock text-4xl"></i>
+                    </div>
+                    <p class="text-gray-600 mb-2">No puedes agregar mas usuarios</p>
+                    <p class="text-sm text-gray-500">Contacta al administrador para actualizar tu plan.</p>
+                </div>
+                {% endif %}
+                {% if puede_agregar %}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Nombre</label>
                         <input type="text" name="username" required
@@ -165,6 +205,7 @@
                         <i class="fas fa-plus mr-2"></i>Agregar Usuario
                     </button>
                 </form>
+                {% endif %}
             </div>
         </div>
     </div>

@@ -60,6 +60,57 @@ MODELOS = {
     }
 }
 
+PLAN_CONFIG = {
+    'basico': {
+        'nombre': 'Plan Básico',
+        'max_usuarios': 2,
+        'max_documentos_mes': 20,
+        'max_plantillas': 10,
+        'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_auditoria_basic']
+    },
+    'medio': {
+        'nombre': 'Plan Medio',
+        'max_usuarios': 5,
+        'max_documentos_mes': 200,
+        'max_plantillas': 50,
+        'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_casos', 
+                     'feature_tareas', 'feature_calendario', 'feature_historial', 'feature_auditoria_basic',
+                     'feature_onboarding']
+    },
+    'avanzado': {
+        'nombre': 'Plan Avanzado',
+        'max_usuarios': 8,
+        'max_documentos_mes': 1000,
+        'max_plantillas': 100,
+        'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_casos',
+                     'feature_tareas', 'feature_calendario', 'feature_historial', 'feature_estadisticas',
+                     'feature_auditoria_basic', 'feature_auditoria_advanced', 'feature_onboarding']
+    }
+}
+
+
+def get_plan_config(tenant):
+    """Obtiene la configuración del plan del tenant."""
+    if not tenant:
+        return PLAN_CONFIG['basico']
+    plan = getattr(tenant, 'plan', 'basico') or 'basico'
+    return PLAN_CONFIG.get(plan, PLAN_CONFIG['basico'])
+
+
+def tenant_can_add_user(tenant):
+    """Verifica si el tenant puede agregar más usuarios según su plan."""
+    if not tenant:
+        return False
+    plan_config = get_plan_config(tenant)
+    current_users = User.query.filter_by(tenant_id=tenant.id, activo=True).count()
+    return current_users < plan_config['max_usuarios']
+
+
+def get_tenant_user_limit(tenant):
+    """Obtiene el límite de usuarios del tenant según su plan."""
+    plan_config = get_plan_config(tenant)
+    return plan_config['max_usuarios']
+
 CARPETA_MODELOS = "modelos_legales"
 CARPETA_ESTILOS = "estilos_estudio"
 CARPETA_RESULTADOS = "Resultados"
@@ -3122,6 +3173,10 @@ def admin_usuarios():
     
     is_admin = current_user.role in ['super_admin', 'admin_estudio']
     
+    plan_config = get_plan_config(tenant)
+    usuarios_actuales = User.query.filter_by(tenant_id=tenant.id, activo=True).count()
+    puede_agregar = usuarios_actuales < plan_config['max_usuarios']
+    
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
@@ -3130,6 +3185,8 @@ def admin_usuarios():
         
         if not username or not email or not password:
             flash("Todos los campos son obligatorios.", "error")
+        elif not puede_agregar:
+            flash(f"Has alcanzado el límite de {plan_config['max_usuarios']} usuarios para tu plan {plan_config['nombre']}. Contacta al administrador para actualizar tu plan.", "error")
         elif User.query.filter_by(email=email).first():
             flash("Ya existe un usuario con ese email.", "error")
         else:
@@ -3148,9 +3205,17 @@ def admin_usuarios():
             db.session.add(user)
             db.session.commit()
             flash(f"Usuario {username} creado exitosamente.", "success")
+            usuarios_actuales += 1
+            puede_agregar = usuarios_actuales < plan_config['max_usuarios']
     
     usuarios = User.query.filter_by(tenant_id=tenant.id).all()
-    return render_template("admin_usuarios.html", usuarios=usuarios, tenant=tenant, is_admin=is_admin)
+    return render_template("admin_usuarios.html", 
+                          usuarios=usuarios, 
+                          tenant=tenant, 
+                          is_admin=is_admin,
+                          plan_config=plan_config,
+                          usuarios_actuales=usuarios_actuales,
+                          puede_agregar=puede_agregar)
 
 
 @app.route("/admin/usuario/toggle/<int:user_id>", methods=["POST"])
