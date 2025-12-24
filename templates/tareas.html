@@ -102,11 +102,6 @@
                         <p class="text-sm text-gray-500 mb-2">{{ tarea.descripcion[:100] }}{% if tarea.descripcion|length > 100 %}...{% endif %}</p>
                         {% endif %}
                         <div class="flex items-center gap-4 text-xs text-gray-500">
-                            {% if tarea.case %}
-                            <a href="{{ url_for('caso_detalle', caso_id=tarea.case.id) }}" class="hover:text-blue-600">
-                                <i class="fas fa-folder mr-1"></i> {{ tarea.case.titulo[:30] }}{% if tarea.case.titulo|length > 30 %}...{% endif %}
-                            </a>
-                            {% endif %}
                             {% if tarea.assigned_to %}
                             <span><i class="fas fa-user mr-1"></i> {{ tarea.assigned_to.username }}</span>
                             {% endif %}

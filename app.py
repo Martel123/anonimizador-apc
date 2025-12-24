@@ -3673,6 +3673,11 @@ def case_manage_required(f):
 @app.route("/casos")
 @case_access_required
 def casos():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _casos_disabled():
     tenant = get_current_tenant()
     
     estado_filter = request.args.get('estado', '')
@@ -3727,6 +3732,11 @@ def casos():
 @app.route("/casos/nuevo", methods=["GET", "POST"])
 @case_manage_required
 def caso_nuevo():
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _caso_nuevo_disabled():
     tenant = get_current_tenant()
     
     if request.method == "POST":
@@ -3872,41 +3882,18 @@ def caso_nuevo():
 @app.route("/casos/<int:caso_id>")
 @case_access_required
 def caso_detalle(caso_id):
-    tenant = get_current_tenant()
-    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
-    
-    if not current_user.can_manage_cases():
-        is_assigned = CaseAssignment.query.filter_by(case_id=caso_id, user_id=current_user.id).first()
-        if caso.created_by_id != current_user.id and not is_assigned:
-            flash("No tienes acceso a este caso.", "error")
-            return redirect(url_for("casos"))
-    
-    assignments = CaseAssignment.query.filter_by(case_id=caso_id).all()
-    case_documents = CaseDocument.query.filter_by(case_id=caso_id).order_by(CaseDocument.created_at.desc()).all()
-    tasks = Task.query.filter_by(case_id=caso_id).order_by(Task.fecha_vencimiento).all()
-    
-    eventos = CaseEvent.query.filter_by(
-        tenant_id=tenant.id, 
-        case_id=caso_id
-    ).order_by(CaseEvent.fecha_evento.desc()).all()
-    
-    return render_template("caso_detalle.html",
-                          caso=caso,
-                          assignments=assignments,
-                          case_documents=case_documents,
-                          tasks=tasks,
-                          eventos=eventos,
-                          tipos_evento=CaseEvent.TIPOS_EVENTO,
-                          estados_resultado=CaseEvent.ESTADOS_RESULTADO,
-                          estados=Case.ESTADOS,
-                          prioridades=Case.PRIORIDADES,
-                          current_tenant=tenant,
-                          now=datetime.now())
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/casos/<int:caso_id>/editar", methods=["GET", "POST"])
 @case_manage_required
 def caso_editar(caso_id):
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _caso_editar_disabled(caso_id):
     tenant = get_current_tenant()
     caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
     
@@ -3957,6 +3944,11 @@ def caso_editar(caso_id):
 @app.route("/casos/<int:caso_id>/asignar", methods=["POST"])
 @case_manage_required
 def caso_asignar(caso_id):
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _caso_asignar_disabled(caso_id):
     tenant = get_current_tenant()
     caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
     
@@ -4030,45 +4022,25 @@ def caso_asignar(caso_id):
 @app.route("/casos/<int:caso_id>/desasignar/<int:assignment_id>", methods=["POST"])
 @case_manage_required
 def caso_desasignar(caso_id, assignment_id):
-    tenant = get_current_tenant()
-    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
-    
-    assignment = CaseAssignment.query.filter_by(id=assignment_id, case_id=caso_id).first_or_404()
-    db.session.delete(assignment)
-    db.session.commit()
-    
-    flash("Usuario removido del caso.", "success")
-    return redirect(url_for("caso_detalle", caso_id=caso_id))
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/casos/<int:caso_id>/estado", methods=["POST"])
 @case_access_required
 def caso_cambiar_estado(caso_id):
-    tenant = get_current_tenant()
-    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
-    
-    if not current_user.can_manage_cases():
-        is_assigned = CaseAssignment.query.filter_by(case_id=caso_id, user_id=current_user.id).first()
-        if caso.created_by_id != current_user.id and not is_assigned:
-            flash("No tienes permiso para modificar este caso.", "error")
-            return redirect(url_for("casos"))
-    
-    nuevo_estado = request.form.get("estado")
-    if nuevo_estado in Case.ESTADOS:
-        caso.estado = nuevo_estado
-        if nuevo_estado == 'terminado':
-            caso.fecha_cierre = datetime.utcnow()
-        else:
-            caso.fecha_cierre = None
-        db.session.commit()
-        flash(f"Estado actualizado a: {Case.ESTADOS[nuevo_estado]}", "success")
-    
-    return redirect(url_for("caso_detalle", caso_id=caso_id))
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/casos/<int:caso_id>/evento", methods=["POST"])
 @case_access_required
 def caso_agregar_evento(caso_id):
+    """Ruta deshabilitada."""
+    abort(404)
+
+
+def _caso_agregar_evento_disabled(caso_id):
     """Agregar un evento manualmente a la línea de tiempo del caso."""
     tenant = get_current_tenant()
     caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
@@ -4350,20 +4322,8 @@ def descargar_archivo_tarea(tarea_id):
 @app.route("/casos/<int:caso_id>/adjunto/<int:attachment_id>")
 @case_access_required
 def descargar_adjunto_caso(caso_id, attachment_id):
-    """Descargar archivo adjunto de un caso."""
-    tenant = get_current_tenant()
-    caso = Case.query.filter_by(id=caso_id, tenant_id=tenant.id).first_or_404()
-    attachment = CaseAttachment.query.filter_by(id=attachment_id, case_id=caso_id).first_or_404()
-    
-    if not attachment.archivo or not os.path.exists(attachment.archivo):
-        flash("Archivo no encontrado.", "error")
-        return redirect(url_for("caso_detalle", caso_id=caso_id))
-    
-    return send_file(
-        attachment.archivo,
-        as_attachment=True,
-        download_name=attachment.nombre
-    )
+    """Ruta deshabilitada."""
+    abort(404)
 
 
 @app.route("/tareas/<int:tarea_id>")

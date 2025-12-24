@@ -28,18 +28,18 @@
     <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-sm font-medium text-gray-500">Casos Activos</p>
-                <p class="text-3xl font-bold text-gray-900 mt-1">{{ stats.casos_activos }}</p>
+                <p class="text-sm font-medium text-gray-500">Tareas Pendientes</p>
+                <p class="text-3xl font-bold text-gray-900 mt-1">{{ stats.tareas_pendientes }}</p>
             </div>
             <div class="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                <i class="fas fa-briefcase text-green-600 text-xl"></i>
+                <i class="fas fa-tasks text-green-600 text-xl"></i>
             </div>
         </div>
         <div class="mt-4 flex items-center text-sm">
-            <span class="text-blue-600 font-medium">
-                <i class="fas fa-clock mr-1"></i>{{ stats.casos_pendientes }}
+            <span class="text-red-600 font-medium">
+                <i class="fas fa-exclamation-triangle mr-1"></i>{{ stats.tareas_vencidas }}
             </span>
-            <span class="text-gray-500 ml-2">pendientes</span>
+            <span class="text-gray-500 ml-2">vencidas</span>
         </div>
     </div>
 
@@ -81,48 +81,6 @@
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    <div class="bg-white rounded-xl shadow-sm p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">
-                <i class="fas fa-folder-open text-blue-500 mr-2"></i>Casos Recientes
-            </h3>
-            <a href="{{ url_for('casos') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                Ver todos <i class="fas fa-arrow-right ml-1"></i>
-            </a>
-        </div>
-        <div class="space-y-3">
-            {% if casos_recientes %}
-                {% for caso in casos_recientes %}
-                <a href="{{ url_for('caso_detalle', caso_id=caso.id) }}" class="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <div class="flex items-center justify-between">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-900 truncate">{{ caso.titulo }}</p>
-                            <p class="text-xs text-gray-500">{{ caso.cliente_nombre }}</p>
-                        </div>
-                        <span class="px-2 py-0.5 text-xs rounded-full
-                            {% if caso.estado == 'en_proceso' %}bg-blue-100 text-blue-700
-                            {% elif caso.estado == 'en_espera' %}bg-yellow-100 text-yellow-700
-                            {% elif caso.estado == 'terminado' %}bg-green-100 text-green-700
-                            {% else %}bg-gray-100 text-gray-600{% endif %}">
-                            {{ caso.get_estado_display() }}
-                        </span>
-                    </div>
-                </a>
-                {% endfor %}
-            {% else %}
-                <div class="text-center py-6 text-gray-500">
-                    <i class="fas fa-folder-open text-3xl mb-2"></i>
-                    <p class="text-sm">No hay casos registrados</p>
-                    {% if current_user.can_manage_cases() %}
-                    <a href="{{ url_for('caso_nuevo') }}" class="mt-2 inline-block text-blue-600 hover:text-blue-800 text-sm">
-                        Crear primer caso <i class="fas fa-arrow-right ml-1"></i>
-                    </a>
-                    {% endif %}
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
     <div class="bg-white rounded-xl shadow-sm p-6">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-gray-900">
@@ -217,13 +175,13 @@
         </div>
         <div class="space-y-3">
             {% if current_user.can_manage_cases() %}
-            <a href="{{ url_for('caso_nuevo') }}" class="flex items-center p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group">
+            <a href="{{ url_for('tarea_nueva') }}" class="flex items-center p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group">
                 <div class="h-9 w-9 bg-green-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-green-600 transition-colors">
-                    <i class="fas fa-folder-plus text-white text-sm"></i>
+                    <i class="fas fa-plus text-white text-sm"></i>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-900">Nuevo Caso</p>
-                    <p class="text-xs text-gray-500">Crear expediente</p>
+                    <p class="text-sm font-medium text-gray-900">Nueva Tarea</p>
+                    <p class="text-xs text-gray-500">Crear tarea pendiente</p>
                 </div>
             </a>
             {% endif %}

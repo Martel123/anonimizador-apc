@@ -49,14 +49,6 @@
         {% endif %}
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            {% if tarea.case %}
-            <div>
-                <span class="text-gray-500">Caso:</span>
-                <a href="{{ url_for('caso_detalle', caso_id=tarea.case.id) }}" class="text-blue-600 hover:underline ml-1">
-                    {{ tarea.case.titulo }}
-                </a>
-            </div>
-            {% endif %}
             {% if tarea.assigned_to %}
             <div>
                 <span class="text-gray-500">Asignado a:</span>
