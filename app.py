@@ -60,41 +60,61 @@ MODELOS = {
     }
 }
 
-PLAN_CONFIG = {
+PLAN_CONFIG_DEFAULT = {
     'basico': {
         'nombre': 'Plan Básico',
         'max_usuarios': 2,
-        'max_documentos_mes': 20,
-        'max_plantillas': 10,
+        'max_documentos_mes': 50,
+        'max_plantillas': 5,
+        'precio_mensual': 29.99,
         'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_auditoria_basic']
     },
     'medio': {
         'nombre': 'Plan Medio',
         'max_usuarios': 5,
-        'max_documentos_mes': 200,
-        'max_plantillas': 50,
+        'max_documentos_mes': 150,
+        'max_plantillas': 15,
+        'precio_mensual': 59.99,
         'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_casos', 
                      'feature_tareas', 'feature_calendario', 'feature_historial', 'feature_auditoria_basic',
-                     'feature_onboarding']
+                     'feature_onboarding', 'feature_argumentacion_ia']
     },
     'avanzado': {
         'nombre': 'Plan Avanzado',
         'max_usuarios': 8,
-        'max_documentos_mes': 1000,
-        'max_plantillas': 100,
+        'max_documentos_mes': 9999,
+        'max_plantillas': 9999,
+        'precio_mensual': 99.99,
         'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_casos',
                      'feature_tareas', 'feature_calendario', 'feature_historial', 'feature_estadisticas',
-                     'feature_auditoria_basic', 'feature_auditoria_advanced', 'feature_onboarding']
+                     'feature_auditoria_basic', 'feature_auditoria_avanzada', 'feature_onboarding',
+                     'feature_argumentacion_ia', 'feature_api_access', 'feature_soporte_prioritario', 'feature_agente_ia']
     }
 }
 
 
+def get_dynamic_plan_config():
+    """Obtiene la configuración de planes desde la base de datos o usa los defaults."""
+    try:
+        from models import PlanConfiguration
+        db_plans = PlanConfiguration.get_all_plans_dict()
+        if db_plans:
+            return db_plans
+    except Exception as e:
+        logging.debug(f"Using default plan config: {e}")
+    return PLAN_CONFIG_DEFAULT
+
+
 def get_plan_config(tenant):
     """Obtiene la configuración del plan del tenant."""
+    plans = get_dynamic_plan_config()
     if not tenant:
-        return PLAN_CONFIG['basico']
+        return plans.get('basico', PLAN_CONFIG_DEFAULT['basico'])
     plan = getattr(tenant, 'plan', 'basico') or 'basico'
-    return PLAN_CONFIG.get(plan, PLAN_CONFIG['basico'])
+    return plans.get(plan, plans.get('basico', PLAN_CONFIG_DEFAULT['basico']))
+
+
+PLAN_CONFIG = PLAN_CONFIG_DEFAULT
 
 
 def tenant_can_add_user(tenant):
@@ -2863,13 +2883,14 @@ def super_admin_crear_centro():
         password = request.form.get('password', '')
         plan = request.form.get('plan', 'basico')
         
+        dynamic_plans = get_dynamic_plan_config()
         if not nombre or not email or not password:
             flash("Nombre, email y contraseña son requeridos.", "error")
-            return render_template("super_admin_crear_centro.html", plan_config=PLAN_CONFIG)
+            return render_template("super_admin_crear_centro.html", plan_config=dynamic_plans)
         
         if User.query.filter_by(email=email).first():
             flash("Ya existe un usuario con ese email.", "error")
-            return render_template("super_admin_crear_centro.html", plan_config=PLAN_CONFIG)
+            return render_template("super_admin_crear_centro.html", plan_config=dynamic_plans)
         
         slug = nombre.lower().replace(' ', '_').replace('.', '')[:50]
         slug = re.sub(r'[^a-z0-9_]', '', slug)
@@ -2906,10 +2927,12 @@ def super_admin_crear_centro():
         
         log_audit(tenant.id, 'USER_CREATED', f'Centro creado con admin: {email}', {'plan': plan})
         
-        flash(f"Centro '{nombre}' creado exitosamente con plan {PLAN_CONFIG[plan]['nombre']}.", "success")
+        dynamic_plans = get_dynamic_plan_config()
+        plan_name = dynamic_plans.get(plan, {}).get('nombre', plan)
+        flash(f"Centro '{nombre}' creado exitosamente con plan {plan_name}.", "success")
         return redirect(url_for('super_admin'))
     
-    return render_template("super_admin_crear_centro.html", plan_config=PLAN_CONFIG)
+    return render_template("super_admin_crear_centro.html", plan_config=get_dynamic_plan_config())
 
 
 @app.route("/super_admin/editar_centro/<int:tenant_id>", methods=["GET", "POST"])
@@ -2934,12 +2957,13 @@ def super_admin_editar_centro(tenant_id):
         elif action == 'change_plan':
             old_plan = tenant.plan
             new_plan = request.form.get('plan', 'basico')
-            if new_plan in PLAN_CONFIG:
+            dynamic_plans = get_dynamic_plan_config()
+            if new_plan in dynamic_plans:
                 tenant.plan = new_plan
                 db.session.commit()
                 log_audit(tenant_id, 'PLAN_CHANGED', f'Plan cambiado de {old_plan} a {new_plan}', 
                          {'old_plan': old_plan, 'new_plan': new_plan})
-                flash(f"Plan cambiado a {PLAN_CONFIG[new_plan]['nombre']}.", "success")
+                flash(f"Plan cambiado a {dynamic_plans[new_plan]['nombre']}.", "success")
         
         elif action == 'toggle_active':
             tenant.activo = not tenant.activo
@@ -2960,7 +2984,8 @@ def super_admin_editar_centro(tenant_id):
                 flash("Ya existe un usuario con ese email.", "error")
             else:
                 if not tenant_can_add_user(tenant):
-                    flash(f"El Centro ha alcanzado el límite de usuarios de su plan ({PLAN_CONFIG[tenant.plan]['max_usuarios']}).", "error")
+                    plan_cfg = get_plan_config(tenant)
+                    flash(f"El Centro ha alcanzado el límite de usuarios de su plan ({plan_cfg['max_usuarios']}).", "error")
                 else:
                     user = User(
                         username=username,
@@ -2982,13 +3007,110 @@ def super_admin_editar_centro(tenant_id):
     usuarios_actuales = User.query.filter_by(tenant_id=tenant_id, activo=True).count()
     puede_agregar = usuarios_actuales < plan_config['max_usuarios']
     
+    all_plans = get_dynamic_plan_config()
     return render_template("super_admin_editar_centro.html", 
                           tenant=tenant, 
                           usuarios=usuarios,
                           plan_config=plan_config,
-                          all_plans=PLAN_CONFIG,
+                          all_plans=all_plans,
                           usuarios_actuales=usuarios_actuales,
                           puede_agregar=puede_agregar)
+
+
+@app.route("/super_admin/planes", methods=["GET", "POST"])
+@super_admin_required
+def super_admin_planes():
+    """Gestionar planes y sus limitaciones."""
+    from models import PlanConfiguration
+    import json
+    
+    PlanConfiguration.initialize_defaults()
+    
+    if request.method == "POST":
+        action = request.form.get('action', '')
+        
+        if action == 'update_plan':
+            plan_id = request.form.get('plan_id')
+            plan = PlanConfiguration.query.get(plan_id)
+            if plan:
+                plan.nombre = request.form.get('nombre', plan.nombre).strip()
+                plan.max_usuarios = int(request.form.get('max_usuarios', 2))
+                plan.max_documentos_mes = int(request.form.get('max_documentos_mes', 50))
+                plan.max_plantillas = int(request.form.get('max_plantillas', 5))
+                plan.precio_mensual = float(request.form.get('precio_mensual', 0))
+                plan.descripcion = request.form.get('descripcion', '').strip()
+                
+                features = request.form.getlist('features')
+                plan.set_features_list(features)
+                
+                db.session.commit()
+                flash(f"Plan '{plan.nombre}' actualizado correctamente.", "success")
+        
+        elif action == 'create_plan':
+            plan_key = request.form.get('plan_key', '').strip().lower()
+            plan_key = re.sub(r'[^a-z0-9_]', '', plan_key)
+            
+            if not plan_key:
+                flash("La clave del plan es requerida.", "error")
+            elif PlanConfiguration.query.filter_by(plan_key=plan_key).first():
+                flash("Ya existe un plan con esa clave.", "error")
+            else:
+                max_orden = db.session.query(db.func.max(PlanConfiguration.orden)).scalar() or 0
+                plan = PlanConfiguration(
+                    plan_key=plan_key,
+                    nombre=request.form.get('nombre', 'Nuevo Plan').strip(),
+                    max_usuarios=int(request.form.get('max_usuarios', 2)),
+                    max_documentos_mes=int(request.form.get('max_documentos_mes', 50)),
+                    max_plantillas=int(request.form.get('max_plantillas', 5)),
+                    precio_mensual=float(request.form.get('precio_mensual', 0)),
+                    descripcion=request.form.get('descripcion', '').strip(),
+                    features=json.dumps(request.form.getlist('features')),
+                    orden=max_orden + 1,
+                    activo=True
+                )
+                db.session.add(plan)
+                db.session.commit()
+                flash(f"Plan '{plan.nombre}' creado exitosamente.", "success")
+        
+        elif action == 'toggle_plan':
+            plan_id = request.form.get('plan_id')
+            plan = PlanConfiguration.query.get(plan_id)
+            if plan and plan.plan_key not in ['basico', 'medio', 'avanzado']:
+                plan.activo = not plan.activo
+                db.session.commit()
+                estado = "activado" if plan.activo else "desactivado"
+                flash(f"Plan '{plan.nombre}' {estado}.", "success")
+            else:
+                flash("No se pueden desactivar los planes predeterminados.", "error")
+        
+        elif action == 'delete_plan':
+            plan_id = request.form.get('plan_id')
+            plan = PlanConfiguration.query.get(plan_id)
+            if plan and plan.plan_key not in ['basico', 'medio', 'avanzado']:
+                tenants_using = Tenant.query.filter_by(plan=plan.plan_key).count()
+                if tenants_using > 0:
+                    flash(f"No se puede eliminar el plan. {tenants_using} centro(s) lo están usando.", "error")
+                else:
+                    nombre = plan.nombre
+                    db.session.delete(plan)
+                    db.session.commit()
+                    flash(f"Plan '{nombre}' eliminado.", "success")
+            else:
+                flash("No se pueden eliminar los planes predeterminados.", "error")
+        
+        return redirect(url_for('super_admin_planes'))
+    
+    planes = PlanConfiguration.query.order_by(PlanConfiguration.orden).all()
+    features_disponibles = PlanConfiguration.FEATURES_DISPONIBLES
+    
+    tenants_por_plan = {}
+    for plan in planes:
+        tenants_por_plan[plan.plan_key] = Tenant.query.filter_by(plan=plan.plan_key).count()
+    
+    return render_template("super_admin_planes.html",
+                          planes=planes,
+                          features_disponibles=features_disponibles,
+                          tenants_por_plan=tenants_por_plan)
 
 
 @app.route("/system/pricing", methods=["GET", "POST"])

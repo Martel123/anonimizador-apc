@@ -1704,6 +1704,135 @@ class AuditLog(db.Model):
     )
 
 
+class PlanConfiguration(db.Model):
+    """Configuración editable de planes por el superadmin."""
+    __tablename__ = 'plan_configurations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    plan_key = db.Column(db.String(50), unique=True, nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    max_usuarios = db.Column(db.Integer, default=2)
+    max_documentos_mes = db.Column(db.Integer, default=50)
+    max_plantillas = db.Column(db.Integer, default=5)
+    precio_mensual = db.Column(db.Float, default=0)
+    features = db.Column(db.Text)  # JSON string of features
+    descripcion = db.Column(db.Text)
+    orden = db.Column(db.Integer, default=0)
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    FEATURES_DISPONIBLES = [
+        ('feature_generate', 'Generación de documentos'),
+        ('feature_models', 'Gestión de modelos'),
+        ('feature_terminados', 'Documentos terminados'),
+        ('feature_casos', 'Gestión de casos'),
+        ('feature_tareas', 'Sistema de tareas'),
+        ('feature_calendario', 'Calendario'),
+        ('feature_historial', 'Historial completo'),
+        ('feature_auditoria_basic', 'Auditoría básica'),
+        ('feature_auditoria_avanzada', 'Auditoría avanzada'),
+        ('feature_argumentacion_ia', 'Argumentación con IA'),
+        ('feature_onboarding', 'Onboarding guiado'),
+        ('feature_api_access', 'Acceso a API'),
+        ('feature_soporte_prioritario', 'Soporte prioritario'),
+        ('feature_agente_ia', 'Agente IA (APC IA)'),
+    ]
+    
+    def get_features_list(self):
+        """Retorna la lista de features como array."""
+        import json
+        if not self.features:
+            return []
+        try:
+            return json.loads(self.features)
+        except:
+            return []
+    
+    def set_features_list(self, features_list):
+        """Guarda la lista de features como JSON."""
+        import json
+        self.features = json.dumps(features_list)
+    
+    def to_dict(self):
+        """Convierte a diccionario compatible con PLAN_CONFIG."""
+        return {
+            'nombre': self.nombre,
+            'max_usuarios': self.max_usuarios,
+            'max_documentos_mes': self.max_documentos_mes,
+            'max_plantillas': self.max_plantillas,
+            'precio_mensual': self.precio_mensual,
+            'features': self.get_features_list()
+        }
+    
+    @classmethod
+    def get_all_plans_dict(cls):
+        """Retorna todos los planes como diccionario."""
+        plans = cls.query.filter_by(activo=True).order_by(cls.orden).all()
+        return {p.plan_key: p.to_dict() for p in plans}
+    
+    @classmethod
+    def initialize_defaults(cls):
+        """Inicializa los planes por defecto si no existen."""
+        defaults = [
+            {
+                'plan_key': 'basico',
+                'nombre': 'Plan Básico',
+                'max_usuarios': 2,
+                'max_documentos_mes': 50,
+                'max_plantillas': 5,
+                'precio_mensual': 29.99,
+                'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_auditoria_basic'],
+                'descripcion': 'Ideal para centros pequeños que inician',
+                'orden': 1
+            },
+            {
+                'plan_key': 'medio',
+                'nombre': 'Plan Medio',
+                'max_usuarios': 5,
+                'max_documentos_mes': 150,
+                'max_plantillas': 15,
+                'precio_mensual': 59.99,
+                'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_casos', 
+                             'feature_tareas', 'feature_calendario', 'feature_historial', 'feature_auditoria_basic',
+                             'feature_onboarding', 'feature_argumentacion_ia'],
+                'descripcion': 'Para centros en crecimiento con equipo',
+                'orden': 2
+            },
+            {
+                'plan_key': 'avanzado',
+                'nombre': 'Plan Avanzado',
+                'max_usuarios': 8,
+                'max_documentos_mes': 9999,
+                'max_plantillas': 9999,
+                'precio_mensual': 99.99,
+                'features': ['feature_generate', 'feature_models', 'feature_terminados', 'feature_casos', 
+                             'feature_tareas', 'feature_calendario', 'feature_historial', 'feature_auditoria_basic',
+                             'feature_auditoria_avanzada', 'feature_onboarding', 'feature_argumentacion_ia',
+                             'feature_api_access', 'feature_soporte_prioritario', 'feature_agente_ia'],
+                'descripcion': 'Acceso completo para centros profesionales',
+                'orden': 3
+            }
+        ]
+        import json
+        for d in defaults:
+            if not cls.query.filter_by(plan_key=d['plan_key']).first():
+                plan = cls(
+                    plan_key=d['plan_key'],
+                    nombre=d['nombre'],
+                    max_usuarios=d['max_usuarios'],
+                    max_documentos_mes=d['max_documentos_mes'],
+                    max_plantillas=d['max_plantillas'],
+                    precio_mensual=d['precio_mensual'],
+                    features=json.dumps(d['features']),
+                    descripcion=d['descripcion'],
+                    orden=d['orden'],
+                    activo=True
+                )
+                db.session.add(plan)
+        db.session.commit()
+
+
 class TipoActa(db.Model):
     """Catálogo de tipos de acta para Centros de Conciliación."""
     __tablename__ = 'tipos_acta'
