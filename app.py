@@ -1532,23 +1532,7 @@ def inject_tenant():
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    
-    # Initialize pricing defaults if needed
-    PricingConfig.init_defaults()
-    
-    # Get pricing data
-    pricing = {
-        'price_per_seat': float(PricingConfig.get_value('price_per_seat', '69.00')),
-        'currency': PricingConfig.get_value('currency', 'USD'),
-        'currency_symbol': PricingConfig.get_value('currency_symbol', '$'),
-        'trial_days': int(PricingConfig.get_value('trial_days', '14')),
-        'platform_name': PricingConfig.get_value('platform_name', 'LegalDoc Pro'),
-    }
-    
-    # Get active addons
-    addons = PricingAddon.query.filter_by(activo=True).order_by(PricingAddon.orden).all()
-    
-    return render_template("landing.html", pricing=pricing, addons=addons)
+    return redirect(url_for('login'))
 
 
 @app.route("/demo")
@@ -2165,6 +2149,118 @@ def login():
             flash("Email o contraseña incorrectos.", "error")
     
     return render_template("login.html")
+
+
+@app.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        
+        if not email:
+            flash("Por favor ingresa tu correo electrónico.", "error")
+            return render_template("forgot_password.html")
+        
+        user = User.query.filter_by(email=email, activo=True).first()
+        
+        if user:
+            existing_tokens = ActivationToken.query.filter_by(
+                user_id=user.id, 
+                tipo='password_reset', 
+                used=False
+            ).all()
+            for t in existing_tokens:
+                t.used = True
+            db.session.commit()
+            
+            token = ActivationToken.create_token(user.id, tipo='password_reset', hours=24)
+            
+            try:
+                reset_url = url_for('reset_password', token=token.token, _external=True)
+                
+                import resend
+                resend.api_key = os.environ.get('RESEND_API_KEY')
+                
+                html_content = f'''
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #333;">Recuperación de Contraseña</h2>
+                    <p>Hola {user.username},</p>
+                    <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
+                    <p style="margin: 20px 0;">
+                        <a href="{reset_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                            Restablecer Contraseña
+                        </a>
+                    </p>
+                    <p>Este enlace expirará en 24 horas.</p>
+                    <p>Si no solicitaste restablecer tu contraseña, puedes ignorar este correo.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #666; font-size: 12px;">Centro de Conciliación - Sistema de Gestión</p>
+                </div>
+                '''
+                
+                resend.Emails.send({
+                    "from": "Centro de Conciliación <noreply@resend.dev>",
+                    "to": [user.email],
+                    "subject": "Recuperación de Contraseña",
+                    "html": html_content
+                })
+                
+                log_audit(
+                    tenant_id=user.tenant_id,
+                    user_id=user.id,
+                    accion='password_reset_requested',
+                    detalle=f'Solicitud de recuperación de contraseña para {user.email}'
+                )
+            except Exception as e:
+                logging.error(f"Error sending password reset email: {e}")
+        
+        flash("Si el correo existe en nuestro sistema, recibirás instrucciones para restablecer tu contraseña.", "success")
+        return redirect(url_for('login'))
+    
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    activation = ActivationToken.query.filter_by(token=token, tipo='password_reset').first()
+    
+    if not activation or not activation.is_valid():
+        flash("El enlace de recuperación es inválido o ha expirado.", "error")
+        return redirect(url_for('forgot_password'))
+    
+    user = activation.user
+    
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        password_confirm = request.form.get("password_confirm", "")
+        
+        if not password or len(password) < 6:
+            flash("La contraseña debe tener al menos 6 caracteres.", "error")
+            return render_template("reset_password.html", token=token)
+        
+        if password != password_confirm:
+            flash("Las contraseñas no coinciden.", "error")
+            return render_template("reset_password.html", token=token)
+        
+        user.set_password(password)
+        activation.mark_used()
+        
+        log_audit(
+            tenant_id=user.tenant_id,
+            user_id=user.id,
+            accion='password_reset_completed',
+            detalle=f'Contraseña restablecida exitosamente para {user.email}'
+        )
+        
+        flash("Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.", "success")
+        return redirect(url_for('login'))
+    
+    return render_template("reset_password.html", token=token)
 
 
 @app.route("/registro", methods=["GET", "POST"])
