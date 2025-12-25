@@ -26,7 +26,8 @@ from io import BytesIO
 import base64
 import uuid
 
-logging.basicConfig(level=logging.DEBUG)
+log_level = logging.DEBUG if os.environ.get("FLASK_DEBUG", "false").lower() == "true" else logging.INFO
+logging.basicConfig(level=log_level)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
