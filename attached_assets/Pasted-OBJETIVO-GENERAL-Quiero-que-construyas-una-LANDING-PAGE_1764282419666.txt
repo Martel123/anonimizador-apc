@@ -1,0 +1,230 @@
+OBJETIVO GENERAL
+Quiero que construyas una LANDING PAGE COMPLETA (solo FRONTEND) para “APC Jurídica – Plataforma para Centros de Conciliación”, enfocada 100% en VENDER SOLUCIONES DESDE EL INICIO, no solo mostrar funciones.
+
+Debe ser una página tipo SaaS legal-tech, moderna, confiable, institucional y orientada a centros de conciliación del Perú.
+
+La landing debe resolver problemas reales del cliente y mostrar cómo la plataforma los soluciona.
+
+====================================================
+REGLAS TÉCNICAS (MUY IMPORTANTE PARA ELEMENTOR)
+====================================================
+1. Entrega el resultado en 3 BLOQUES SEPARADOS:
+   - BLOQUE A: HTML (solo contenido del <body>, sin <html> ni <head>)
+   - BLOQUE B: CSS (todo el diseño aquí)
+   - BLOQUE C: JS (solo si es necesario)
+
+2. El HTML debe poder pegarse íntegramente en:
+   Elementor → Widget HTML
+
+3. El CSS debe poder pegarse en:
+   WordPress → Apariencia → Personalizar → CSS adicional
+   (o Elementor Pro → Custom CSS)
+
+4. Evita dependencias externas complejas.
+5. Todo debe ser RESPONSIVE (desktop + móvil).
+6. Usa comentarios en el código indicando:
+   - Dónde reemplazar el logo
+   - Dónde reemplazar capturas reales del sistema
+   - Dónde conectar la pasarela de pago real
+
+====================================================
+IDENTIDAD VISUAL APC (OBLIGATORIA)
+====================================================
+Colores:
+- Negro principal: #0B0B0B
+- Rojo APC: #C0392B
+- Gris: #BFBFBF
+- Blanco: #FFFFFF
+
+Uso:
+- Negro y gris para fondos institucionales
+- Rojo solo para botones, CTAs, badges y acentos importantes
+
+Tipografía:
+- Inter o Poppins (si no es posible, system-ui)
+
+NO usar estilo académico.
+DEBE parecer SOFTWARE PROFESIONAL.
+
+====================================================
+ESTRUCTURA OBLIGATORIA DE LA LANDING
+====================================================
+
+=====================
+1. HEADER
+=====================
+- Logo APC (placeholder)
+- Menú: Plataforma | Funcionalidades | Planes | Soporte
+- Botón rojo fijo: “Solicitar demo”
+
+=====================
+2. HERO (SECCIÓN PRINCIPAL – VENDE SOLUCIÓN)
+=====================
+Fondo oscuro elegante (negro + degradado).
+
+Título grande:
+“La plataforma para Centros de Conciliación”
+
+Subtítulo orientado a PROBLEMA:
+“Reduce el tiempo, los errores y el desorden en la gestión de expedientes, actas y audiencias.”
+
+Bullets visibles:
+- ❌ Errores constantes en actas y documentos
+- ❌ Pérdida de plazos y reuniones
+- ❌ Mala organización de expedientes
+
+Botones:
+- Botón rojo: “Solicitar demo”
+- Botón secundario outline: “Ver funcionalidades”
+
+A la derecha:
+- Mockup visual del sistema (placeholder con dashboard, calendario y documentos)
+
+=====================
+3. SECCIÓN: PROBLEMAS REALES
+=====================
+Título:
+“¿Estos problemas ocurren en tu centro de conciliación?”
+
+Cards con íconos rojos:
+1. Demasiado tiempo redactando documentos
+2. Errores en actas y escritos oficiales
+3. Mala gestión de documentos y versiones
+4. Plazos y audiencias desordenadas
+5. Falta de control y trazabilidad
+
+=====================
+4. SECCIÓN: LA SOLUCIÓN APC
+=====================
+Título:
+“La solución: una plataforma integral para centros de conciliación”
+
+Texto:
+“APC Jurídica centraliza, automatiza y ordena todo el proceso de conciliación en un solo sistema.”
+
+Cards:
+- Gestión de expedientes
+- Audiencias y calendario
+- Actas automáticas
+- Historial completo
+- Auditoría y control
+- Argumentación con IA
+
+=====================
+5. ¿CÓMO FUNCIONA? (PASOS CLAROS)
+=====================
+Paso 1:
+“Registras tu centro”
+Paso 2:
+“Gestionas casos y audiencias”
+Paso 3:
+“Generas actas y reportes oficiales”
+
+Texto cierre:
+“Todo desde un solo lugar, sin errores ni desorden.”
+
+=====================
+6. PLANES DISPONIBLES (CONVERSIÓN)
+=====================
+Título:
+“Planes simples y mensuales”
+
+Subtítulo:
+“Un precio claro, sin costos ocultos”
+
+PLAN 1 – CENTRO BÁSICO
+Precio: $29.99 / mes
+- Hasta 2 usuarios
+- 1 centro
+- 50 documentos / mes
+- 5 plantillas
+Incluye:
+✔ Generación de documentos
+✔ Gestión de modelos
+✔ Documentos terminados
+✔ Historial básico
+
+Botón: “Solicitar demo”
+
+PLAN 2 – CENTRO PRO (DESTACADO – MÁS USADO)
+Precio: $59.99 / mes
+- Hasta 5 usuarios
+- 1 centro
+- 150 documentos / mes
+- 15 plantillas
+Incluye TODO lo anterior +:
+✔ Gestión de casos
+✔ Sistema de tareas
+✔ Calendario
+✔ Auditoría básica
+✔ Argumentación con IA
+✔ Onboarding guiado
+
+Badge: “Más usado”
+Botón rojo: “Solicitar demo”
+
+PLAN 3 – CENTRO AVANZADO
+Precio: $99.99 / mes
+- Hasta 8 usuarios
+- Hasta 3 centros
+- Documentos ilimitados
+- Plantillas ilimitadas
+Incluye TODO +:
+✔ Auditoría avanzada
+✔ Soporte prioritario
+✔ Acceso API
+✔ Agente IA (APC IA)
+
+Botón: “Solicitar demo”
+
+=====================
+7. PASARELA DE PAGO (VISUAL + CONFIANZA)
+=====================
+Debajo de los planes:
+Texto:
+“Pagos seguros con tarjetas y plataformas reconocidas”
+
+Mostrar íconos (placeholders):
+- Visa
+- Mastercard
+- PayPal
+
+NOTA:
+Dejar comentarios en el código indicando dónde integrar Stripe / Mercado Pago luego.
+
+=====================
+8. CTA FINAL (CIERRE DE VENTA)
+=====================
+Fondo rojo APC.
+
+Texto grande:
+“Digitaliza tu centro de conciliación hoy”
+
+Subtexto:
+“Reduce errores, ahorra tiempo y ordena todo tu proceso de conciliación.”
+
+Botón negro:
+“Solicitar demo”
+
+=====================
+9. FOOTER
+=====================
+- Logo APC
+- Texto institucional:
+“La plataforma integral y segura para centros de conciliación.”
+- Enlaces: Plataforma | Funcionalidades | Planes | Soporte
+- Contacto (placeholders)
+- Redes sociales (íconos)
+
+====================================================
+ENTREGABLE FINAL
+====================================================
+Devuélveme EXACTAMENTE:
+1) BLOQUE A: HTML
+2) BLOQUE B: CSS
+3) BLOQUE C: JS (si aplica)
+4) Mini guía (5 pasos) para pegarlo correctamente en Elementor.
+
+NO EXPLICACIONES LARGAS.
+NO TEXTO SOBRANTE.
+QUIERO CÓDIGO LIMPIO Y PROFESIONAL.
