@@ -127,6 +127,24 @@
             background: var(--gris-claro);
         }
         
+        .nav-buttons {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .btn-login {
+            color: var(--gris-oscuro);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        .btn-login:hover {
+            color: var(--rojo);
+        }
+        
         .mobile-menu {
             display: none;
             background: none;
@@ -139,9 +157,21 @@
         /* HERO */
         .hero {
             padding: 140px 0 80px;
-            background: linear-gradient(135deg, var(--negro) 0%, #1a1a1a 40%, var(--gris-claro) 40%);
+            background: var(--gris-claro);
             position: relative;
             overflow: hidden;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 55%;
+            height: 100%;
+            background: var(--negro);
+            clip-path: polygon(0 0, 100% 0, 80% 100%, 0 100%);
+            z-index: 1;
         }
         
         .hero .container {
@@ -149,6 +179,8 @@
             grid-template-columns: 1fr 1fr;
             gap: 60px;
             align-items: center;
+            position: relative;
+            z-index: 2;
         }
         
         .hero-content {
@@ -188,107 +220,129 @@
             justify-content: center;
         }
         
-        .mockup-laptop {
-            background: #1a1a1a;
-            border-radius: 12px;
-            padding: 8px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
-            max-width: 100%;
-        }
-        
-        .mockup-screen {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            border-radius: 6px;
+        .mockup-device {
+            background: var(--blanco);
+            border-radius: 16px;
             padding: 15px;
-            min-height: 280px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.2);
+            max-width: 420px;
+            border: 1px solid #e0e0e0;
         }
         
-        .mockup-dashboard {
-            background: white;
-            border-radius: 4px;
-            padding: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .mockup-header-bar {
+        .mockup-browser-bar {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 8px;
             margin-bottom: 12px;
-            padding-bottom: 8px;
+            padding-bottom: 10px;
             border-bottom: 1px solid #eee;
         }
         
-        .mockup-logo-small {
-            font-size: 10px;
-            font-weight: 700;
+        .mockup-dots {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .mockup-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ddd;
+        }
+        
+        .mockup-url-bar {
+            flex: 1;
+            height: 24px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        
+        .mockup-app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .mockup-logo-text {
+            font-size: 14px;
+            font-weight: 800;
             color: var(--rojo);
         }
         
-        .mockup-nav-items {
+        .mockup-tabs {
             display: flex;
-            gap: 10px;
+            gap: 20px;
         }
         
-        .mockup-nav-item {
-            width: 40px;
-            height: 6px;
-            background: #ddd;
-            border-radius: 3px;
+        .mockup-tab {
+            font-size: 11px;
+            color: #999;
+            font-weight: 500;
+            padding-bottom: 8px;
         }
         
-        .mockup-content-grid {
+        .mockup-tab.active {
+            color: var(--negro);
+            border-bottom: 2px solid var(--rojo);
+        }
+        
+        .mockup-content-area {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 15px;
         }
         
-        .mockup-card {
-            background: #f8f9fa;
-            border-radius: 4px;
-            padding: 10px;
+        .mockup-widget {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #eee;
         }
         
-        .mockup-card-title {
-            font-size: 8px;
-            color: #999;
-            margin-bottom: 6px;
+        .mockup-widget-header {
+            font-size: 10px;
+            color: #666;
+            font-weight: 600;
+            margin-bottom: 10px;
         }
         
         .mockup-chart {
             display: flex;
             align-items: flex-end;
-            gap: 4px;
-            height: 40px;
+            gap: 6px;
+            height: 50px;
         }
         
         .mockup-bar {
             flex: 1;
-            background: var(--rojo);
-            border-radius: 2px;
+            background: linear-gradient(to top, var(--rojo), #e57373);
+            border-radius: 3px;
         }
         
-        .mockup-calendar-mini {
+        .mockup-calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 2px;
+            gap: 3px;
         }
         
-        .mockup-cal-day {
-            width: 100%;
+        .mockup-cal-cell {
             aspect-ratio: 1;
-            background: #eee;
-            border-radius: 2px;
-            font-size: 6px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 3px;
+            font-size: 7px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #999;
         }
         
-        .mockup-cal-day.active {
+        .mockup-cal-cell.marked {
             background: var(--rojo);
             color: white;
+            border-color: var(--rojo);
         }
         
         /* FEATURES SECTION */
@@ -770,7 +824,7 @@
                 display: block;
             }
             
-            .header .nav .btn {
+            .nav-buttons {
                 display: none;
             }
             
@@ -807,7 +861,10 @@
                     <li><a href="#planes">Planes</a></li>
                     <li><a href="#contacto">Soporte</a></li>
                 </ul>
-                <a href="{{ url_for('registro_estudio') }}" class="btn btn-primary">Solicitar demo</a>
+                <div class="nav-buttons">
+                    <a href="{{ url_for('login') }}" class="btn-login">Iniciar sesion</a>
+                    <a href="{{ url_for('registro_estudio') }}" class="btn btn-primary">Solicitar demo</a>
+                </div>
             </nav>
             <button class="mobile-menu">
                 <i class="fas fa-bars"></i>
@@ -831,40 +888,43 @@
             </div>
             
             <div class="hero-mockup">
-                <div class="mockup-laptop">
-                    <div class="mockup-screen">
-                        <div class="mockup-dashboard">
-                            <div class="mockup-header-bar">
-                                <div class="mockup-logo-small">APC</div>
-                                <div class="mockup-nav-items">
-                                    <div class="mockup-nav-item"></div>
-                                    <div class="mockup-nav-item"></div>
-                                    <div class="mockup-nav-item"></div>
-                                </div>
+                <div class="mockup-device">
+                    <div class="mockup-browser-bar">
+                        <div class="mockup-dots">
+                            <div class="mockup-dot"></div>
+                            <div class="mockup-dot"></div>
+                            <div class="mockup-dot"></div>
+                        </div>
+                        <div class="mockup-url-bar"></div>
+                    </div>
+                    <div class="mockup-app-header">
+                        <div class="mockup-logo-text">APC</div>
+                        <div class="mockup-tabs">
+                            <div class="mockup-tab active">Documentos</div>
+                            <div class="mockup-tab">Calendario</div>
+                        </div>
+                    </div>
+                    <div class="mockup-content-area">
+                        <div class="mockup-widget">
+                            <div class="mockup-widget-header">Documentos</div>
+                            <div class="mockup-chart">
+                                <div class="mockup-bar" style="height: 55%;"></div>
+                                <div class="mockup-bar" style="height: 75%;"></div>
+                                <div class="mockup-bar" style="height: 40%;"></div>
+                                <div class="mockup-bar" style="height: 90%;"></div>
+                                <div class="mockup-bar" style="height: 65%;"></div>
                             </div>
-                            <div class="mockup-content-grid">
-                                <div class="mockup-card">
-                                    <div class="mockup-card-title">Documentos</div>
-                                    <div class="mockup-chart">
-                                        <div class="mockup-bar" style="height: 60%;"></div>
-                                        <div class="mockup-bar" style="height: 80%;"></div>
-                                        <div class="mockup-bar" style="height: 45%;"></div>
-                                        <div class="mockup-bar" style="height: 90%;"></div>
-                                        <div class="mockup-bar" style="height: 70%;"></div>
-                                    </div>
-                                </div>
-                                <div class="mockup-card">
-                                    <div class="mockup-card-title">Calendario</div>
-                                    <div class="mockup-calendar-mini">
-                                        <div class="mockup-cal-day">L</div>
-                                        <div class="mockup-cal-day">M</div>
-                                        <div class="mockup-cal-day active">M</div>
-                                        <div class="mockup-cal-day">J</div>
-                                        <div class="mockup-cal-day active">V</div>
-                                        <div class="mockup-cal-day">S</div>
-                                        <div class="mockup-cal-day">D</div>
-                                    </div>
-                                </div>
+                        </div>
+                        <div class="mockup-widget">
+                            <div class="mockup-widget-header">Calendario</div>
+                            <div class="mockup-calendar-grid">
+                                <div class="mockup-cal-cell">1</div>
+                                <div class="mockup-cal-cell">2</div>
+                                <div class="mockup-cal-cell marked">3</div>
+                                <div class="mockup-cal-cell">4</div>
+                                <div class="mockup-cal-cell">5</div>
+                                <div class="mockup-cal-cell marked">6</div>
+                                <div class="mockup-cal-cell">7</div>
                             </div>
                         </div>
                     </div>
