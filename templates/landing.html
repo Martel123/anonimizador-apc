@@ -11,8 +11,9 @@
             --negro: #0B0B0B;
             --rojo: #C0392B;
             --rojo-hover: #A93226;
-            --gris: #BFBFBF;
-            --gris-oscuro: #1a1a1a;
+            --gris-claro: #f5f5f5;
+            --gris: #666666;
+            --gris-oscuro: #333333;
             --blanco: #FFFFFF;
         }
         
@@ -24,8 +25,8 @@
         
         body {
             font-family: 'Inter', system-ui, sans-serif;
-            background: var(--negro);
-            color: var(--blanco);
+            background: var(--blanco);
+            color: var(--gris-oscuro);
             line-height: 1.6;
         }
         
@@ -41,11 +42,10 @@
             top: 0;
             left: 0;
             right: 0;
-            background: rgba(11, 11, 11, 0.95);
-            backdrop-filter: blur(10px);
+            background: var(--blanco);
             z-index: 1000;
-            padding: 15px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         }
         
         .header .container {
@@ -55,7 +55,7 @@
         }
         
         .logo img {
-            height: 45px;
+            height: 50px;
         }
         
         .nav {
@@ -66,12 +66,12 @@
         
         .nav-links {
             display: flex;
-            gap: 30px;
+            gap: 35px;
             list-style: none;
         }
         
         .nav-links a {
-            color: var(--gris);
+            color: var(--gris-oscuro);
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
@@ -79,15 +79,15 @@
         }
         
         .nav-links a:hover {
-            color: var(--blanco);
+            color: var(--rojo);
         }
         
         .btn {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 12px 24px;
-            border-radius: 8px;
+            padding: 12px 28px;
+            border-radius: 6px;
             font-size: 14px;
             font-weight: 600;
             text-decoration: none;
@@ -104,53 +104,44 @@
         .btn-primary:hover {
             background: var(--rojo-hover);
             transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(192,57,43,0.3);
         }
         
         .btn-outline {
             background: transparent;
-            color: var(--blanco);
+            color: var(--gris-oscuro);
             border: 2px solid var(--gris);
         }
         
         .btn-outline:hover {
-            border-color: var(--blanco);
-            background: rgba(255,255,255,0.1);
+            border-color: var(--rojo);
+            color: var(--rojo);
         }
         
-        .btn-dark {
-            background: var(--negro);
-            color: var(--blanco);
+        .btn-white {
+            background: var(--blanco);
+            color: var(--negro);
         }
         
-        .btn-dark:hover {
-            background: #1a1a1a;
+        .btn-white:hover {
+            background: var(--gris-claro);
         }
         
         .mobile-menu {
             display: none;
             background: none;
             border: none;
-            color: var(--blanco);
+            color: var(--negro);
             font-size: 24px;
             cursor: pointer;
         }
         
         /* HERO */
         .hero {
-            padding: 160px 0 100px;
-            background: linear-gradient(135deg, var(--negro) 0%, #1a1a1a 50%, var(--negro) 100%);
+            padding: 140px 0 80px;
+            background: linear-gradient(135deg, var(--negro) 0%, #1a1a1a 40%, var(--gris-claro) 40%);
             position: relative;
             overflow: hidden;
-        }
-        
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 50%;
-            height: 100%;
-            background: radial-gradient(circle at 70% 50%, rgba(192,57,43,0.1) 0%, transparent 50%);
         }
         
         .hero .container {
@@ -160,9 +151,13 @@
             align-items: center;
         }
         
+        .hero-content {
+            color: var(--blanco);
+        }
+        
         .hero-content h1 {
-            font-size: 48px;
-            font-weight: 800;
+            font-size: 42px;
+            font-weight: 700;
             line-height: 1.2;
             margin-bottom: 20px;
         }
@@ -172,27 +167,14 @@
         }
         
         .hero-content .subtitle {
-            font-size: 18px;
-            color: var(--gris);
+            font-size: 16px;
+            color: #ccc;
             margin-bottom: 30px;
+            line-height: 1.7;
         }
         
-        .pain-points {
-            margin-bottom: 35px;
-        }
-        
-        .pain-point {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-            font-size: 15px;
-            color: var(--gris);
-        }
-        
-        .pain-point i {
-            color: var(--rojo);
-            font-size: 14px;
+        .hero-content .subtitle em {
+            font-style: italic;
         }
         
         .hero-buttons {
@@ -202,238 +184,276 @@
         
         .hero-mockup {
             position: relative;
-        }
-        
-        .mockup-container {
-            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .mockup-header {
             display: flex;
-            gap: 8px;
-            margin-bottom: 15px;
+            justify-content: center;
         }
         
-        .mockup-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
+        .mockup-laptop {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+            max-width: 100%;
         }
-        
-        .mockup-dot.red { background: #ff5f56; }
-        .mockup-dot.yellow { background: #ffbd2e; }
-        .mockup-dot.green { background: #27ca40; }
         
         .mockup-screen {
-            background: #0f0f0f;
-            border-radius: 8px;
-            padding: 20px;
-            min-height: 300px;
-        }
-        
-        .mockup-widget {
-            background: #1a1a1a;
-            border-radius: 8px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 6px;
             padding: 15px;
-            margin-bottom: 15px;
+            min-height: 280px;
         }
         
-        .mockup-widget-title {
-            font-size: 12px;
-            color: var(--gris);
-            margin-bottom: 10px;
+        .mockup-dashboard {
+            background: white;
+            border-radius: 4px;
+            padding: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .mockup-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .mockup-logo-small {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--rojo);
+        }
+        
+        .mockup-nav-items {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .mockup-nav-item {
+            width: 40px;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+        }
+        
+        .mockup-content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .mockup-card {
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .mockup-card-title {
+            font-size: 8px;
+            color: #999;
+            margin-bottom: 6px;
+        }
+        
+        .mockup-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 40px;
         }
         
         .mockup-bar {
-            height: 8px;
-            background: #2a2a2a;
-            border-radius: 4px;
-            margin-bottom: 8px;
+            flex: 1;
+            background: var(--rojo);
+            border-radius: 2px;
         }
         
-        .mockup-bar.filled {
-            background: linear-gradient(90deg, var(--rojo), #e74c3c);
-            width: 70%;
-        }
-        
-        .mockup-calendar {
+        .mockup-calendar-mini {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
+            gap: 2px;
         }
         
-        .cal-day {
-            background: #2a2a2a;
-            padding: 8px;
-            border-radius: 4px;
-            text-align: center;
-            font-size: 10px;
-            color: var(--gris);
+        .mockup-cal-day {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #eee;
+            border-radius: 2px;
+            font-size: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
         }
         
-        .cal-day.active {
+        .mockup-cal-day.active {
             background: var(--rojo);
-            color: var(--blanco);
+            color: white;
         }
         
-        /* PROBLEMAS */
-        .section {
-            padding: 100px 0;
+        /* FEATURES SECTION */
+        .features-section {
+            padding: 80px 0;
+            background: var(--blanco);
         }
         
-        .section-dark {
-            background: var(--negro);
-        }
-        
-        .section-darker {
-            background: #0a0a0a;
-        }
-        
-        .section-title {
-            text-align: center;
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 50px;
-        }
-        
-        .section-subtitle {
-            text-align: center;
-            color: var(--gris);
-            font-size: 18px;
-            margin-top: -35px;
-            margin-bottom: 50px;
-        }
-        
-        .problems-grid {
+        .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 25px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
         }
         
-        .problem-card {
-            background: linear-gradient(145deg, #1a1a1a, #0f0f0f);
-            border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 12px;
-            padding: 30px;
+        .feature-card {
             text-align: center;
-            transition: transform 0.3s, border-color 0.3s;
+            padding: 30px 20px;
         }
         
-        .problem-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(192,57,43,0.3);
-        }
-        
-        .problem-icon {
-            width: 60px;
-            height: 60px;
-            background: rgba(192,57,43,0.15);
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--rojo), #e74c3c);
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
+            box-shadow: 0 8px 25px rgba(192,57,43,0.25);
         }
         
-        .problem-icon i {
-            font-size: 24px;
-            color: var(--rojo);
-        }
-        
-        .problem-card h3 {
-            font-size: 15px;
-            font-weight: 600;
+        .feature-icon i {
+            font-size: 28px;
             color: var(--blanco);
         }
         
-        /* SOLUCION */
-        .solution-intro {
-            text-align: center;
-            max-width: 700px;
-            margin: 0 auto 50px;
+        .feature-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--negro);
+        }
+        
+        .feature-card p {
+            font-size: 14px;
             color: var(--gris);
-            font-size: 17px;
+            line-height: 1.6;
         }
         
-        .solutions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 20px;
+        /* HOW IT WORKS */
+        .how-section {
+            padding: 80px 0;
+            background: var(--gris-claro);
         }
         
-        .solution-card {
-            background: #1a1a1a;
-            border-radius: 12px;
-            padding: 25px;
+        .section-header {
             text-align: center;
-            border: 1px solid rgba(255,255,255,0.05);
-            transition: all 0.3s;
+            margin-bottom: 60px;
         }
         
-        .solution-card:hover {
-            background: #222;
-            border-color: var(--rojo);
-        }
-        
-        .solution-card i {
-            font-size: 28px;
-            color: var(--rojo);
+        .section-header h2 {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--negro);
             margin-bottom: 15px;
         }
         
-        .solution-card h3 {
-            font-size: 14px;
+        .section-header p {
+            font-size: 16px;
+            color: var(--gris);
+        }
+        
+        .section-header span {
+            color: var(--rojo);
             font-weight: 600;
         }
         
-        /* PASOS */
         .steps-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 40px;
-            margin-bottom: 40px;
+            gap: 30px;
+            position: relative;
         }
         
-        .step {
+        .step-card {
+            background: var(--blanco);
+            border-radius: 12px;
+            padding: 30px;
             text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
             position: relative;
         }
         
         .step-number {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(145deg, var(--rojo), #a93226);
-            border-radius: 50%;
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background: var(--rojo);
+            color: var(--blanco);
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
-            font-weight: 700;
-            margin: 0 auto 20px;
-        }
-        
-        .step h3 {
             font-size: 18px;
-            margin-bottom: 10px;
+            font-weight: 700;
         }
         
-        .step p {
+        .step-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(192,57,43,0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px auto 20px;
+        }
+        
+        .step-icon i {
+            font-size: 24px;
+            color: var(--rojo);
+        }
+        
+        .step-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--negro);
+        }
+        
+        .step-card p {
+            font-size: 13px;
             color: var(--gris);
-            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .step-arrow {
+            position: absolute;
+            top: 50%;
+            right: -20px;
+            transform: translateY(-50%);
+            color: var(--gris);
+            font-size: 20px;
         }
         
         .steps-conclusion {
             text-align: center;
-            font-size: 18px;
+            margin-top: 40px;
+            font-size: 16px;
             color: var(--gris);
-            font-style: italic;
+        }
+        
+        .steps-conclusion span {
+            color: var(--rojo);
+            font-weight: 600;
         }
         
         /* PLANES */
+        .plans-section {
+            padding: 80px 0;
+            background: var(--blanco);
+        }
+        
         .plans-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -441,25 +461,26 @@
         }
         
         .plan-card {
-            background: linear-gradient(145deg, #1a1a1a, #0f0f0f);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--blanco);
+            border: 1px solid #e0e0e0;
             border-radius: 16px;
             padding: 35px;
             position: relative;
-            transition: transform 0.3s;
+            transition: all 0.3s;
         }
         
         .plan-card:hover {
             transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
         }
         
         .plan-card.featured {
             border: 2px solid var(--rojo);
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
         
         .plan-card.featured:hover {
-            transform: scale(1.05) translateY(-10px);
+            transform: scale(1.03) translateY(-10px);
         }
         
         .plan-badge {
@@ -479,12 +500,14 @@
             font-size: 20px;
             font-weight: 700;
             margin-bottom: 10px;
+            color: var(--negro);
         }
         
         .plan-price {
             font-size: 42px;
             font-weight: 800;
             margin-bottom: 5px;
+            color: var(--negro);
         }
         
         .plan-price span {
@@ -498,7 +521,7 @@
             font-size: 13px;
             margin-bottom: 25px;
             padding-bottom: 25px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid #eee;
         }
         
         .plan-specs p {
@@ -516,12 +539,12 @@
             gap: 10px;
             margin-bottom: 12px;
             font-size: 14px;
-            color: var(--gris);
+            color: var(--gris-oscuro);
         }
         
         .plan-features li i {
             color: #27ae60;
-            font-size: 12px;
+            font-size: 14px;
         }
         
         .plan-card .btn {
@@ -529,38 +552,38 @@
             justify-content: center;
         }
         
-        /* PASARELA PAGO */
+        /* PAYMENT */
         .payment-section {
             text-align: center;
-            padding: 60px 0;
-            background: #0a0a0a;
-            border-top: 1px solid rgba(255,255,255,0.05);
+            padding: 40px 0;
+            background: var(--gris-claro);
         }
         
         .payment-title {
-            font-size: 18px;
+            font-size: 16px;
             color: var(--gris);
-            margin-bottom: 30px;
+            margin-bottom: 25px;
         }
         
         .payment-icons {
             display: flex;
             justify-content: center;
-            gap: 40px;
+            gap: 30px;
             align-items: center;
             flex-wrap: wrap;
         }
         
         .payment-icon {
-            background: #1a1a1a;
-            padding: 15px 30px;
+            background: var(--blanco);
+            padding: 12px 25px;
             border-radius: 8px;
-            color: var(--gris);
+            color: var(--gris-oscuro);
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 500;
             display: flex;
             align-items: center;
             gap: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
         
         .payment-icon i {
@@ -570,27 +593,22 @@
         /* CTA */
         .cta-section {
             background: linear-gradient(135deg, var(--rojo), #a93226);
-            padding: 80px 0;
+            padding: 70px 0;
             text-align: center;
         }
         
         .cta-section h2 {
-            font-size: 38px;
+            font-size: 34px;
             font-weight: 700;
-            margin-bottom: 15px;
-        }
-        
-        .cta-section p {
-            font-size: 18px;
-            opacity: 0.9;
-            margin-bottom: 30px;
+            color: var(--blanco);
+            margin-bottom: 25px;
         }
         
         /* FOOTER */
         .footer {
             background: var(--negro);
+            color: var(--blanco);
             padding: 60px 0 30px;
-            border-top: 1px solid rgba(255,255,255,0.1);
         }
         
         .footer-content {
@@ -601,13 +619,13 @@
         }
         
         .footer-brand img {
-            height: 40px;
+            height: 45px;
             margin-bottom: 15px;
         }
         
         .footer-brand p {
-            color: var(--gris);
-            font-size: 14px;
+            color: #999;
+            font-size: 13px;
             line-height: 1.7;
         }
         
@@ -627,9 +645,9 @@
         }
         
         .footer-links a {
-            color: var(--gris);
+            color: #999;
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
             transition: color 0.3s;
         }
         
@@ -637,21 +655,35 @@
             color: var(--blanco);
         }
         
+        .footer-links .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        
+        .footer-links .contact-item i {
+            color: var(--rojo);
+            width: 16px;
+        }
+        
         .social-icons {
             display: flex;
-            gap: 15px;
+            gap: 12px;
             margin-top: 20px;
         }
         
         .social-icons a {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             background: #1a1a1a;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--gris);
+            color: #999;
             transition: all 0.3s;
         }
         
@@ -663,9 +695,19 @@
         .footer-bottom {
             text-align: center;
             padding-top: 30px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            color: var(--gris);
-            font-size: 13px;
+            border-top: 1px solid #222;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .footer-bottom a {
+            color: #666;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        
+        .footer-bottom a:hover {
+            color: var(--blanco);
         }
         
         /* RESPONSIVE */
@@ -675,21 +717,25 @@
                 text-align: center;
             }
             
+            .hero {
+                background: linear-gradient(180deg, var(--negro) 0%, var(--negro) 60%, var(--gris-claro) 60%);
+            }
+            
             .hero-content h1 {
-                font-size: 36px;
+                font-size: 32px;
             }
             
             .hero-buttons {
                 justify-content: center;
             }
             
-            .pain-points {
-                display: inline-block;
-                text-align: left;
+            .hero-mockup {
+                margin-top: 40px;
             }
             
-            .hero-mockup {
-                display: none;
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
             }
             
             .plans-grid {
@@ -706,6 +752,10 @@
                 grid-template-columns: 1fr;
             }
             
+            .step-arrow {
+                display: none;
+            }
+            
             .footer-content {
                 grid-template-columns: 1fr 1fr;
             }
@@ -720,20 +770,16 @@
                 display: block;
             }
             
-            .header .btn {
+            .header .nav .btn {
                 display: none;
             }
             
-            .section-title {
-                font-size: 28px;
+            .section-header h2 {
+                font-size: 26px;
             }
             
             .hero {
                 padding: 120px 0 60px;
-            }
-            
-            .section {
-                padding: 60px 0;
             }
             
             .footer-content {
@@ -761,7 +807,7 @@
                     <li><a href="#planes">Planes</a></li>
                     <li><a href="#contacto">Soporte</a></li>
                 </ul>
-                <a href="{{ url_for('registro_estudio') }}" class="btn btn-primary">Solicitar Demo</a>
+                <a href="{{ url_for('registro_estudio') }}" class="btn btn-primary">Solicitar demo</a>
             </nav>
             <button class="mobile-menu">
                 <i class="fas fa-bars"></i>
@@ -773,55 +819,52 @@
     <section class="hero" id="plataforma">
         <div class="container">
             <div class="hero-content">
-                <h1>La plataforma para <span>Centros de Conciliacion</span></h1>
-                <p class="subtitle">Reduce el tiempo, los errores y el desorden en la gestion de expedientes, actas y audiencias.</p>
-                
-                <div class="pain-points">
-                    <div class="pain-point">
-                        <i class="fas fa-times-circle"></i>
-                        <span>Errores constantes en actas y documentos</span>
-                    </div>
-                    <div class="pain-point">
-                        <i class="fas fa-times-circle"></i>
-                        <span>Perdida de plazos y reuniones</span>
-                    </div>
-                    <div class="pain-point">
-                        <i class="fas fa-times-circle"></i>
-                        <span>Mala organizacion de expedientes</span>
-                    </div>
-                </div>
+                <h1>La plataforma para<br><span>Centros de Conciliacion</span></h1>
+                <p class="subtitle">Gestiona expedientes, audiencias, <em>actas</em> y reportes desde un solo sistema.</p>
                 
                 <div class="hero-buttons">
-                    <a href="{{ url_for('registro_estudio') }}" class="btn btn-primary">
-                        <i class="fas fa-rocket"></i> Solicitar Demo
+                    <a href="{{ url_for('registro_estudio') }}" class="btn btn-primary">Solicitar demo</a>
+                    <a href="#funcionalidades" class="btn btn-outline">
+                        <i class="fas fa-check-circle"></i> Ver funcionalidades
                     </a>
-                    <a href="#funcionalidades" class="btn btn-outline">Ver funcionalidades</a>
                 </div>
             </div>
             
             <div class="hero-mockup">
-                <div class="mockup-container">
-                    <div class="mockup-header">
-                        <div class="mockup-dot red"></div>
-                        <div class="mockup-dot yellow"></div>
-                        <div class="mockup-dot green"></div>
-                    </div>
+                <div class="mockup-laptop">
                     <div class="mockup-screen">
-                        <div class="mockup-widget">
-                            <div class="mockup-widget-title">Documentos Generados</div>
-                            <div class="mockup-bar filled"></div>
-                            <div class="mockup-bar" style="width: 50%;"></div>
-                        </div>
-                        <div class="mockup-widget">
-                            <div class="mockup-widget-title">Calendario de Audiencias</div>
-                            <div class="mockup-calendar">
-                                <div class="cal-day">L</div>
-                                <div class="cal-day">M</div>
-                                <div class="cal-day active">M</div>
-                                <div class="cal-day">J</div>
-                                <div class="cal-day active">V</div>
-                                <div class="cal-day">S</div>
-                                <div class="cal-day">D</div>
+                        <div class="mockup-dashboard">
+                            <div class="mockup-header-bar">
+                                <div class="mockup-logo-small">APC</div>
+                                <div class="mockup-nav-items">
+                                    <div class="mockup-nav-item"></div>
+                                    <div class="mockup-nav-item"></div>
+                                    <div class="mockup-nav-item"></div>
+                                </div>
+                            </div>
+                            <div class="mockup-content-grid">
+                                <div class="mockup-card">
+                                    <div class="mockup-card-title">Documentos</div>
+                                    <div class="mockup-chart">
+                                        <div class="mockup-bar" style="height: 60%;"></div>
+                                        <div class="mockup-bar" style="height: 80%;"></div>
+                                        <div class="mockup-bar" style="height: 45%;"></div>
+                                        <div class="mockup-bar" style="height: 90%;"></div>
+                                        <div class="mockup-bar" style="height: 70%;"></div>
+                                    </div>
+                                </div>
+                                <div class="mockup-card">
+                                    <div class="mockup-card-title">Calendario</div>
+                                    <div class="mockup-calendar-mini">
+                                        <div class="mockup-cal-day">L</div>
+                                        <div class="mockup-cal-day">M</div>
+                                        <div class="mockup-cal-day active">M</div>
+                                        <div class="mockup-cal-day">J</div>
+                                        <div class="mockup-cal-day active">V</div>
+                                        <div class="mockup-cal-day">S</div>
+                                        <div class="mockup-cal-day">D</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -830,113 +873,83 @@
         </div>
     </section>
 
-    <!-- PROBLEMAS -->
-    <section class="section section-darker">
+    <!-- FEATURES -->
+    <section class="features-section" id="funcionalidades">
         <div class="container">
-            <h2 class="section-title">¿Estos problemas ocurren en tu centro de conciliacion?</h2>
-            
-            <div class="problems-grid">
-                <div class="problem-card">
-                    <div class="problem-icon">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <h3>Demasiado tiempo redactando documentos</h3>
-                </div>
-                <div class="problem-card">
-                    <div class="problem-icon">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <h3>Errores en actas y escritos oficiales</h3>
-                </div>
-                <div class="problem-card">
-                    <div class="problem-icon">
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
                         <i class="fas fa-folder-open"></i>
                     </div>
-                    <h3>Mala gestion de documentos y versiones</h3>
-                </div>
-                <div class="problem-card">
-                    <div class="problem-icon">
-                        <i class="fas fa-calendar-times"></i>
-                    </div>
-                    <h3>Plazos y audiencias desordenadas</h3>
-                </div>
-                <div class="problem-card">
-                    <div class="problem-icon">
-                        <i class="fas fa-eye-slash"></i>
-                    </div>
-                    <h3>Falta de control y trazabilidad</h3>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- SOLUCION -->
-    <section class="section section-dark" id="funcionalidades">
-        <div class="container">
-            <h2 class="section-title">La solucion: una plataforma integral para centros de conciliacion</h2>
-            <p class="solution-intro">APC Juridica centraliza, automatiza y ordena todo el proceso de conciliacion en un solo sistema.</p>
-            
-            <div class="solutions-grid">
-                <div class="solution-card">
-                    <i class="fas fa-folder"></i>
                     <h3>Gestion de expedientes</h3>
+                    <p>Administra casos, audiencias y conciliadores de forma organizada.</p>
                 </div>
-                <div class="solution-card">
-                    <i class="fas fa-calendar-check"></i>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
                     <h3>Audiencias y calendario</h3>
+                    <p>Agenda sesiones y notifica a las partes automaticamente.</p>
                 </div>
-                <div class="solution-card">
-                    <i class="fas fa-file-alt"></i>
-                    <h3>Actas automaticas</h3>
-                </div>
-                <div class="solution-card">
-                    <i class="fas fa-history"></i>
-                    <h3>Historial completo</h3>
-                </div>
-                <div class="solution-card">
-                    <i class="fas fa-shield-alt"></i>
-                    <h3>Auditoria y control</h3>
-                </div>
-                <div class="solution-card">
-                    <i class="fas fa-robot"></i>
-                    <h3>Argumentacion con IA</h3>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-signature"></i>
+                    </div>
+                    <h3>Actas y documentos</h3>
+                    <p>Genera y firma actas automaticamente con plantillas personalizadas.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- PASOS -->
-    <section class="section section-darker">
+    <!-- HOW IT WORKS -->
+    <section class="how-section">
         <div class="container">
-            <h2 class="section-title">¿Como funciona?</h2>
+            <div class="section-header">
+                <h2>¿Como Funciona?</h2>
+                <p>Automatiza y controla la gestion de tu <span>centro de conciliacion</span></p>
+            </div>
             
             <div class="steps-container">
-                <div class="step">
+                <div class="step-card">
                     <div class="step-number">1</div>
+                    <div class="step-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
                     <h3>Registras tu centro</h3>
-                    <p>Crea tu cuenta y configura tu centro de conciliacion en minutos</p>
+                    <p>Administra casos, audiencias y parientes desde el primer dia.</p>
+                    <span class="step-arrow"><i class="fas fa-chevron-right"></i></span>
                 </div>
-                <div class="step">
+                <div class="step-card">
                     <div class="step-number">2</div>
+                    <div class="step-icon">
+                        <i class="fas fa-gavel"></i>
+                    </div>
                     <h3>Gestionas casos y audiencias</h3>
-                    <p>Organiza expedientes, agenda audiencias y asigna responsables</p>
+                    <p>Agenda sesiones y notifica a las partes de forma automatica.</p>
+                    <span class="step-arrow"><i class="fas fa-chevron-right"></i></span>
                 </div>
-                <div class="step">
+                <div class="step-card">
                     <div class="step-number">3</div>
-                    <h3>Generas actas y reportes</h3>
-                    <p>Crea documentos oficiales automaticamente con tus plantillas</p>
+                    <div class="step-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <h3>Generas actas y reportes oficiales</h3>
+                    <p>Obten analisis y reportes detallados de toda tu gestion.</p>
                 </div>
             </div>
             
-            <p class="steps-conclusion">"Todo desde un solo lugar, sin errores ni desorden."</p>
+            <p class="steps-conclusion">Listo, <span>facilita todo el proceso de conciliacion desde un solo lugar.</span></p>
         </div>
     </section>
 
     <!-- PLANES -->
-    <section class="section section-dark" id="planes">
+    <section class="plans-section" id="planes">
         <div class="container">
-            <h2 class="section-title">Planes simples y mensuales</h2>
-            <p class="section-subtitle">Un precio claro, sin costos ocultos</p>
+            <div class="section-header">
+                <h2>Planes simples y mensuales</h2>
+                <p>Un precio claro, sin costos ocultos</p>
+            </div>
             
             <div class="plans-grid">
                 <!-- PLAN BASICO -->
@@ -955,7 +968,7 @@
                         <li><i class="fas fa-check"></i> Documentos terminados</li>
                         <li><i class="fas fa-check"></i> Historial basico</li>
                     </ul>
-                    <a href="{{ url_for('registro_estudio') }}?plan=basico" class="btn btn-outline">Solicitar Demo</a>
+                    <a href="{{ url_for('registro_estudio') }}?plan=basico" class="btn btn-outline">Solicitar demo</a>
                 </div>
                 
                 <!-- PLAN PRO -->
@@ -974,11 +987,9 @@
                         <li><i class="fas fa-check"></i> Gestion de casos</li>
                         <li><i class="fas fa-check"></i> Sistema de tareas</li>
                         <li><i class="fas fa-check"></i> Calendario</li>
-                        <li><i class="fas fa-check"></i> Auditoria basica</li>
                         <li><i class="fas fa-check"></i> Argumentacion con IA</li>
-                        <li><i class="fas fa-check"></i> Onboarding guiado</li>
                     </ul>
-                    <a href="{{ url_for('registro_estudio') }}?plan=medio" class="btn btn-primary">Solicitar Demo</a>
+                    <a href="{{ url_for('registro_estudio') }}?plan=medio" class="btn btn-primary">Solicitar demo</a>
                 </div>
                 
                 <!-- PLAN AVANZADO -->
@@ -995,43 +1006,35 @@
                         <li><i class="fas fa-check"></i> Todo lo del plan Pro</li>
                         <li><i class="fas fa-check"></i> Auditoria avanzada</li>
                         <li><i class="fas fa-check"></i> Soporte prioritario</li>
-                        <li><i class="fas fa-check"></i> Acceso API</li>
                         <li><i class="fas fa-check"></i> Agente IA (APC IA)</li>
                     </ul>
-                    <a href="{{ url_for('registro_estudio') }}?plan=avanzado" class="btn btn-outline">Solicitar Demo</a>
+                    <a href="{{ url_for('registro_estudio') }}?plan=avanzado" class="btn btn-outline">Solicitar demo</a>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- PASARELA DE PAGO -->
-    <!-- NOTA: Integrar Stripe / Mercado Pago aqui -->
+    <!-- PAYMENT -->
     <div class="payment-section">
         <p class="payment-title">Pagos seguros con tarjetas y plataformas reconocidas</p>
         <div class="payment-icons">
             <div class="payment-icon">
-                <i class="fab fa-cc-visa"></i>
-                Visa
+                <i class="fab fa-cc-visa"></i> Visa
             </div>
             <div class="payment-icon">
-                <i class="fab fa-cc-mastercard"></i>
-                Mastercard
+                <i class="fab fa-cc-mastercard"></i> Mastercard
             </div>
             <div class="payment-icon">
-                <i class="fab fa-cc-paypal"></i>
-                PayPal
+                <i class="fab fa-cc-paypal"></i> PayPal
             </div>
         </div>
     </div>
 
-    <!-- CTA FINAL -->
+    <!-- CTA -->
     <section class="cta-section">
         <div class="container">
             <h2>Digitaliza tu centro de conciliacion hoy</h2>
-            <p>Reduce errores, ahorra tiempo y ordena todo tu proceso de conciliacion.</p>
-            <a href="{{ url_for('registro_estudio') }}" class="btn btn-dark">
-                <i class="fas fa-rocket"></i> Solicitar Demo
-            </a>
+            <a href="{{ url_for('registro_estudio') }}" class="btn btn-white">Solicitar demo</a>
         </div>
     </section>
 
@@ -1041,41 +1044,47 @@
             <div class="footer-content">
                 <div class="footer-brand">
                     <img src="{{ url_for('static', filename='images/logo_apc.png') }}" alt="APC Juridica">
-                    <p>La plataforma integral y segura para centros de conciliacion. Automatiza, organiza y mejora tu gestion legal.</p>
-                    <div class="social-icons">
-                        <a href="#"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                        <a href="#"><i class="fab fa-whatsapp"></i></a>
-                    </div>
+                    <p>La plataforma integral y segura para la gestion de centros de conciliacion. Solucion desarrollada bajo estandares legales y operativos.</p>
                 </div>
                 <div class="footer-links">
-                    <h4>Plataforma</h4>
+                    <h4>Enlaces</h4>
                     <ul>
+                        <li><a href="#plataforma">Plataforma</a></li>
                         <li><a href="#funcionalidades">Funcionalidades</a></li>
                         <li><a href="#planes">Planes</a></li>
-                        <li><a href="{{ url_for('registro_estudio') }}">Registrarse</a></li>
-                    </ul>
-                </div>
-                <div class="footer-links">
-                    <h4>Recursos</h4>
-                    <ul>
-                        <li><a href="#">Documentacion</a></li>
-                        <li><a href="#">Tutoriales</a></li>
-                        <li><a href="#">Blog</a></li>
+                        <li><a href="#contacto">Soporte</a></li>
                     </ul>
                 </div>
                 <div class="footer-links">
                     <h4>Contacto</h4>
-                    <ul>
-                        <li><a href="mailto:info@apcjuridica.com">info@apcjuridica.com</a></li>
-                        <li><a href="#">+51 999 999 999</a></li>
-                        <li><a href="#">Lima, Peru</a></li>
-                    </ul>
+                    <div class="contact-item">
+                        <i class="fas fa-phone"></i>
+                        <span>+51 980 640 569</span>
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Lima, Peru</span>
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-envelope"></i>
+                        <span>contacto@apcjuridica.com</span>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Social</h4>
+                    <div class="social-icons">
+                        <a href="#"><i class="fab fa-whatsapp"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2025 APC Juridica. Todos los derechos reservados.</p>
+                <p>&copy; 2025 APC Juridica. Todos los derechos reservados. 
+                    <a href="#">Politica de Privacidad</a> | 
+                    <a href="#">Terminos del Servicio</a>
+                </p>
             </div>
         </div>
     </footer>
@@ -1089,15 +1098,6 @@
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
-        });
-        
-        window.addEventListener('scroll', function() {
-            const header = document.querySelector('.header');
-            if (window.scrollY > 50) {
-                header.style.background = 'rgba(11, 11, 11, 0.98)';
-            } else {
-                header.style.background = 'rgba(11, 11, 11, 0.95)';
-            }
         });
     </script>
 </body>
