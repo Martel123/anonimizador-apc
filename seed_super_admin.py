@@ -12,9 +12,13 @@ os.environ.setdefault('DATABASE_URL', os.environ.get('DATABASE_URL', ''))
 from app import app, db
 from models import User
 
-SUPER_ADMIN_EMAIL = "marcelo.martel.orellano@gmail.com"
-SUPER_ADMIN_PASSWORD = "Totto2024+123"
-SUPER_ADMIN_USERNAME = "Marcelo Martel"
+SUPER_ADMIN_EMAIL = os.environ.get("SUPERADMIN_EMAIL")
+SUPER_ADMIN_PASSWORD = os.environ.get("SUPERADMIN_PASSWORD")
+SUPER_ADMIN_USERNAME = os.environ.get("SUPERADMIN_USERNAME", "Super Admin")
+
+if not SUPER_ADMIN_EMAIL or not SUPER_ADMIN_PASSWORD:
+    raise RuntimeError("Faltan variables de entorno para crear el super admin")
+
 
 def seed_super_admin():
     with app.app_context():
