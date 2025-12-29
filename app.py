@@ -199,12 +199,14 @@ def create_default_tipos_acta(tenant_id):
     db.session.commit()
 
 
-CARPETA_MODELOS = "modelos_legales"
-CARPETA_ESTILOS = "estilos_estudio"
-CARPETA_RESULTADOS = "Resultados"
-CARPETA_PLANTILLAS_SUBIDAS = "plantillas_subidas"
-CARPETA_ESTILOS_SUBIDOS = "estilos_subidos"
-CARPETA_IMAGENES_MODELOS = "static/imagenes_modelos"
+BASE_PERSISTENT = os.environ.get("PERSISTENT_DIR", os.path.dirname(os.path.abspath(__file__)))
+
+CARPETA_MODELOS = os.path.join(BASE_PERSISTENT, "modelos_legales")
+CARPETA_ESTILOS = os.path.join(BASE_PERSISTENT, "estilos_estudio")
+CARPETA_RESULTADOS = os.path.join(BASE_PERSISTENT, "Resultados")
+CARPETA_PLANTILLAS_SUBIDAS = os.path.join(BASE_PERSISTENT, "plantillas_subidas")
+CARPETA_ESTILOS_SUBIDOS = os.path.join(BASE_PERSISTENT, "estilos_subidos")
+CARPETA_IMAGENES_MODELOS = os.path.join(BASE_PERSISTENT, "static", "imagenes_modelos")
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
 CAMPOS_LARGOS = ['HECHOS', 'FUNDAMENTOS', 'DETALLE', 'NARRACION', 'DESCRIPCION', 
@@ -5926,7 +5928,7 @@ def eliminar_mi_estilo(estilo_id):
 
 # ==================== DOCUMENTOS TERMINADOS ====================
 
-CARPETA_DOCUMENTOS_TERMINADOS = "documentos_terminados"
+CARPETA_DOCUMENTOS_TERMINADOS = os.path.join(BASE_PERSISTENT, "documentos_terminados")
 
 @app.route("/documentos-terminados")
 @login_required
@@ -6494,7 +6496,7 @@ Siempre responde en espanol de forma clara y amigable."""},
 
 import uuid
 
-CARPETA_ANONIMIZADOS = "documentos_anonimizados"
+CARPETA_ANONIMIZADOS = os.path.join(BASE_PERSISTENT, "documentos_anonimizados")
 
 
 def get_anonimizados_folder(tenant_id, user_id):
@@ -6787,7 +6789,7 @@ Si no encuentras documentos relevantes, explica por qué y sugiere qué tipo de 
 
 # ==================== REVISOR IA ====================
 
-CARPETA_REVISIONES = "revisiones_temp"
+CARPETA_REVISIONES = os.path.join(BASE_PERSISTENT, "revisiones_temp")
 
 def get_revisiones_folder(tenant_id):
     folder = os.path.join(CARPETA_REVISIONES, f"tenant_{tenant_id}")
@@ -7140,7 +7142,7 @@ def api_send_task_reminders():
         return jsonify({"error": str(e)}), 500
 
 
-CARPETA_ARGUMENTACION = "argumentaciones"
+CARPETA_ARGUMENTACION = os.path.join(BASE_PERSISTENT, "argumentaciones")
 
 def get_argumentacion_folder(tenant_id):
     folder = os.path.join(CARPETA_ARGUMENTACION, f"tenant_{tenant_id}")
@@ -8591,12 +8593,18 @@ def get_modelo_public_link(modelo_id):
 
 with app.app_context():
     db.create_all()
+    os.makedirs(CARPETA_MODELOS, exist_ok=True)
+    os.makedirs(CARPETA_ESTILOS, exist_ok=True)
     os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
     os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
     os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
+    os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
+    os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
     os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
+    os.makedirs(CARPETA_REVISIONES, exist_ok=True)
     os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)

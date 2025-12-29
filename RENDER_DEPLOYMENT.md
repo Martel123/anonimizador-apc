@@ -33,8 +33,29 @@ Configura estas variables en el panel de Render (Environment):
 | `SESSION_SECRET` | Clave secreta para sesiones Flask | Sí |
 | `OPENAI_API_KEY` | API Key de OpenAI para IA | Sí |
 | `RESEND_API_KEY` | API Key de Resend para emails | Sí |
+| `PERSISTENT_DIR` | Ruta al disco persistente (ej: `/var/data`) | Sí (si usas disco persistente) |
 | `PORT` | Puerto (Render lo asigna automáticamente) | Automático |
-| `FLASK_DEBUG` | "false" para producción | Opcional |
+
+## Disco Persistente (Render)
+
+Para que los archivos subidos (documentos, plantillas, imágenes) persistan entre despliegues:
+
+1. En Render, agrega un **Persistent Disk** al Web Service
+2. Configura el **Mount Path** como `/var/data`
+3. Agrega la variable de entorno:
+   - `PERSISTENT_DIR` = `/var/data`
+
+Las siguientes carpetas se crearán automáticamente en el disco persistente:
+- `modelos_legales/`
+- `estilos_estudio/`
+- `Resultados/`
+- `plantillas_subidas/`
+- `estilos_subidos/`
+- `static/imagenes_modelos/`
+- `documentos_terminados/`
+- `documentos_anonimizados/`
+- `revisiones_temp/`
+- `argumentaciones/`
 
 ## Archivo requirements_render.txt
 
