@@ -1,0 +1,108 @@
+ACTÚA COMO INGENIERO FULL-STACK SENIOR. Quiero que implementes en mi app Flask (con SQLAlchemy y autenticación por sesión) un sistema completo y seguro de:
+
+A) CAMBIAR CONTRASEÑA (USUARIO LOGUEADO)
+B) RECUPERACIÓN DE CONTRASEÑA POR EMAIL (OLVIDÉ MI CONTRASEÑA)
+C) “OJITOS” PARA VER/OCULTAR CONTRASEÑAS EN TODOS LOS INPUTS DE PASSWORD
+
+REGLAS IMPORTANTES (NO ROMPER PRODUCCIÓN):
+1) NO usar ni depender de SUPERADMIN_PASSWORD en variables de entorno. Esa variable NO debe existir en producción. El password vive solo en la BD con hash.
+2) NO imprimir tokens ni contraseñas en logs.
+3) Mantener compatibilidad con mi login actual y mi tabla User existente (User.set_password y User.check_password).
+4) Migraciones: si agregas columnas nuevas, usa un enfoque que no tumbe la app (ideal: Flask-Migrate/Alembic o ALTER cuidadoso). Si no hay migraciones, implementa fallback seguro y me explicas cómo aplicar el cambio.
+5) Usar tokens de un solo uso y expiración. Invalidar tokens cuando se usan.
+6) Prevenir enumeración de usuarios: en “olvidé mi contraseña” siempre responder “Si el correo existe, te llegará un email”.
+
+ASUME ESTO (AJUSTA SI ENCONTRAS DIFERENCIAS EN EL CÓDIGO):
+- Hay un modelo User con campos: id, email, password_hash o similar, y métodos set_password(password) y check_password(password).
+- Hay vistas/plantillas para /login y un link “¿Olvidaste tu contraseña?”
+- Uso sesiones para login.
+- Tengo variables de entorno para envío de email (si no existen, créalas):
+  - RESEND_API_KEY (o el proveedor que ya tenga)
+  - MAIL_FROM (ej: no-reply@midominio.com)
+  - APP_BASE_URL (ej: https://apc-conciliacion-app.onrender.com)
+
+OBJETIVO A: CAMBIAR CONTRASEÑA
+1) Crear ruta GET/POST: /mi-cuenta/cambiar-password (solo autenticados)
+2) Form con:
+   - Contraseña actual
+   - Nueva contraseña
+   - Confirmar nueva contraseña
+   - Botón “Actualizar”
+3) Validaciones:
+   - Actual != nueva (opcional, recomendado)
+   - Nueva mínimo 8-10 chars (recomendado) y confirmación igual
+   - Verificar contraseña actual con check_password
+4) Al guardar:
+   - user.set_password(nueva)
+   - commit
+   - (opcional) invalidar sesiones activas (si hay sistema de sesiones) o al menos forzar re-login
+5) UX: mensajes claros de éxito/error.
+
+OBJETIVO B: RECUPERACIÓN POR EMAIL
+Implementar flujo robusto:
+1) En /login, el link “¿Olvidaste tu contraseña?” debe llevar a /forgot-password (GET/POST)
+2) /forgot-password:
+   - Form: email
+   - POST: generar token seguro (secreto + random) y guardarlo hasheado en BD con expiración (ej: 30 min) y estado “unused”.
+   - Enviar email con link: {APP_BASE_URL}/reset-password/<token>
+   - Siempre responder “Si el correo existe, te enviamos instrucciones”.
+3) /reset-password/<token> (GET/POST)
+   - GET: mostrar form nueva contraseña + confirmar
+   - POST: validar token (existente, no usado, no expirado), cambiar password, marcar token como usado, commit.
+   - Mostrar mensaje de éxito y redirigir a login.
+4) Seguridad:
+   - Guardar solo hash del token en BD (ej sha256) y comparar hashes.
+   - Rate-limit básico por IP/email (si no hay infraestructura, al menos un delay o contador).
+   - No revelar si email existe.
+5) Modelo/tabla sugerida (si no existe):
+   - PasswordResetToken:
+     - id
+     - user_id
+     - token_hash
+     - expires_at (datetime)
+     - used_at (datetime nullable)
+     - created_at
+     - request_ip (opcional)
+6) Limpieza: opcional job/cron para borrar expirados; o limpiar al validar.
+
+EMAIL PROVIDER:
+- Prioriza Resend (si ya lo uso). Si no está, implementa un EmailService con interfaz para cambiar provider.
+- Plantilla simple de email (HTML y texto).
+- Asunto: “Restablecer tu contraseña”
+- Cuerpo: botón/link + aviso de expiración.
+
+OBJETIVO C: OJITO PARA VER/OCULTAR PASSWORDS
+1) En todos los formularios con password (login, cambiar password, reset password):
+   - Añadir un icono “ojo” dentro del input (derecha).
+   - Al click togglear type="password" <-> type="text"
+   - Cambiar icono (ojo abierto / tachado)
+2) Implementación:
+   - Preferible con JS vanilla (sin librerías)
+   - Reutilizable: función attachPasswordToggle() que detecte inputs con data-toggle="password"
+3) Accesibilidad:
+   - Botón con aria-label (“Mostrar contraseña” / “Ocultar contraseña”)
+   - No romper estilos actuales.
+
+ENTREGABLES
+1) Código backend: rutas, lógica, modelos (si aplica), servicio de email.
+2) Plantillas HTML actualizadas (login, forgot-password, reset-password, cambiar-password) con ojito.
+3) Explicar EXACTAMENTE qué variables de entorno debo agregar en Render:
+   - RESEND_API_KEY
+   - MAIL_FROM
+   - APP_BASE_URL
+4) Pruebas manuales paso a paso:
+   - Caso email existente
+   - Caso email no existente (misma respuesta)
+   - Token vencido
+   - Token usado
+   - Cambio de contraseña con contraseña actual incorrecta y correcta
+
+ANTES DE HACER CAMBIOS:
+- Revisa el proyecto y dime en qué archivos vas a tocar (lista de archivos).
+- Luego implementa.
+- No borres funcionalidades existentes.
+- Mantén el estilo UI actual.
+
+IMPORTANTE:
+- Si detectas que ya existe algo parcial, reutilízalo y complétalo.
+- No hardcodear secretos en el repo.

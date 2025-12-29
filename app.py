@@ -2181,10 +2181,12 @@ def forgot_password():
             token = ActivationToken.create_token(user.id, tipo='password_reset', hours=24)
             
             try:
-                reset_url = url_for('reset_password', token=token.token, _external=True)
+                app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
+                reset_url = f"{app_base_url}/reset_password/{token.token}"
                 
                 import resend
                 resend.api_key = os.environ.get('RESEND_API_KEY')
+                mail_from = os.environ.get('MAIL_FROM', 'noreply@resend.dev')
                 
                 html_content = f'''
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -2204,7 +2206,7 @@ def forgot_password():
                 '''
                 
                 resend.Emails.send({
-                    "from": "Centro de Conciliación <noreply@resend.dev>",
+                    "from": f"Centro de Conciliación <{mail_from}>",
                     "to": [user.email],
                     "subject": "Recuperación de Contraseña",
                     "html": html_content
@@ -2242,8 +2244,8 @@ def reset_password(token):
         password = request.form.get("password", "")
         password_confirm = request.form.get("password_confirm", "")
         
-        if not password or len(password) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "error")
+        if not password or len(password) < 8:
+            flash("La contraseña debe tener al menos 8 caracteres.", "error")
             return render_template("reset_password.html", token=token)
         
         if password != password_confirm:
@@ -2264,6 +2266,51 @@ def reset_password(token):
         return redirect(url_for('login'))
     
     return render_template("reset_password.html", token=token)
+
+
+@app.route("/mi-cuenta/cambiar-password", methods=["GET", "POST"])
+@login_required
+def cambiar_password():
+    """Permite al usuario logueado cambiar su contraseña."""
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        
+        if not current_password or not new_password or not confirm_password:
+            flash("Todos los campos son obligatorios.", "error")
+            return render_template("cambiar_password.html")
+        
+        if not current_user.check_password(current_password):
+            flash("La contraseña actual es incorrecta.", "error")
+            return render_template("cambiar_password.html")
+        
+        if len(new_password) < 8:
+            flash("La nueva contraseña debe tener al menos 8 caracteres.", "error")
+            return render_template("cambiar_password.html")
+        
+        if new_password != confirm_password:
+            flash("Las contraseñas nuevas no coinciden.", "error")
+            return render_template("cambiar_password.html")
+        
+        if current_password == new_password:
+            flash("La nueva contraseña debe ser diferente a la actual.", "error")
+            return render_template("cambiar_password.html")
+        
+        current_user.set_password(new_password)
+        db.session.commit()
+        
+        log_audit(
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            accion='password_changed',
+            detalle='El usuario cambió su contraseña'
+        )
+        
+        flash("Tu contraseña ha sido actualizada correctamente.", "success")
+        return redirect(url_for('dashboard'))
+    
+    return render_template("cambiar_password.html")
 
 
 @app.route("/registro", methods=["GET", "POST"])
