@@ -191,6 +191,168 @@ class TestCompleteAnonymization(unittest.TestCase):
         self.assertTrue(len(addr_entities) > 0, "Address should be detected")
 
 
+class TestAggressivePersonaDetection(unittest.TestCase):
+    """Tests for aggressive PERSONA detection with legal context triggers."""
+    
+    def test_uppercase_names_with_context(self):
+        """Test detection of UPPERCASE names near legal triggers."""
+        text = "El demandante JUAN CARLOS PÉREZ GARCÍA interpone demanda."
+        placeholder_positions = anon.find_existing_placeholders(text)
+        entities = anon.detect_persona_aggressive(text, placeholder_positions)
+        self.assertTrue(len(entities) > 0, "Uppercase name should be detected")
+    
+    def test_titlecase_names_with_dni_context(self):
+        """Test detection of Title Case names near DNI."""
+        text = "La señora María Elena Torres Vega, identificada con DNI 12345678."
+        confirmed, needs_review = anon.detect_entities_hybrid(text)
+        all_personas = [e for e in confirmed + needs_review if e[0] == 'PERSONA']
+        self.assertTrue(len(all_personas) > 0, "Title case name should be detected")
+    
+    def test_legal_context_triggers(self):
+        """Test that legal context triggers increase detection score."""
+        text_with_trigger = "El abogado CARLOS MENDOZA QUISPE presenta el recurso."
+        text_without = "CARLOS MENDOZA QUISPE fue mencionado."
+        
+        placeholder_positions = anon.find_existing_placeholders(text_with_trigger)
+        entities_with = anon.detect_persona_aggressive(text_with_trigger, placeholder_positions)
+        
+        placeholder_positions = anon.find_existing_placeholders(text_without)
+        entities_without = anon.detect_persona_aggressive(text_without, placeholder_positions)
+        
+        self.assertTrue(len(entities_with) >= len(entities_without))
+
+
+class TestEnhancedDireccionDetection(unittest.TestCase):
+    """Tests for enhanced DIRECCION detection with domicilio patterns."""
+    
+    def test_domicilio_real_block(self):
+        """Test domicilio real block capture."""
+        text = "con domicilio real en Av. La Marina 2345, distrito San Miguel, Lima."
+        placeholder_positions = anon.find_existing_placeholders(text)
+        entities = anon.detect_direccion_enhanced(text, placeholder_positions)
+        self.assertTrue(len(entities) > 0, "Domicilio real should be detected")
+    
+    def test_domicilio_procesal(self):
+        """Test domicilio procesal detection."""
+        text = "señalando como domicilio procesal en Jr. Cusco 456, Cercado de Lima."
+        confirmed, _ = anon.detect_entities_hybrid(text)
+        addr_entities = [e for e in confirmed if e[0] == 'DIRECCION']
+        self.assertTrue(len(addr_entities) > 0)
+    
+    def test_uppercase_address(self):
+        """Test UPPERCASE addresses common in legal documents."""
+        text = "ubicado en JIRON LAS FLORES N° 123 URBANIZACION LOS PINOS."
+        placeholder_positions = anon.find_existing_placeholders(text)
+        entities = anon.detect_direccion_enhanced(text, placeholder_positions)
+        self.assertTrue(len(entities) > 0, "Uppercase address should be detected")
+
+
+class TestEnhancedTelefonoDetection(unittest.TestCase):
+    """Tests for enhanced TELEFONO detection with various formats."""
+    
+    def test_phone_with_spaces(self):
+        """Test phone with spaces/dashes."""
+        text = "Celular: 987 654 321 para contacto."
+        placeholder_positions = anon.find_existing_placeholders(text)
+        entities = anon.detect_telefono_enhanced(text, placeholder_positions)
+        self.assertTrue(len(entities) > 0)
+    
+    def test_phone_with_prefix_51(self):
+        """Test international format +51."""
+        text = "Llamar al +51 987654321."
+        placeholder_positions = anon.find_existing_placeholders(text)
+        entities = anon.detect_telefono_enhanced(text, placeholder_positions)
+        self.assertTrue(len(entities) > 0, "+51 phone should be detected")
+    
+    def test_landline_with_area_code(self):
+        """Test landline with area code."""
+        text = "Teléfono fijo: (01) 234 5678."
+        placeholder_positions = anon.find_existing_placeholders(text)
+        entities = anon.detect_telefono_enhanced(text, placeholder_positions)
+        self.assertTrue(len(entities) > 0)
+
+
+class TestFinalPiiScan(unittest.TestCase):
+    """Tests for post-scan that blocks download if PII remains."""
+    
+    def test_final_scan_detects_remaining_dni(self):
+        """Test that final scan catches remaining DNI."""
+        text = "El documento tiene el número 12345678 sin anonimizar."
+        remaining = anon.final_pii_scan(text)
+        dni_remaining = [r for r in remaining if r['type'] == 'DNI']
+        self.assertTrue(len(dni_remaining) > 0)
+    
+    def test_final_scan_clean_text(self):
+        """Test that final scan returns empty for clean text."""
+        text = "El documento con {{DNI_1}} está listo."
+        remaining = anon.final_pii_scan(text)
+        self.assertEqual(len(remaining), 0, "Clean text should have no remaining PII")
+    
+    def test_final_scan_detects_persona(self):
+        """Test that final scan catches remaining person names."""
+        text = "El demandante EDUARDO GAMARRA PÉREZ presenta la demanda."
+        remaining = anon.final_pii_scan(text)
+        persona_remaining = [r for r in remaining if r['type'] == 'PERSONA']
+        self.assertTrue(len(persona_remaining) > 0)
+
+
+class TestCoverageLog(unittest.TestCase):
+    """Tests for coverage log generation."""
+    
+    def test_coverage_log_structure(self):
+        """Test coverage log has required fields."""
+        summary = {'total_entities': 5, 'entities_found': {'DNI': 2, 'EMAIL': 1}}
+        remaining = []
+        log = anon.generate_coverage_log(summary, remaining)
+        
+        self.assertIn('total_detected', log)
+        self.assertIn('by_type', log)
+        self.assertIn('post_scan_found_remaining', log)
+        self.assertIn('remaining_count', log)
+    
+    def test_coverage_log_with_remaining(self):
+        """Test coverage log when PII remains."""
+        summary = {'total_entities': 3}
+        remaining = [{'type': 'DNI', 'value': '12345678', 'start': 0, 'end': 8}]
+        log = anon.generate_coverage_log(summary, remaining)
+        
+        self.assertTrue(log['post_scan_found_remaining'])
+        self.assertEqual(log['remaining_count'], 1)
+        self.assertIn('DNI', log['remaining_types'])
+
+
+class TestEntityPrioritization(unittest.TestCase):
+    """Tests for entity prioritization - higher priority detectors take precedence."""
+    
+    def test_address_takes_precedence_over_persona(self):
+        """Test that DIRECCION (Av. Javier Prado) is not overridden by PERSONA."""
+        text = "con domicilio en Av. Javier Prado 1234, San Isidro."
+        confirmed, _ = anon.detect_entities_hybrid(text)
+        
+        addr_entities = [e for e in confirmed if e[0] == 'DIRECCION']
+        persona_javier_prado = [e for e in confirmed if e[0] == 'PERSONA' and 'Javier Prado' in e[1]]
+        
+        self.assertTrue(len(addr_entities) > 0, "Address should be detected")
+        self.assertEqual(len(persona_javier_prado), 0, "Javier Prado should not be detected as PERSONA")
+    
+    def test_dni_takes_precedence_in_overlap(self):
+        """Test that structured detections (DNI) are not overridden."""
+        text = "El ciudadano con DNI 12345678 interpone demanda."
+        confirmed, _ = anon.detect_entities_hybrid(text)
+        
+        dni_entities = [e for e in confirmed if e[0] == 'DNI']
+        self.assertTrue(len(dni_entities) > 0, "DNI should be detected")
+        self.assertEqual(dni_entities[0][1], '12345678')
+    
+    def test_persona_fills_unclaimed_spans(self):
+        """Test that PERSONA detector fills spans not claimed by higher priority."""
+        text = "El demandante JUAN CARLOS PÉREZ interpone demanda."
+        confirmed, needs_review = anon.detect_entities_hybrid(text)
+        
+        all_personas = [e for e in confirmed + needs_review if e[0] == 'PERSONA']
+        self.assertTrue(len(all_personas) > 0, "PERSONA should be detected in unclaimed spans")
+
+
 def run_smoke_test():
     """Run a quick smoke test to verify basic functionality."""
     print("=" * 50)

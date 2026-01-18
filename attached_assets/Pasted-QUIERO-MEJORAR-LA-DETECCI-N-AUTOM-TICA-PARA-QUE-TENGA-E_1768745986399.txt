@@ -1,0 +1,107 @@
+QUIERO MEJORAR LA DETECCIÓN AUTOMÁTICA PARA QUE TENGA EL MAYOR RECALL POSIBLE (casi 100% en la práctica) Y QUE NO SE ESCAPE NINGÚN CAMPO. NO QUIERO NUEVAS PANTALLAS NI NUEVAS OPCIONES: SOLO MEJORAR EL DETECTOR Y SU POST-VERIFICACIÓN.
+
+REGLAS NO NEGOCIABLES
+- Prohibido reescribir texto.
+- Solo reemplazos por TOKENS.
+- Cero almacenamiento (solo /tmp + TTL + borrar al descargar).
+- Mantener modo estricto: si queda PII tras post-scan, bloquear descarga y exigir corrección.
+
+OBJETIVO TÉCNICO
+Aumentar el RECALL de detección para estos campos:
+- PERSONA (nombres y apellidos)
+- DNI (8 dígitos PE)
+- RUC (11 dígitos)
+- EMAIL
+- TELEFONO (+51, 9 dígitos, formatos con espacios/guiones)
+- DIRECCION (domicilio real/procesal y direcciones completas)
+- EXPEDIENTE / ACTA / CASILLA
+- ENTIDAD/JUZGADO/EMPRESA (cuando esté activado ocultar ORG)
+
+MEJORAS OBLIGATORIAS DE DETECCIÓN (EN ORDEN)
+1) DOCX “run-aware” (CRÍTICO)
+- Implementa extracción “texto continuo” para cada bloque:
+  - párrafos, tablas, headers, footers
+- Ejecuta detección sobre ese texto continuo.
+- Aplica reemplazo de vuelta sin fallar por runs fragmentados.
+Esto es prioritario: aquí se escapan nombres como “EDUARDO”.
+
+2) ENSAMBLE DE DETECTORES (no dependas de uno solo)
+- Implementa un pipeline que combine:
+  A) Regex/heurísticas (alta precisión para DNI/email/tel)
+  B) NER español (spaCy es_core_news_md o lg) para PERSON/ORG/LOC
+  C) Heurística legal Perú para “PERSONA probable”
+- Unifica resultados con un sistema de “scoring”:
+  - Cada hallazgo obtiene score por:
+    - detector que lo encontró
+    - contexto (palabras cercanas)
+    - forma (MAYÚSCULAS / Title Case / longitud)
+  - Si score >= umbral => marcar como PII.
+
+3) HEURÍSTICA “PERSONA” MUY AGRESIVA (para recall alto)
+- Marcar como PERSONA cuando:
+  - Sea una secuencia de 2 a 4 tokens:
+    - Todo MAYÚSCULAS (ej: “EDUARDO GAMARRA PÉREZ”)
+    - o Title Case (“Eduardo Gamarra Pérez”)
+  - Y aparezca cerca (en ventana de 0–10 tokens) de disparadores legales:
+    “identificado”, “identificada”, “DNI”, “demandante”, “demandado”,
+    “Señor”, “Doña”, “abogado”, “madre”, “padre”, “menor”, “hijo”, “hija”,
+    “suscrito”, “suscribo”, “interpone”, “contra”.
+- Además, si NER dice PERSON y tiene 2+ tokens, siempre incluir.
+- Añade lista de exclusión para palabras legales comunes:
+  SEÑOR, JUEZ, DEMANDA, SUMILLA, PETITORIO, FUNDAMENTOS, PRUEBAS, ANEXOS, etc.
+
+4) DIRECCIONES: detección en bloque (CRÍTICO)
+- Implementa reglas:
+  A) “domicilio real/procesal”:
+     - detectar frase y capturar TODO hasta el siguiente “;” o “.” o salto de línea.
+     - reemplazar como una sola entidad DIRECCION.
+  B) Direcciones libres:
+     - disparadores: Av, Avenida, Jr, Jirón, Calle, Psje, Mz, Manzana, Lt, Lote,
+       Dpto, Departamento, Urb, Urbanización, N°, Nro, Bloque, Piso, Distrito, Provincia, Departamento
+     - Si hay combinación con número (N°/Nro/numérico) + 1 o más disparadores, marcar como DIRECCION.
+  C) Direcciones en MAYÚSCULAS (muy común en escritos):
+     - soportar “JIRON”, “AVENIDA”, “CALLE” sin tildes.
+
+5) DNI/RUC/EMAIL/TELEFONO: robustez anti-falsos positivos
+- DNI 8 dígitos:
+  - No reemplazar si el contexto inmediato sugiere dinero o porcentaje (“S/”, “US$”, “%”).
+- Tel:
+  - Soportar +51, espacios, guiones, paréntesis.
+- Email:
+  - regex estándar.
+
+6) EXPEDIENTE/ACTA/CASILLA
+- Patrones:
+  - “EXPEDIENTE”, “Exp.”, “N°” + secuencias con guiones y dígitos
+  - “ACTA” + números
+  - “CASILLA” + números
+- Capturar el tramo completo del identificador.
+
+7) POST-SCAN DEL RESULTADO FINAL (OBLIGATORIO)
+- Luego de reemplazar:
+  - volver a correr detectores sobre el TEXTO FINAL.
+- Si detectas:
+  - cualquier DNI/email/tel/dirección
+  - o cualquier PERSONA probable (por heurística/NER)
+  => marcar needs_review=true y bloquear descarga.
+
+8) PRUEBAS AUTOMÁTICAS Y “EVALUACIÓN DE COBERTURA”
+- Agrega tests con un documento/fixture que incluya:
+  - nombres en MAYÚSCULAS y Title Case
+  - DNI, RUC, email, teléfono
+  - dirección larga con “domicilio real/procesal”
+  - expediente/acta/casilla
+- Tests deben verificar que:
+  - no quedan esos textos en salida final
+  - headers/footers/tablas también quedan anonimizados
+- Añade un “coverage log” (sin PII) que imprima:
+  - conteo por tipo detectado
+  - si post-scan detectó remanentes (true/false)
+
+IMPORTANTE: NO AGREGUES FEATURES NUEVAS
+Solo modifica el módulo de detección/anonymizer y la verificación post-scan.
+Mantén UI igual. Mantén tokens. Mantén privacidad.
+
+AL FINAL:
+- Ejecuta tests y muéstrame PASS.
+- Luego prueba manualmente con un DOCX real.

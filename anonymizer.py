@@ -47,7 +47,7 @@ PHONE_PATTERNS = [
 ]
 EXPEDIENTE_PATTERN = re.compile(r'\b[0-9]{5}-[0-9]{4}-[0-9]-[0-9]{4}-[A-Z]{2}-[A-Z]{2}-[0-9]{2}\b', re.IGNORECASE)
 CASILLA_PATTERN = re.compile(r'\bcasilla\s+(?:electr[oó]nica\s+)?(?:n[°oº]?\s*)?[0-9]+\b', re.IGNORECASE)
-JUZGADO_PATTERN = re.compile(r'\b(?:[0-9]+[°ºo]?\s*)?juzgado\s+(?:de\s+)?(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial)[^.]*', re.IGNORECASE)
+JUZGADO_PATTERN = re.compile(r'\b(?:[0-9]+[°ºo]?\s*)?juzgado\s+(?:de\s+)?(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial)(?:\s+(?:de\s+)?[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,4}', re.IGNORECASE)
 
 ACTA_PATTERN = re.compile(r'\b(?:acta\s+(?:de\s+)?(?:conciliaci[oó]n|audiencia|constataci[oó]n|inspecci[oó]n)?)\s*(?:n[°oº]?\s*)?[0-9]+[-/]?[0-9]*\b', re.IGNORECASE)
 
@@ -126,17 +126,105 @@ MONEY_PATTERN = re.compile(r'(?:S/\.?\s*|US\$\s*|\$\s*|PEN\s+|USD\s+)[0-9]{1,3}(
 
 EXCLUDED_WORDS = {
     'SEÑOR', 'SEÑORA', 'JUEZ', 'JUEZA', 'DEMANDA', 'DEMANDANTE', 'DEMANDADO',
-    'FISCAL', 'FISCAL', 'CÓDIGO', 'CIVIL', 'PENAL', 'PROCESAL', 'CONSTITUCIONAL',
+    'FISCAL', 'CÓDIGO', 'CIVIL', 'PENAL', 'PROCESAL', 'CONSTITUCIONAL',
     'ARTÍCULO', 'ARTICULO', 'INCISO', 'NUMERAL', 'RESOLUCIÓN', 'RESOLUCION',
     'DECRETO', 'LEY', 'REGLAMENTO', 'EXPEDIENTE', 'JUZGADO', 'SALA', 'CORTE',
     'SUPREMA', 'SUPERIOR', 'PODER', 'JUDICIAL', 'REPÚBLICA', 'REPUBLICA',
     'PERÚ', 'PERU', 'ESTADO', 'CONSTITUCIÓN', 'CONSTITUCION', 'LIMA', 'CALLAO',
     'AUTO', 'SENTENCIA', 'APELACIÓN', 'APELACION', 'CASACIÓN', 'CASACION',
-    'RECURSO', 'ESCRITO', 'RAZÓN', 'RAZON', 'SOCIAL', 'DENUNCIA', 'DENUNCIA',
+    'RECURSO', 'ESCRITO', 'RAZÓN', 'RAZON', 'SOCIAL', 'DENUNCIA',
     'MINISTERIO', 'PÚBLICO', 'PUBLICO', 'DEFENSORÍA', 'DEFENSORIA', 'PUEBLO',
     'QUE', 'DEL', 'LOS', 'LAS', 'POR', 'CON', 'SIN', 'PARA', 'DESDE', 'HASTA',
     'SOBRE', 'ANTE', 'CONTRA', 'ENTRE', 'MEDIANTE', 'SEGÚN', 'SEGUN',
+    'SUMILLA', 'PETITORIO', 'FUNDAMENTOS', 'PRUEBAS', 'ANEXOS', 'HECHOS',
+    'PRETENSION', 'PRETENSIÓN', 'MEDIOS', 'PROBATORIOS', 'CUADERNO',
+    'PRINCIPAL', 'CAUTELAR', 'TUTELA', 'URGENTE', 'MEDIDA', 'EMBARGO',
+    'SECUESTRO', 'INSCRIPCIÓN', 'INSCRIPCION', 'REGISTRAL', 'SUNARP',
+    'RENIEC', 'SUNAT', 'INDECOPI', 'OSCE', 'ESSALUD', 'ONPE', 'JNE',
+    'TITULO', 'TÍTULO', 'PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO',
+    'OTROSÍ', 'OTROSI', 'DECRETO', 'LEGISLATIVO', 'SUPREMO', 'URGENCIA',
 }
+
+LEGAL_CONTEXT_TRIGGERS = {
+    'identificado', 'identificada', 'identificados', 'identificadas',
+    'dni', 'documento', 'demandante', 'demandado', 'demandada',
+    'señor', 'señora', 'sr.', 'sra.', 'don', 'doña',
+    'abogado', 'abogada', 'letrado', 'letrada', 'defensor', 'defensora',
+    'madre', 'padre', 'hijo', 'hija', 'menor', 'menores',
+    'suscrito', 'suscrita', 'suscribo', 'suscribe',
+    'interpone', 'interpongo', 'contra', 'recurre', 'apela',
+    'testigo', 'perito', 'perita', 'declarante',
+    'cónyuge', 'esposo', 'esposa', 'conviviente',
+    'representante', 'apoderado', 'apoderada', 'poderdante',
+    'solicitante', 'invitado', 'invitada', 'conciliador', 'conciliadora',
+    'acreedor', 'acreedora', 'deudor', 'deudora', 'obligado', 'obligada',
+    'arrendador', 'arrendadora', 'arrendatario', 'arrendataria',
+    'vendedor', 'vendedora', 'comprador', 'compradora',
+    'denunciante', 'denunciado', 'denunciada', 'querellante', 'querellado',
+    'imputado', 'imputada', 'procesado', 'procesada', 'acusado', 'acusada',
+    'agraviado', 'agraviada', 'víctima', 'victima',
+    'actor', 'actora', 'emplazado', 'emplazada', 'codemandado', 'codemandada',
+    'tercero', 'tercera', 'litisconsorte', 'interviniente',
+    'recurrente', 'recurrido', 'recurrida', 'apelante', 'apelado', 'apelada',
+}
+
+DOMICILIO_PATTERNS = [
+    re.compile(r'domicilio\s+(?:real|procesal|legal|fiscal|actual)\s*[:\s]+([^;.\n]+)', re.IGNORECASE),
+    re.compile(r'(?:con\s+)?domicilio\s+(?:en|sito\s+en)\s*[:\s]*([^;.\n]+)', re.IGNORECASE),
+    re.compile(r'reside\s+en\s*[:\s]*([^;.\n]+)', re.IGNORECASE),
+    re.compile(r'ubicad[oa]\s+en\s*[:\s]*([^;.\n]+)', re.IGNORECASE),
+    re.compile(r'dirección\s*[:\s]+([^;.\n]+)', re.IGNORECASE),
+]
+
+ENHANCED_ADDRESS_KEYWORDS = [
+    r'\bAv(?:enida)?\.?\s+',
+    r'\bAVENIDA\s+',
+    r'\bJr(?:\.|irón)?\s+',
+    r'\bJIRON\s+',
+    r'\bCalle\s+',
+    r'\bCALLE\s+',
+    r'\bPsje(?:\.|Pasaje)?\s+',
+    r'\bPASAJE\s+',
+    r'\bMz(?:\.|anzana)?\s+',
+    r'\bMANZANA\s+',
+    r'\bLt(?:\.|ote)?\s+',
+    r'\bLOTE\s+',
+    r'\bDpto(?:\.|Departamento)?\s+',
+    r'\bDEPARTAMENTO\s+',
+    r'\bUrb(?:\.|anizaci[oó]n)?\s+',
+    r'\bURBANIZACION\s+',
+    r'\bURBANIZACIÓN\s+',
+    r'\bAA\.?HH\.?\s+',
+    r'\bP\.?J\.?\s+',
+    r'\bDistrito\s+(?:de\s+)?',
+    r'\bDISTRITO\s+',
+    r'\bProvincia\s+(?:de\s+)?',
+    r'\bPROVINCIA\s+',
+    r'\bN[°oº]?\s*\d+',
+    r'\bNro\.?\s*\d+',
+    r'\bBloque\s+',
+    r'\bBLOQUE\s+',
+    r'\bPiso\s+\d+',
+    r'\bPISO\s+',
+    r'\bInt(?:erior)?\.?\s*\d+',
+]
+
+ENHANCED_PHONE_PATTERNS = [
+    re.compile(r'\+51\s*[-\s]?\s*9\d{2}\s*[-\s]?\s*\d{3}\s*[-\s]?\s*\d{3}\b'),
+    re.compile(r'\+51\s*9\d{8}\b'),
+    re.compile(r'\b9\d{2}\s*[-\s]?\s*\d{3}\s*[-\s]?\s*\d{3}\b'),
+    re.compile(r'\b9\d{8}\b'),
+    re.compile(r'\(01\)\s*\d{3}\s*[-\s]?\s*\d{4}\b'),
+    re.compile(r'\b01\s*[-\s]?\s*\d{3}\s*[-\s]?\s*\d{4}\b'),
+    re.compile(r'\(\d{2,3}\)\s*\d{6,7}\b'),
+    re.compile(r'(?:teléfono|telefono|celular|cel\.?|móvil|movil|fono)\s*[:\s]?\s*(\+?\d[\d\s\-\(\)]{7,15})', re.IGNORECASE),
+]
+
+EXPEDIENTE_PATTERNS_ENHANCED = [
+    re.compile(r'\b[0-9]{5}-[0-9]{4}-[0-9]-[0-9]{4}-[A-Z]{2}-[A-Z]{2}-[0-9]{2}\b', re.IGNORECASE),
+    re.compile(r'(?:expediente|exp\.?|n[°oº]?)\s*[:\s]?\s*(\d{2,6}[-/]?\d{0,4}[-/]?\d{0,4})', re.IGNORECASE),
+    re.compile(r'\b\d{5,6}-\d{4}\b'),
+]
 
 PERUVIAN_FIRST_NAMES = [
     'Juan', 'Carlos', 'José', 'Luis', 'Miguel', 'Pedro', 'Jorge', 'Fernando',
@@ -290,6 +378,153 @@ def is_in_placeholder(start: int, end: int, placeholder_positions: List[Tuple[in
         if not (end <= p_start or start >= p_end):
             return True
     return False
+
+
+def detect_persona_aggressive(text: str, placeholder_positions: List[Tuple[int, int]]) -> List[Tuple[str, str, int, int, float]]:
+    """
+    Aggressive PERSONA detection with legal context triggers.
+    Uses a scoring system for maximum recall.
+    """
+    entities = []
+    
+    uppercase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\b')
+    for match in uppercase_pattern.finditer(text):
+        if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+            continue
+        
+        value = match.group(1)
+        words = value.split()
+        
+        if len(words) < 2 or len(words) > 5:
+            continue
+        
+        if _is_excluded_name(value):
+            continue
+        
+        score = 0.40
+        
+        context_start = max(0, match.start() - 80)
+        context_end = min(len(text), match.end() + 30)
+        context = text[context_start:context_end].lower()
+        
+        for trigger in LEGAL_CONTEXT_TRIGGERS:
+            if trigger in context:
+                score += 0.15
+                break
+        
+        if any(w.title() in PERUVIAN_FIRST_NAMES or w.title() in [n.upper() for n in PERUVIAN_FIRST_NAMES] for w in words):
+            score += 0.10
+        
+        if any(w.title() in PERUVIAN_LAST_NAMES or w.title() in [n.upper() for n in PERUVIAN_LAST_NAMES] for w in words):
+            score += 0.10
+        
+        if len(words) >= 2 and len(words) <= 4:
+            score += 0.10
+        
+        if score >= 0.50:
+            entities.append(('PERSONA', value, match.start(), match.end(), min(score, 0.95)))
+    
+    titlecase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:de\s+(?:la\s+)?)?[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})\b')
+    for match in titlecase_pattern.finditer(text):
+        if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+            continue
+        
+        value = match.group(1)
+        words = [w for w in value.split() if w.lower() not in {'de', 'la', 'del', 'los', 'las'}]
+        
+        if len(words) < 2 or len(words) > 5:
+            continue
+        
+        if _is_excluded_name(value):
+            continue
+        
+        if any((match.start(), match.end()) == (e[2], e[3]) for e in entities):
+            continue
+        
+        score = 0.35
+        
+        context_start = max(0, match.start() - 80)
+        context_end = min(len(text), match.end() + 30)
+        context = text[context_start:context_end].lower()
+        
+        for trigger in LEGAL_CONTEXT_TRIGGERS:
+            if trigger in context:
+                score += 0.20
+                break
+        
+        if any(w in PERUVIAN_FIRST_NAMES for w in words):
+            score += 0.15
+        
+        if any(w in PERUVIAN_LAST_NAMES for w in words):
+            score += 0.15
+        
+        if score >= 0.50:
+            entities.append(('PERSONA', value, match.start(), match.end(), min(score, 0.95)))
+    
+    return entities
+
+
+def detect_direccion_enhanced(text: str, placeholder_positions: List[Tuple[int, int]]) -> List[Tuple[str, str, int, int, float]]:
+    """
+    Enhanced DIRECCION detection with domicilio patterns and block capture.
+    """
+    entities = []
+    
+    for pattern in DOMICILIO_PATTERNS:
+        for match in pattern.finditer(text):
+            if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                continue
+            
+            if match.lastindex and match.lastindex >= 1:
+                value = match.group(1).strip()
+            else:
+                value = match.group().strip()
+            
+            if len(value) > 10 and len(value) < 300:
+                if not any(e[2] == match.start() for e in entities):
+                    entities.append(('DIRECCION', value, match.start(), match.end(), 0.90))
+    
+    enhanced_addr_pattern = re.compile(
+        r'(' + '|'.join(ENHANCED_ADDRESS_KEYWORDS) + r')[A-Za-záéíóúñÁÉÍÓÚÑ0-9\s,.\-°º#]+(?=[\.\n,;]|$)',
+        re.IGNORECASE
+    )
+    for match in enhanced_addr_pattern.finditer(text):
+        if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+            continue
+        
+        value = match.group().strip()
+        if len(value) > 8:
+            overlaps = False
+            for e in entities:
+                if not (match.end() <= e[2] or match.start() >= e[3]):
+                    overlaps = True
+                    break
+            if not overlaps:
+                entities.append(('DIRECCION', value, match.start(), match.end(), 0.80))
+    
+    return entities
+
+
+def detect_telefono_enhanced(text: str, placeholder_positions: List[Tuple[int, int]]) -> List[Tuple[str, str, int, int, float]]:
+    """Enhanced phone detection with various formats."""
+    entities = []
+    
+    for pattern in ENHANCED_PHONE_PATTERNS:
+        for match in pattern.finditer(text):
+            if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                continue
+            
+            if match.lastindex and match.lastindex >= 1:
+                value = match.group(1).strip()
+            else:
+                value = match.group().strip()
+            
+            value_clean = re.sub(r'[\s\-\(\)]', '', value)
+            if len(value_clean) >= 7:
+                if not any(e[2] == match.start() for e in entities):
+                    entities.append(('TELEFONO', value, match.start(), match.end(), 0.90))
+    
+    return entities
 
 
 def detect_entities_regex(text: str, placeholder_positions: List[Tuple[int, int]]) -> List[Tuple[str, str, int, int, float]]:
@@ -485,33 +720,62 @@ def _is_date_context(text: str, start: int, end: int) -> bool:
 
 def detect_entities_hybrid(text: str) -> Tuple[List[Tuple[str, str, int, int, float]], List[Tuple[str, str, int, int, float]]]:
     """
-    Hybrid entity detection using both regex and NER.
+    Hybrid entity detection using ensemble of detectors for maximum recall.
     Returns (confirmed_entities, needs_review_entities).
+    
+    Priority order (higher priority detectors take precedence):
+    1. Structured regex (DNI, RUC, EMAIL, EXPEDIENTE, etc.) - highest precision
+    2. Enhanced DIRECCION (domicilio patterns)
+    3. Enhanced TELEFONO
+    4. NER entities
+    5. Aggressive PERSONA (lowest priority, only fills gaps)
     """
     placeholder_positions = find_existing_placeholders(text)
     
     regex_entities = detect_entities_regex(text, placeholder_positions)
+    direccion_entities = detect_direccion_enhanced(text, placeholder_positions)
+    telefono_entities = detect_telefono_enhanced(text, placeholder_positions)
     ner_entities = detect_entities_ner(text, placeholder_positions)
+    persona_entities = detect_persona_aggressive(text, placeholder_positions)
     
     all_entities = []
-    seen_positions = set()
+    claimed_spans = []
+    
+    def spans_overlap(start1, end1, start2, end2):
+        """Check if two spans overlap."""
+        return not (end1 <= start2 or end2 <= start1)
+    
+    def is_span_claimed(start, end):
+        """Check if a span overlaps with any claimed span."""
+        for cs, ce in claimed_spans:
+            if spans_overlap(start, end, cs, ce):
+                return True
+        return False
+    
+    def add_entity_with_priority(entity):
+        """Add entity if its span is not already claimed by higher priority detector."""
+        start, end = entity[2], entity[3]
+        if not is_span_claimed(start, end):
+            all_entities.append(entity)
+            claimed_spans.append((start, end))
+            return True
+        return False
     
     for entity in regex_entities:
-        pos_key = (entity[2], entity[3])
-        if pos_key not in seen_positions:
-            all_entities.append(entity)
-            seen_positions.add(pos_key)
+        add_entity_with_priority(entity)
+    
+    for entity in direccion_entities:
+        add_entity_with_priority(entity)
+    
+    for entity in telefono_entities:
+        add_entity_with_priority(entity)
     
     for entity in ner_entities:
-        pos_key = (entity[2], entity[3])
-        overlaps = False
-        for seen_start, seen_end in seen_positions:
-            if not (entity[3] <= seen_start or entity[2] >= seen_end):
-                overlaps = True
-                break
-        if not overlaps:
-            all_entities.append(entity)
-            seen_positions.add(pos_key)
+        add_entity_with_priority(entity)
+    
+    for entity in persona_entities:
+        if entity[4] >= 0.65:
+            add_entity_with_priority(entity)
     
     all_entities.sort(key=lambda x: (x[2], -(x[3] - x[2])))
     
@@ -521,7 +785,7 @@ def detect_entities_hybrid(text: str) -> Tuple[List[Tuple[str, str, int, int, fl
     for entity in all_entities:
         entity_type, value, start, end, confidence = entity
         
-        if entity_type == 'PERSONA' and confidence < 0.80:
+        if entity_type == 'PERSONA' and confidence < 0.75:
             needs_review.append(entity)
         else:
             confirmed.append(entity)
@@ -572,34 +836,52 @@ def post_verification(text: str, original_entities: List[Tuple[str, str, int, in
 
 def final_pii_scan(text: str) -> List[Dict[str, Any]]:
     """
-    Final scan to detect any remaining PII in anonymized text.
+    Final comprehensive scan to detect any remaining PII in anonymized text.
+    Uses priority-based detection to avoid false positives.
     Returns list of remaining PII for blocking download if found.
     """
-    placeholder_positions = find_existing_placeholders(text)
+    confirmed, needs_review = detect_entities_hybrid(text)
     remaining_pii = []
+    seen_values = set()
     
-    regex_entities = detect_entities_regex(text, placeholder_positions)
-    for entity in regex_entities:
-        if not entity[1].startswith('{{'):
-            remaining_pii.append({
-                'type': entity[0],
-                'value': entity[1],
-                'start': entity[2],
-                'end': entity[3]
-            })
+    for entity in confirmed:
+        value = entity[1]
+        if value.startswith('{{') or value in seen_values:
+            continue
+        seen_values.add(value)
+        remaining_pii.append({
+            'type': entity[0],
+            'value': value,
+            'start': entity[2],
+            'end': entity[3]
+        })
     
-    ner_entities = detect_entities_ner(text, placeholder_positions)
-    for entity in ner_entities:
-        if not entity[1].startswith('{{') and entity[4] >= 0.80:
-            if not any(r['value'] == entity[1] for r in remaining_pii):
+    for entity in needs_review:
+        value = entity[1]
+        if entity[4] >= 0.70 and value not in seen_values:
+            if not value.startswith('{{'):
+                seen_values.add(value)
                 remaining_pii.append({
                     'type': entity[0],
-                    'value': entity[1],
+                    'value': value,
                     'start': entity[2],
                     'end': entity[3]
                 })
     
     return remaining_pii
+
+
+def generate_coverage_log(summary: Dict[str, Any], remaining_pii: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Generate a coverage log (without exposing PII values) for debugging.
+    """
+    return {
+        'total_detected': summary.get('total_entities', 0),
+        'by_type': summary.get('entities_found', {}),
+        'post_scan_found_remaining': len(remaining_pii) > 0,
+        'remaining_count': len(remaining_pii),
+        'remaining_types': list(set(r['type'] for r in remaining_pii)) if remaining_pii else []
+    }
 
 
 def replace_in_paragraph_run_aware(para, value: str, substitute: str) -> bool:
