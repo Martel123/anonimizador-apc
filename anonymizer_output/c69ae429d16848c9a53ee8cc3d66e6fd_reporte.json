@@ -1,0 +1,505 @@
+{
+  "fecha_procesamiento": "2026-01-18T12:26:55.317746",
+  "archivo_original": "DEMANDA_DE_REDUCCION_DE_PENSION_DE_ALIMENTOS_-_SR._EDUARDO_.docx",
+  "tipo_archivo": "DOCX",
+  "modo_sustitucion": "asterisks",
+  "modo_estricto": true,
+  "resumen": {
+    "total_entidades_detectadas": 141,
+    "entidades_por_tipo": {
+      "PERSONA": 121,
+      "DNI": 6,
+      "DIRECCION": 4,
+      "EMAIL": 1,
+      "TELEFONO": 1
+    },
+    "entidades_pendientes_revision": 109
+  },
+  "reemplazos": {
+    "PERSONA": [
+      {
+        "placeholder": "**** *** ******* ** ***",
+        "masked_original": "JU*** PA***"
+      },
+      {
+        "placeholder": "** *****",
+        "masked_original": "SE*** AS***"
+      },
+      {
+        "placeholder": "** *** ******* *****",
+        "masked_original": "de*** hi***"
+      },
+      {
+        "placeholder": "****** ******* ** ** ****",
+        "masked_original": "LI*** CR***"
+      },
+      {
+        "placeholder": "******* *** ********** ** ***",
+        "masked_original": "tu*** di***"
+      },
+      {
+        "placeholder": "** ** *********",
+        "masked_original": "es*** as***"
+      },
+      {
+        "placeholder": "**** ** ******* ******* ******",
+        "masked_original": "co*** as***"
+      },
+      {
+        "placeholder": "** *** *********** ** **",
+        "masked_original": "es*** EL***"
+      },
+      {
+        "placeholder": "***** **",
+        "masked_original": "CO*** DE***"
+      },
+      {
+        "placeholder": "** *********** ********** ** **",
+        "masked_original": "SE*** SU***"
+      },
+      {
+        "placeholder": "** **** ***** ******* **",
+        "masked_original": "no*** un***"
+      },
+      {
+        "placeholder": "**** ***** ****** ******",
+        "masked_original": "DE*** MO***"
+      },
+      {
+        "placeholder": "***** ** ********* ** **",
+        "masked_original": "ti*** MZ***"
+      },
+      {
+        "placeholder": "******* ***** ********** ******",
+        "masked_original": "LE*** RE***"
+      },
+      {
+        "placeholder": "*** *** ** *** **",
+        "masked_original": "co*** se***"
+      },
+      {
+        "placeholder": "***** ** ***** ****",
+        "masked_original": "HA*** HI***"
+      },
+      {
+        "placeholder": "***** ******** ********",
+        "masked_original": "RE*** FI***"
+      },
+      {
+        "placeholder": "****** ***** ****** *********",
+        "masked_original": "LI*** CE***"
+      },
+      {
+        "placeholder": "****** ******** ****** *******",
+        "masked_original": "VI*** MA***"
+      },
+      {
+        "placeholder": "**** ******* ** ******** *******",
+        "masked_original": "Ju*** de***"
+      },
+      {
+        "placeholder": "***** ** ** *********",
+        "masked_original": "DA*** DE***"
+      },
+      {
+        "placeholder": "***** *** ********",
+        "masked_original": "JI*** GA***"
+      },
+      {
+        "placeholder": "********* ** ** *******",
+        "masked_original": "PE*** DE***"
+      },
+      {
+        "placeholder": "********* ** ******* ** *********",
+        "masked_original": "RE*** AL***"
+      },
+      {
+        "placeholder": "******* *********",
+        "masked_original": "PE*** RA***"
+      },
+      {
+        "placeholder": "** *******",
+        "masked_original": "DE*** VI***"
+      },
+      {
+        "placeholder": "*** *************",
+        "masked_original": "SU*** PO***"
+      },
+      {
+        "placeholder": "** **** ***",
+        "masked_original": "LA*** DE***"
+      },
+      {
+        "placeholder": "** *** ******** *********",
+        "masked_original": "DE*** ME***"
+      },
+      {
+        "placeholder": "*********** ** *****",
+        "masked_original": "FU*** HE***"
+      },
+      {
+        "placeholder": "******* ****** ******* ** **",
+        "masked_original": "ED*** LA***"
+      },
+      {
+        "placeholder": "******* ***** ******* ** **",
+        "masked_original": "LU*** LA***"
+      },
+      {
+        "placeholder": "**** ** ************",
+        "masked_original": "AC*** CO***"
+      },
+      {
+        "placeholder": "***** ** ******* ** *********",
+        "masked_original": "MO*** AL***"
+      },
+      {
+        "placeholder": "******* ** *********",
+        "masked_original": "PE*** AL***"
+      },
+      {
+        "placeholder": "**** *** ***********",
+        "masked_original": "TR*** SE***"
+      },
+      {
+        "placeholder": "****** ***** *************",
+        "masked_original": "SE*** UN***"
+      },
+      {
+        "placeholder": "******* ** ******* ****** **",
+        "masked_original": "DÓ*** DE***"
+      },
+      {
+        "placeholder": "*********** **********",
+        "masked_original": "TR*** DI***"
+      },
+      {
+        "placeholder": "*********** *********",
+        "masked_original": "NO*** CI***"
+      },
+      {
+        "placeholder": "******* ***********",
+        "masked_original": "CR*** HI***"
+      },
+      {
+        "placeholder": "*** *********** *******",
+        "masked_original": "MI*** CA***"
+      },
+      {
+        "placeholder": "******* **** ******* *** *******",
+        "masked_original": "IN*** PE***"
+      },
+      {
+        "placeholder": "************ ***** ******* ****",
+        "masked_original": "CO*** PE***"
+      },
+      {
+        "placeholder": "************ **** ******* ********** **",
+        "masked_original": "RE*** DE***"
+      },
+      {
+        "placeholder": "***** ***",
+        "masked_original": "NU*** MI***"
+      },
+      {
+        "placeholder": "****** ********** *** ** *****",
+        "masked_original": "CO*** AS***"
+      },
+      {
+        "placeholder": "******** ** ********",
+        "masked_original": "AL*** VI***"
+      },
+      {
+        "placeholder": "**** ** ******* ********",
+        "masked_original": "PA*** AS***"
+      },
+      {
+        "placeholder": "** **** **",
+        "masked_original": "LA*** DE***"
+      },
+      {
+        "placeholder": "*** ***********",
+        "masked_original": "MI*** SE***"
+      },
+      {
+        "placeholder": "*** ******",
+        "masked_original": "MI*** PA***"
+      },
+      {
+        "placeholder": "**** **",
+        "masked_original": "SU*** DE***"
+      },
+      {
+        "placeholder": "******** *********** ** ******** ***",
+        "masked_original": "AT*** PO***"
+      },
+      {
+        "placeholder": "** ****** ***",
+        "masked_original": "EL*** EP***"
+      },
+      {
+        "placeholder": "*** ***** ******* **",
+        "masked_original": "Dr*** A.***"
+      },
+      {
+        "placeholder": "*********** ** ******** ******** ***********",
+        "masked_original": "DI*** SU***"
+      },
+      {
+        "placeholder": "********** ********** ** ********* **********",
+        "masked_original": "EX*** ES***"
+      },
+      {
+        "placeholder": "********* ************ *** ******* ********",
+        "masked_original": "PR*** FA***"
+      },
+      {
+        "placeholder": "*** **********",
+        "masked_original": "PO*** SE***"
+      },
+      {
+        "placeholder": "************ **** *********** ******** **",
+        "masked_original": "RE*** DE***"
+      },
+      {
+        "placeholder": "************ **********",
+        "masked_original": "PR*** JU***"
+      },
+      {
+        "placeholder": "***** ******* **",
+        "masked_original": "CO*** DE***"
+      },
+      {
+        "placeholder": "************* *******",
+        "masked_original": "CU*** OC***"
+      },
+      {
+        "placeholder": "****** ** ******* ** ****",
+        "masked_original": "CO*** VI***"
+      },
+      {
+        "placeholder": "****** ****** ***",
+        "masked_original": "SE*** EP***"
+      },
+      {
+        "placeholder": "******** ********",
+        "masked_original": "CO*** PA***"
+      },
+      {
+        "placeholder": "****** ********",
+        "masked_original": "CI*** CU***"
+      },
+      {
+        "placeholder": "****** ** **** ********** **********",
+        "masked_original": "SE*** CO***"
+      },
+      {
+        "placeholder": "*** ** *********** ******** **",
+        "masked_original": "CO*** DE***"
+      },
+      {
+        "placeholder": "********** *********",
+        "masked_original": "DO*** VE***"
+      },
+      {
+        "placeholder": "************ ** ****** ***** **",
+        "masked_original": "ME*** UN***"
+      },
+      {
+        "placeholder": "********** *******",
+        "masked_original": "DO*** TR***"
+      },
+      {
+        "placeholder": "****** ****** **********",
+        "masked_original": "SE*** AC***"
+      },
+      {
+        "placeholder": "***** ** ************ *** *******",
+        "masked_original": "GA*** RE***"
+      },
+      {
+        "placeholder": "****** ***************",
+        "masked_original": "CU*** CO***"
+      },
+      {
+        "placeholder": "** ******* ** ********* ***",
+        "masked_original": "LA*** QU***"
+      },
+      {
+        "placeholder": "****** ********** *** ** *******",
+        "masked_original": "GA*** ES***"
+      },
+      {
+        "placeholder": "********* ** ****** *************** **",
+        "masked_original": "IN*** EN***"
+      },
+      {
+        "placeholder": "*********** ** ******",
+        "masked_original": "AD*** DE***"
+      },
+      {
+        "placeholder": "** *** ** ****** ********",
+        "masked_original": "LO*** AN***"
+      },
+      {
+        "placeholder": "***** ***** *** ********",
+        "masked_original": "HA*** RE***"
+      },
+      {
+        "placeholder": "***** *** ******** *** **",
+        "masked_original": "AP*** LA***"
+      },
+      {
+        "placeholder": "********* ** ***** *******",
+        "masked_original": "FI*** AT***"
+      },
+      {
+        "placeholder": "****** *** *********** ** ***",
+        "masked_original": "CU*** MI***"
+      },
+      {
+        "placeholder": "******* *****",
+        "masked_original": "ME*** HI***"
+      },
+      {
+        "placeholder": "********** ** ***** ****** ******",
+        "masked_original": "OB*** AS***"
+      },
+      {
+        "placeholder": "** ***********",
+        "masked_original": "LA*** MA***"
+      },
+      {
+        "placeholder": "** **********",
+        "masked_original": "LA*** PS***"
+      },
+      {
+        "placeholder": "***** ******",
+        "masked_original": "FI*** RE***"
+      },
+      {
+        "placeholder": "********* ** ** ****** **",
+        "masked_original": "ME*** DE***"
+      },
+      {
+        "placeholder": "** ***** **** ********* **",
+        "masked_original": "LA*** YA***"
+      },
+      {
+        "placeholder": "** **** ************ **** **",
+        "masked_original": "SE*** MI***"
+      },
+      {
+        "placeholder": "**** ** *** ** *********",
+        "masked_original": "PU*** DE***"
+      },
+      {
+        "placeholder": "*************** ********* ******",
+        "masked_original": "RE*** FR***"
+      },
+      {
+        "placeholder": "******** ******* *****",
+        "masked_original": "NU*** HI***"
+      },
+      {
+        "placeholder": "** ****** **************",
+        "masked_original": "ME*** EC***"
+      },
+      {
+        "placeholder": "** ***** ****** ** ************",
+        "masked_original": "LA*** SU***"
+      },
+      {
+        "placeholder": "********* ** ** ******* **",
+        "masked_original": "RE*** DE***"
+      },
+      {
+        "placeholder": "********* ************ ** ** ****",
+        "masked_original": "AL*** AC***"
+      },
+      {
+        "placeholder": "** ** ******* *******",
+        "masked_original": "EN*** PR***"
+      },
+      {
+        "placeholder": "*********** ** *******",
+        "masked_original": "FU*** DE***"
+      },
+      {
+        "placeholder": "****** ***********",
+        "masked_original": "ME*** PR***"
+      },
+      {
+        "placeholder": "****** *****",
+        "masked_original": "CI*** NU***"
+      },
+      {
+        "placeholder": "****** ****** ****",
+        "masked_original": "PR*** DI***"
+      },
+      {
+        "placeholder": "******* ****** ****",
+        "masked_original": "SE*** DI***"
+      },
+      {
+        "placeholder": "***** ****** ********",
+        "masked_original": "PI*** OR***"
+      },
+      {
+        "placeholder": "*** ****** ******** ******",
+        "masked_original": "LI*** HU***"
+      },
+      {
+        "placeholder": "***** ****** ****** ******",
+        "masked_original": "KA*** HU***"
+      },
+      {
+        "placeholder": "********* ******** ********* *******",
+        "masked_original": "GI*** HI***"
+      },
+      {
+        "placeholder": "*** ** ********",
+        "masked_original": "PO*** EX***"
+      },
+      {
+        "placeholder": "******* ******* *****",
+        "masked_original": "ED*** PÉ***"
+      },
+      {
+        "placeholder": "********** ******* ** ********* **",
+        "masked_original": "IN*** DE***"
+      }
+    ],
+    "DNI": [
+      {
+        "placeholder": "********",
+        "masked_original": "70****80"
+      }
+    ],
+    "DIRECCION": [
+      {
+        "placeholder": "[DIRECCIÓN REDACTADA]",
+        "masked_original": "Urb...tre"
+      }
+    ],
+    "EMAIL": [
+      {
+        "placeholder": "****@****.com",
+        "masked_original": "ma***@gmail.com"
+      }
+    ],
+    "TELEFONO": [
+      {
+        "placeholder": "*********",
+        "masked_original": "995***76"
+      }
+    ]
+  },
+  "advertencias": [
+    "Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.",
+    "Los nombres fueron detectados mediante NER y patrones. Pueden existir nombres adicionales no detectados.",
+    "Se detectaron 109 entidades que requieren revisión manual.",
+    "Se anonimizaron 109 entidades adicionales tras la revisión manual."
+  ],
+  "version": "2.0.0"
+}

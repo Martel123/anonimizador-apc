@@ -1,0 +1,158 @@
+Eres un Ingeniero Full-Stack Senior + ML Engineer. Vas a crear una app independiente llamada “Anonimizador Legal” reutilizando este repo base (mi sistema actual). Debe quedar lista al presionar Run en Replit.
+
+OBJETIVO
+El usuario sube un DOCX o PDF -> la app anonimiza PII -> (opcional) optimiza para IA -> muestra un resultado con contadores -> (si modo estricto) exige revisión si detecta fuga -> permite descargar archivo anonimizado + reporte -> BORRA TODO (cero almacenamiento).
+
+PRINCIPIOS OBLIGATORIOS (NO NEGOCIABLES)
+1) CERO ALMACENAMIENTO:
+   - NO bases de datos.
+   - NO guardar archivos “para historial”.
+   - NO logs con contenido de documentos.
+   - Los archivos solo pueden existir en memoria o en /tmp con TTL corto.
+2) BORRADO AUTOMÁTICO:
+   - Siempre borrar al finalizar descarga.
+   - Además borrar por TTL (10–30 minutos) por si el usuario no descarga.
+3) MODO ESTRICTO (por defecto ON):
+   - Después de anonimizar, volver a escanear el RESULTADO FINAL.
+   - Si queda cualquier PII sospechosa (PERSONA/DNI/EMAIL/TEL/DIRECCIÓN/RUC/EXPEDIENTE/ACTA/CASILLA), BLOQUEAR descarga y obligar revisión.
+   - Solo permitir descarga después de revisión y “confirmación”.
+4) BOTÓN “OPTIMIZAR PARA IA”:
+   - Quita/limpia partes típicas que sobran para análisis con IA (sin almacenar nada):
+     - firmas, sellos, huellas (si están como texto)
+     - headers/footers repetidos
+     - numeración de páginas
+     - carátulas / sumillas repetidas
+     - líneas vacías excesivas
+     - anotaciones internas (“sumalo”, “ver anexos”, etc.) detectables por heurística
+   - Debe mantener la estructura (títulos) y el sentido del documento.
+
+REGLA ANTI-ERRORES (CASO “SE ESCAPÓ EDUARDO”)
+No existe 100% automático; por eso garantizamos “cero fugas operativas” así:
+- Post-scan obligatorio del resultado final con NER + reglas.
+- Si detectas PERSONA probable o dirección probable -> modo estricto -> revisión obligatoria -> no descarga sin check.
+
+SALIDAS / MODOS (mantén esto simple)
+Implementa SOLO 2 modos de reemplazo (para evitar inconsistencias):
+A) TOKENS (default) usando llaves:
+   {{PERSONA_1}}, {{PERSONA_2}}
+   {{DNI_1}}, {{RUC_1}}
+   {{EMAIL_1}}, {{TELEFONO_1}}
+   {{DIRECCION_1}}
+   {{EXPEDIENTE_1}}, {{ACTA_1}}, {{CASILLA_1}}
+   {{ENTIDAD_1}} (opcional si el usuario activa “Ocultar organizaciones”)
+   - Consistencia total: el mismo dato siempre tiene el mismo token.
+B) ASTERISCOS:
+   - Enmascara preservando longitud aproximada.
+   - Consistente (no mezclar con tokens). Si eligen asteriscos, TODO PII se enmascara así.
+
+IMPORTANTE: Si el documento ya tiene placeholders del tipo {{FALTA_DATO}} o {{...}} (propios de mis modelos), NO los modifiques, NO los anonimizas.
+
+DETECCIÓN (OBLIGATORIA Y ROBUSTA)
+Implementa detección híbrida en español:
+1) Reglas/regex:
+   - DNI Perú: \b\d{8}\b (evita reemplazar montos: si alrededor hay “S/”, “US$”, “%”, “.”, “,” como formato monetario, no tocar)
+   - RUC: \b\d{11}\b
+   - Email: regex estándar
+   - Teléfono Perú: \b9\d{8}\b y variantes con +51, espacios, guiones
+   - Casilla: “CASILLA” + número
+   - Expediente/Acta: “EXPEDIENTE” / “ACTA” / “N°” + patrón
+   - Direcciones (CRÍTICO):
+     - Disparadores: Av, Avenida, Jr, Jirón, Calle, Mz, Manzana, Lote, Lt, Dpto, Departamento, Urb, Urbanización, N°, Nro, Bloque, Piso, Distrito, Provincia, Departamento
+     - Heurística legal: si aparece “domicilio real” o “domicilio procesal”, captura desde ahí hasta el próximo “;” o “.” y reemplaza TODO el tramo como una sola DIRECCION.
+     - Nunca dejes partes de direcciones completas.
+2) NER español:
+   - Usa spaCy es_core_news_md (o es_core_news_lg si está disponible).
+   - Extrae entidades PERSON/ORG/LOC.
+   - Sube el “score” si PERSON aparece cerca de keywords legales: “identificado”, “demandante”, “demandado”, “señor”, “doña”, “abogado”, “madre”, “padre”, “menor”, “hijos”.
+3) Post-scan final (OBLIGATORIO):
+   - Corre detectores sobre el texto FINAL.
+   - Si queda cualquier PERSON probable o dirección probable -> activar revisión obligatoria.
+
+DOCX (OBLIGATORIO – DEBE SER DE ALTA CALIDAD)
+- Anonimiza:
+  - párrafos, tablas, headers y footers.
+- Problema típico: los nombres se parten en “runs”. Solución obligatoria:
+  - Implementa un “normalizador” que recorra runs y reconstruya texto continuo por párrafo, aplique reemplazos, y luego re-inserte preservando formato lo máximo posible, o usa una estrategia run-aware para reemplazar incluso si el texto está fragmentado.
+- Asegura consistencia global con mapping.
+
+PDF (MVP aceptable)
+- Si el PDF tiene texto seleccionable:
+  - Extrae texto y genera un PDF nuevo legible con el texto anonimizado (formato simple está bien en MVP).
+- Si es escaneado:
+  - Detecta y muestra “PDF escaneado: no soportado en MVP” (sin intentar OCR si complica el entorno).
+
+UI/UX (SIMPLE, PROFESIONAL)
+Página /:
+- Card central con Drag & Drop
+- Selector de archivo
+- Toggle “Modo estricto (recomendado)” (ON por defecto)
+- Toggle “Optimizar para IA” (OFF por defecto)
+- Toggle “Ocultar organizaciones (ORG)” (OFF por defecto)
+- Selector “Salida: Tokens / Asteriscos”
+- Botón primario: “Anonimizar”
+
+Resultados:
+- Contadores: Personas, DNI, Email, Teléfono, Dirección, RUC, Expediente/Acta/Casilla, Organizaciones (si aplica)
+- Estado: “OK” o “Revisión requerida”
+- Botones:
+  - “Descargar documento anonimizado”
+  - “Descargar reporte”
+  - “Procesar otro”
+
+Revisión (solo si modo estricto disparó):
+- Vista previa de texto (no hace falta editor perfecto)
+- Lista de “entidades sospechosas” con:
+  - tipo, contexto corto (20–40 caracteres alrededor), checkbox “Confirmar como PII”
+- Botón “Aplicar y habilitar descarga”
+
+PRIVACIDAD Y BORRADO (IMPLEMENTACIÓN)
+- Usa IDs aleatorios (uuid).
+- Guarda temporalmente solo en /tmp/anonymizer/<id>/ con permisos restringidos.
+- Implementa cleanup:
+  - Al descargar: borrar carpeta del job inmediatamente.
+  - Cron/interval: cada 5 minutos borrar jobs > TTL (ej 20 min).
+- No guardes archivos originales más allá del job temporal.
+
+ENDPOINTS
+- GET / -> UI
+- POST /api/anonymize -> recibe archivo + config, responde JSON con stats + needs_review + job_id
+- POST /api/review/apply -> recibe job_id + decisiones, genera final seguro, responde “ready”
+- GET /download/:job_id -> descarga y borra
+- GET /report/:job_id -> descarga reporte y borra (si ya descargó doc, igual debe quedar borrado)
+
+REPORTE (sin PII)
+- Incluye:
+  - timestamp
+  - opciones usadas (estricto, optimizar IA, salida)
+  - conteo por tipo
+  - lista de reemplazos SOLO en forma enmascarada (ej: DNI “46******”, email “m***@g***.com”), nunca el dato completo.
+
+PRUEBAS (OBLIGATORIAS PARA EVITAR ERRORES)
+- Crea tests automáticos:
+  1) Caso con nombre “Eduardo Gamarra Pérez” + DNI + dirección larga + email + teléfono.
+     - Con modo estricto ON, el resultado final NO debe contener “Eduardo” ni DNI/email/teléfono ni dirección.
+  2) Test de direcciones: si aparece “domicilio real …;” debe reemplazarse completo.
+  3) Test de placeholders: {{FALTA_DATO}} permanece intacto.
+- Si un test falla, corrige el detector antes de finalizar.
+
+ENTREGABLES
+- App corre en Replit con Run.
+- DOCX anonimiza bien (incluyendo runs y tablas).
+- PDF de texto funciona en MVP.
+- Modo estricto bloquea fugas (revisión obligatoria).
+- Optimizar para IA funciona (limpia secciones repetitivas).
+- Cero almacenamiento real + borrado automático TTL + borrado al descargar.
+- README con:
+  - Qué soporta
+  - Qué NO soporta (PDF escaneado)
+  - Garantías de privacidad (stateless)
+  - Cómo correr
+
+Ahora empieza:
+1) Inspecciona el repo actual y detecta el stack real.
+2) Implementa el módulo anonymizer con detección híbrida.
+3) Implementa UI + endpoints.
+4) Implementa post-scan final y pantalla de revisión.
+5) Implementa cleanup TTL + borrado al descargar.
+6) Implementa tests y verifica que pasen.
+7) Entrega listo.
