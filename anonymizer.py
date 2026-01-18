@@ -750,32 +750,9 @@ def anonymize_docx(file_path: str, mode: str = SubstitutionMode.TOKENS, strict_m
     mapping = EntityMapping(mode=mode)
     confirmed, needs_review = detect_entities_hybrid(full_text)
     
-    def replace_in_paragraph(para, entities_list):
-        for entity_type, value, _, _, _ in entities_list:
-            if value in para.text:
-                substitute = mapping.get_substitute(entity_type, value)
-                for run in para.runs:
-                    if value in run.text:
-                        run.text = run.text.replace(value, substitute)
-                if value in para.text:
-                    para.text = para.text.replace(value, substitute)
-    
-    for para in doc.paragraphs:
-        replace_in_paragraph(para, confirmed)
-    
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    replace_in_paragraph(para, confirmed)
-    
-    for section in doc.sections:
-        if section.header:
-            for para in section.header.paragraphs:
-                replace_in_paragraph(para, confirmed)
-        if section.footer:
-            for para in section.footer.paragraphs:
-                replace_in_paragraph(para, confirmed)
+    for entity_type, value, _, _, _ in confirmed:
+        substitute = mapping.get_substitute(entity_type, value)
+        replace_value_in_docx(doc, value, substitute, replace_all=True)
     
     needs_review_list = [
         {
