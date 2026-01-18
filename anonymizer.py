@@ -650,6 +650,21 @@ def detect_entities_regex(text: str, placeholder_positions: List[Tuple[int, int]
     return entities
 
 
+def sanitize_text_for_nlp(text: str) -> str:
+    """
+    Sanitize text to prevent regex errors in spaCy's tokenizer.
+    Replaces problematic patterns while preserving text structure.
+    """
+    problematic_chars = {
+        '\x00': ' ',
+        '\x0b': ' ',
+        '\x0c': ' ',
+    }
+    for char, replacement in problematic_chars.items():
+        text = text.replace(char, replacement)
+    return text
+
+
 def detect_entities_ner(text: str, placeholder_positions: List[Tuple[int, int]]) -> List[Tuple[str, str, int, int, float]]:
     """
     Detect entities using spaCy NER.
@@ -662,7 +677,13 @@ def detect_entities_ner(text: str, placeholder_positions: List[Tuple[int, int]])
     entities = []
     
     try:
-        doc = nlp(text)
+        safe_text = sanitize_text_for_nlp(text)
+        
+        MAX_NLP_LENGTH = 100000
+        if len(safe_text) > MAX_NLP_LENGTH:
+            safe_text = safe_text[:MAX_NLP_LENGTH]
+        
+        doc = nlp(safe_text)
         
         for ent in doc.ents:
             if is_in_placeholder(ent.start_char, ent.end_char, placeholder_positions):
@@ -686,7 +707,7 @@ def detect_entities_ner(text: str, placeholder_positions: List[Tuple[int, int]])
                         entities.append(('DIRECCION', ent.text, ent.start_char, ent.end_char, 0.70))
     
     except Exception as e:
-        logging.error(f"NER detection error: {e}")
+        logging.warning(f"NER detection skipped due to error: {type(e).__name__}: {e}")
     
     return entities
 
@@ -741,11 +762,36 @@ def detect_entities_hybrid(text: str) -> Tuple[List[Tuple[str, str, int, int, fl
     """
     placeholder_positions = find_existing_placeholders(text)
     
-    regex_entities = detect_entities_regex(text, placeholder_positions)
-    direccion_entities = detect_direccion_enhanced(text, placeholder_positions)
-    telefono_entities = detect_telefono_enhanced(text, placeholder_positions)
-    ner_entities = detect_entities_ner(text, placeholder_positions)
-    persona_entities = detect_persona_aggressive(text, placeholder_positions)
+    regex_entities = []
+    direccion_entities = []
+    telefono_entities = []
+    ner_entities = []
+    persona_entities = []
+    
+    try:
+        regex_entities = detect_entities_regex(text, placeholder_positions)
+    except Exception as e:
+        logging.warning(f"Regex detection failed: {e}")
+    
+    try:
+        direccion_entities = detect_direccion_enhanced(text, placeholder_positions)
+    except Exception as e:
+        logging.warning(f"Direccion detection failed: {e}")
+    
+    try:
+        telefono_entities = detect_telefono_enhanced(text, placeholder_positions)
+    except Exception as e:
+        logging.warning(f"Telefono detection failed: {e}")
+    
+    try:
+        ner_entities = detect_entities_ner(text, placeholder_positions)
+    except Exception as e:
+        logging.warning(f"NER detection failed: {e}")
+    
+    try:
+        persona_entities = detect_persona_aggressive(text, placeholder_positions)
+    except Exception as e:
+        logging.warning(f"Persona detection failed: {e}")
     
     all_entities = []
     claimed_spans = []

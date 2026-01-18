@@ -1,0 +1,67 @@
+TENEMOS UN BUG CRÍTICO: LA UI MUESTRA “Error al procesar el documento. Por favor intenta de nuevo.”
+YA INTENTAMOS ARREGLAR Y NO FUNCIONÓ. ME QUEDA 1 INTERACCIÓN, ASÍ QUE NECESITO SOLUCIÓN COMPLETA, NO EXPLICACIONES.
+
+OBJETIVO:
+- Que DOCX y PDF vuelvan a procesar correctamente.
+- Que si ocurre un error, se vea el motivo real (sin filtrar PII).
+- Que nunca más sea un “error genérico” sin diagnóstico.
+
+REGLAS:
+- NO guardar documentos ni texto (cero almacenamiento).
+- NO loguear contenido del documento.
+- Solo se permite loguear: tipo de archivo, tamaño, stacktrace técnico sin texto, y un error_id.
+- Mantener UI/flujo tal como está.
+
+PASOS OBLIGATORIOS (EJECÚTALOS EN ESTE ORDEN):
+1) IDENTIFICA EL ERROR REAL:
+   - Abre la pestaña Console/Logs del backend en Replit.
+   - Reproduce el fallo subiendo un DOCX pequeño de prueba.
+   - Captura el stacktrace y el status code (400/413/500/etc).
+   - Determina la causa exacta (no supuestos).
+
+2) ARREGLA CAUSA RAÍZ (LA MÁS COMÚN EN ESTOS CASOS):
+   - Verifica que el frontend esté enviando multipart/form-data con el campo correcto (ej: “file”).
+   - Verifica que el backend espere ese mismo nombre de campo.
+   - Asegura que el endpoint de upload/procesamiento coincida con el que llama el frontend.
+   - Maneja límites: si hay límite de tamaño, devuelve 413 con mensaje claro.
+   - Si el problema es parsing DOCX/PDF:
+     - Asegura dependencias instaladas y funcionando.
+   - Si el problema es spaCy/modelo:
+     - Asegura que el modelo esté disponible en runtime.
+     - Si no se puede descargar modelo en deploy, usa fallback: regex + heurísticas (sin spaCy) en vez de crashear.
+   - Si el problema es falta de env var (API key):
+     - Detecta al inicio y muestra error claro “Falta configuración” (sin romper todo).
+     - La app NO debe crashear: debe devolver respuesta controlada.
+
+3) INSTRUMENTACIÓN MÍNIMA (OBLIGATORIA):
+   - En el backend, envuelve el pipeline de procesamiento con try/catch global.
+   - Si falla:
+     - genera error_id (uuid corto)
+     - loguea SOLO:
+       - error_id
+       - tipo de archivo (pdf/docx)
+       - tamaño en bytes
+       - nombre original del archivo (opcional)
+       - stacktrace técnico
+     - responde JSON con:
+       { ok:false, error_id:"...", code:"PARSE_ERROR|MODEL_ERROR|CONFIG_ERROR|UPLOAD_ERROR", message_public:"No se pudo procesar. Error ID: XXX" }
+   - En el frontend:
+     - en vez de solo “intenta de nuevo”, muestra:
+       “No se pudo procesar. Error ID: XXX”
+     - y si status=413: “Archivo demasiado grande”
+     - y si status=400: “Archivo inválido”
+
+4) VALIDACIÓN FINAL:
+   - Prueba con 1 DOCX y 1 PDF pequeños.
+   - Confirmar que:
+     - ya no sale el error genérico
+     - se procesa correctamente y devuelve resultado
+     - si falla, muestra error_id y logs técnicos sin PII
+   - Deja el fix estable.
+
+IMPORTANTE:
+- NO cambies diseño.
+- NO cambies flujo.
+- NO agregues features.
+- SOLO arregla este bug y deja diagnóstico mínimo.
+ENTREGA TODO EL CAMBIO LISTO Y FUNCIONANDO.

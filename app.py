@@ -1555,8 +1555,18 @@ def anonymizer_home():
     return render_template("anonymizer_home.html")
 
 
+def generate_error_id():
+    """Generate a short unique error ID for tracking."""
+    return uuid.uuid4().hex[:8].upper()
+
+
 @app.route("/anonymizer/process", methods=["POST"])
 def anonymizer_process():
+    error_id = generate_error_id()
+    file_type = "unknown"
+    file_size = 0
+    original_name = "unknown"
+    
     if 'documento' not in request.files:
         flash("Por favor selecciona un documento.", "error")
         return redirect(url_for('anonymizer_home'))
@@ -1566,12 +1576,20 @@ def anonymizer_process():
         flash("No se seleccionó ningún archivo.", "error")
         return redirect(url_for('anonymizer_home'))
     
+    original_name = archivo.filename
     ext = os.path.splitext(archivo.filename)[1].lower()
+    file_type = ext.replace('.', '').upper()
+    
     if ext not in anon_module.ALLOWED_EXTENSIONS_ANON:
         flash("Formato no permitido. Solo se aceptan archivos DOCX y PDF.", "error")
         return redirect(url_for('anonymizer_home'))
     
-    if archivo.content_length and archivo.content_length > anon_module.MAX_FILE_SIZE_MB * 1024 * 1024:
+    archivo.seek(0, 2)
+    file_size = archivo.tell()
+    archivo.seek(0)
+    
+    max_size = anon_module.MAX_FILE_SIZE_MB * 1024 * 1024
+    if file_size > max_size:
         flash(f"El archivo excede el tamaño máximo de {anon_module.MAX_FILE_SIZE_MB} MB.", "error")
         return redirect(url_for('anonymizer_home'))
     
@@ -1669,10 +1687,23 @@ def anonymizer_process():
             os.remove(temp_path)
         return redirect(url_for('anonymizer_home'))
     except Exception as e:
-        logging.error(f"Error en anonimización: {e}")
+        import traceback
+        error_code = "PROCESS_ERROR"
+        if "pdf" in str(e).lower() or "PyPDF2" in str(e):
+            error_code = "PDF_PARSE_ERROR"
+        elif "docx" in str(e).lower() or "Document" in str(e):
+            error_code = "DOCX_PARSE_ERROR"
+        elif "spacy" in str(e).lower() or "nlp" in str(e).lower():
+            error_code = "NLP_ERROR"
+        elif "regex" in str(e).lower() or "pattern" in str(e).lower():
+            error_code = "REGEX_ERROR"
+        
+        logging.error(f"[{error_id}] ANONYMIZER_ERROR | code={error_code} | type={file_type} | size={file_size} | error={type(e).__name__}: {e}")
+        logging.error(f"[{error_id}] Traceback:\n{traceback.format_exc()}")
+        
         if os.path.exists(temp_path):
             os.remove(temp_path)
-        flash("Error al procesar el documento. Por favor intenta de nuevo.", "error")
+        flash(f"No se pudo procesar el documento. Error ID: {error_id}", "error")
         return redirect(url_for('anonymizer_home'))
 
 
