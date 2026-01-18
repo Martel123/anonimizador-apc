@@ -49,6 +49,39 @@ EXPEDIENTE_PATTERN = re.compile(r'\b[0-9]{5}-[0-9]{4}-[0-9]-[0-9]{4}-[A-Z]{2}-[A
 CASILLA_PATTERN = re.compile(r'\bcasilla\s+(?:electr[oó]nica\s+)?(?:n[°oº]?\s*)?[0-9]+\b', re.IGNORECASE)
 JUZGADO_PATTERN = re.compile(r'\b(?:[0-9]+[°ºo]?\s*)?juzgado\s+(?:de\s+)?(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial)[^.]*', re.IGNORECASE)
 
+ACTA_PATTERN = re.compile(r'\b(?:acta\s+(?:de\s+)?(?:conciliaci[oó]n|audiencia|constataci[oó]n|inspecci[oó]n)?)\s*(?:n[°oº]?\s*)?[0-9]+[-/]?[0-9]*\b', re.IGNORECASE)
+
+ENTIDAD_PATTERNS = [
+    re.compile(r'\b(?:banco|caja|financiera|cooperativa)\s+[A-Za-záéíóúñÁÉÍÓÚÑ\s]+(?:\s+S\.?A\.?(?:\.?C\.?)?)?', re.IGNORECASE),
+    re.compile(r'\b[A-Z][A-Za-záéíóúñÁÉÍÓÚÑ\s&]+\s+(?:S\.A\.C?\.?|S\.R\.L\.?|E\.I\.R\.L\.?|S\.A\.A\.?)\b', re.IGNORECASE),
+    re.compile(r'\b(?:notaría|notaria)\s+(?:de\s+)?[A-Za-záéíóúñÁÉÍÓÚÑ\s]+\b', re.IGNORECASE),
+]
+
+CUENTA_PATTERNS = [
+    re.compile(r'\b(?:cuenta|cta\.?)\s*(?:de\s+ahorros?|corriente)?\s*(?:n[°oº]?\s*)?[0-9]{10,20}\b', re.IGNORECASE),
+    re.compile(r'\b(?:CCI|cci)\s*[:.]?\s*[0-9]{20}\b'),
+    re.compile(r'\b[0-9]{3}[-\s]?[0-9]{3}[-\s]?[0-9]{10,14}\b'),
+]
+
+PLACA_PATTERN = re.compile(r'\b(?:placa\s+(?:de\s+rodaje\s+)?)?[A-Z]{3}[-\s]?[0-9]{3}\b', re.IGNORECASE)
+
+FIRMA_PATTERNS = [
+    re.compile(r'(?:firma(?:do)?|firmante|suscrit[oa])[:.\s]+[^\n]{0,50}', re.IGNORECASE),
+    re.compile(r'_{5,}', re.IGNORECASE),
+    re.compile(r'/s/\s*[A-Za-záéíóúñÁÉÍÓÚÑ\s]+', re.IGNORECASE),
+    re.compile(r'(?:FIRMADO\s+(?:POR|DIGITALMENTE))[^\n]*', re.IGNORECASE),
+]
+
+SELLO_PATTERNS = [
+    re.compile(r'(?:sello|sellado)[:.\s]+[^\n]{0,50}', re.IGNORECASE),
+    re.compile(r'\[SELLO[^\]]*\]', re.IGNORECASE),
+]
+
+HUELLA_PATTERNS = [
+    re.compile(r'(?:huella\s+(?:digital|dactilar))[:.\s]*[^\n]{0,30}', re.IGNORECASE),
+    re.compile(r'\[HUELLA[^\]]*\]', re.IGNORECASE),
+]
+
 ADDRESS_KEYWORDS = [
     r'\bAv(?:enida)?\.?\s+',
     r'\bJr(?:\.|irón)?\s+',
@@ -328,6 +361,48 @@ def detect_entities_regex(text: str, placeholder_positions: List[Tuple[int, int]
                     if not any(e[2] <= match.start() < e[3] or e[2] < match.end() <= e[3] for e in entities):
                         entities.append(('PERSONA', value, match.start(), match.end(), 0.60))
     
+    for match in ACTA_PATTERN.finditer(text):
+        if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+            entities.append(('ACTA', match.group(), match.start(), match.end(), 0.90))
+    
+    for pattern in ENTIDAD_PATTERNS:
+        for match in pattern.finditer(text):
+            if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                value = match.group().strip()
+                if len(value) > 5:
+                    if not any(e[2] == match.start() for e in entities):
+                        entities.append(('ENTIDAD', value, match.start(), match.end(), 0.85))
+    
+    for pattern in CUENTA_PATTERNS:
+        for match in pattern.finditer(text):
+            if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                if not any(e[2] == match.start() for e in entities):
+                    entities.append(('CUENTA', match.group(), match.start(), match.end(), 0.90))
+    
+    for match in PLACA_PATTERN.finditer(text):
+        if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+            value = match.group()
+            if re.search(r'[A-Z]{3}[-\s]?[0-9]{3}', value, re.IGNORECASE):
+                entities.append(('PLACA', value, match.start(), match.end(), 0.90))
+    
+    for pattern in FIRMA_PATTERNS:
+        for match in pattern.finditer(text):
+            if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                if not any(e[2] == match.start() for e in entities):
+                    entities.append(('FIRMA', match.group(), match.start(), match.end(), 0.70))
+    
+    for pattern in SELLO_PATTERNS:
+        for match in pattern.finditer(text):
+            if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                if not any(e[2] == match.start() for e in entities):
+                    entities.append(('SELLO', match.group(), match.start(), match.end(), 0.70))
+    
+    for pattern in HUELLA_PATTERNS:
+        for match in pattern.finditer(text):
+            if not is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                if not any(e[2] == match.start() for e in entities):
+                    entities.append(('HUELLA', match.group(), match.start(), match.end(), 0.70))
+    
     return entities
 
 
@@ -493,6 +568,123 @@ def post_verification(text: str, original_entities: List[Tuple[str, str, int, in
                     missed.append(entity)
     
     return missed
+
+
+def final_pii_scan(text: str) -> List[Dict[str, Any]]:
+    """
+    Final scan to detect any remaining PII in anonymized text.
+    Returns list of remaining PII for blocking download if found.
+    """
+    placeholder_positions = find_existing_placeholders(text)
+    remaining_pii = []
+    
+    regex_entities = detect_entities_regex(text, placeholder_positions)
+    for entity in regex_entities:
+        if not entity[1].startswith('{{'):
+            remaining_pii.append({
+                'type': entity[0],
+                'value': entity[1],
+                'start': entity[2],
+                'end': entity[3]
+            })
+    
+    ner_entities = detect_entities_ner(text, placeholder_positions)
+    for entity in ner_entities:
+        if not entity[1].startswith('{{') and entity[4] >= 0.80:
+            if not any(r['value'] == entity[1] for r in remaining_pii):
+                remaining_pii.append({
+                    'type': entity[0],
+                    'value': entity[1],
+                    'start': entity[2],
+                    'end': entity[3]
+                })
+    
+    return remaining_pii
+
+
+def replace_in_paragraph_run_aware(para, value: str, substitute: str) -> bool:
+    """
+    Replace value with substitute in paragraph, handling text split across runs.
+    Returns True if replacement was made.
+    """
+    full_text = para.text
+    if value not in full_text:
+        return False
+    
+    for run in para.runs:
+        if value in run.text:
+            run.text = run.text.replace(value, substitute)
+    
+    if value in para.text:
+        run_texts = []
+        run_indices = []
+        for i, run in enumerate(para.runs):
+            run_texts.append(run.text)
+            run_indices.append(i)
+        
+        combined = ''.join(run_texts)
+        if value in combined:
+            start_idx = combined.find(value)
+            end_idx = start_idx + len(value)
+            
+            current_pos = 0
+            for i, run_text in enumerate(run_texts):
+                run_start = current_pos
+                run_end = current_pos + len(run_text)
+                
+                if run_start < end_idx and run_end > start_idx:
+                    overlap_start = max(start_idx - run_start, 0)
+                    overlap_end = min(end_idx - run_start, len(run_text))
+                    
+                    new_text = run_text[:overlap_start]
+                    if run_start <= start_idx < run_end:
+                        new_text += substitute
+                    new_text += run_text[overlap_end:]
+                    para.runs[i].text = new_text
+                
+                current_pos = run_end
+    
+    return True
+
+
+def replace_value_in_docx(doc, value: str, substitute: str, replace_all: bool = True) -> int:
+    """
+    Replace value with substitute throughout the DOCX document.
+    Handles paragraphs, tables, headers, footers.
+    Returns count of replacements made.
+    """
+    count = 0
+    
+    for para in doc.paragraphs:
+        if replace_in_paragraph_run_aware(para, value, substitute):
+            count += 1
+            if not replace_all:
+                return count
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    if replace_in_paragraph_run_aware(para, value, substitute):
+                        count += 1
+                        if not replace_all:
+                            return count
+    
+    for section in doc.sections:
+        if section.header:
+            for para in section.header.paragraphs:
+                if replace_in_paragraph_run_aware(para, value, substitute):
+                    count += 1
+                    if not replace_all:
+                        return count
+        if section.footer:
+            for para in section.footer.paragraphs:
+                if replace_in_paragraph_run_aware(para, value, substitute):
+                    count += 1
+                    if not replace_all:
+                        return count
+    
+    return count
 
 
 def anonymize_text(text: str, mode: str = SubstitutionMode.TOKENS, strict_mode: bool = True) -> Tuple[str, Dict[str, Any], EntityMapping, List[Dict]]:

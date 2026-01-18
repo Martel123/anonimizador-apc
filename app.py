@@ -1709,7 +1709,8 @@ def anonymizer_apply_review(job_id):
         approved_entities.append({
             'id': me.get('id', 'manual'),
             'type': me.get('type', 'PERSONA'),
-            'value': me.get('value', '')
+            'value': me.get('value', ''),
+            'replaceAll': me.get('replaceAll', True)
         })
     
     approved_count = len(approved_entities)
@@ -1730,19 +1731,8 @@ def anonymizer_apply_review(job_id):
                 doc = Document(docx_path)
                 for e in approved_entities:
                     substitute = mapping.get_substitute(e['type'], e['value'])
-                    for para in doc.paragraphs:
-                        if e['value'] in para.text:
-                            for run in para.runs:
-                                if e['value'] in run.text:
-                                    run.text = run.text.replace(e['value'], substitute)
-                            if e['value'] in para.text:
-                                para.text = para.text.replace(e['value'], substitute)
-                    for table in doc.tables:
-                        for row in table.rows:
-                            for cell in row.cells:
-                                for para in cell.paragraphs:
-                                    if e['value'] in para.text:
-                                        para.text = para.text.replace(e['value'], substitute)
+                    replace_all = e.get('replaceAll', True)
+                    anon_module.replace_value_in_docx(doc, e['value'], substitute, replace_all)
                 doc.save(docx_path)
         else:
             pdf_text_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_text.txt")
@@ -1752,7 +1742,11 @@ def anonymizer_apply_review(job_id):
                     text = f.read()
                 for e in approved_entities:
                     substitute = mapping.get_substitute(e['type'], e['value'])
-                    text = text.replace(e['value'], substitute)
+                    replace_all = e.get('replaceAll', True)
+                    if replace_all:
+                        text = text.replace(e['value'], substitute)
+                    else:
+                        text = text.replace(e['value'], substitute, 1)
                 anon_module.create_anonymized_pdf(text, pdf_path)
                 with open(pdf_text_path, 'w', encoding='utf-8') as f:
                     f.write(text)

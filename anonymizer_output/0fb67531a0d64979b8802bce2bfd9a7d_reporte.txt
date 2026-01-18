@@ -1,0 +1,179 @@
+============================================================
+REPORTE DE ANONIMIZACIÓN
+============================================================
+
+Fecha de procesamiento: 2026-01-18T13:59:10.809883
+Archivo original: DEMANDA_DE_REDUCCION_DE_PENSION_DE_ALIMENTOS_-_SR._EDUARDO_.docx
+Tipo de archivo: DOCX
+Modo de sustitución: tokens
+Modo estricto: Sí
+
+----------------------------------------
+RESUMEN DE ENTIDADES DETECTADAS
+----------------------------------------
+Total de entidades: 143
+Pendientes de revisión: 109
+
+  PERSONA: 121
+  DNI: 6
+  DIRECCION: 5
+  EMAIL: 1
+  TELEFONO: 1
+
+----------------------------------------
+REEMPLAZOS REALIZADOS
+----------------------------------------
+
+PERSONA:
+  {{PERSONA_1}} <- JU*** PA***
+  {{PERSONA_2}} <- DE*** SU***
+  {{PERSONA_3}} <- de*** hi***
+  {{PERSONA_4}} <- LI*** CR***
+  {{PERSONA_5}} <- tu*** di***
+  {{PERSONA_6}} <- es*** as***
+  {{PERSONA_7}} <- co*** as***
+  {{PERSONA_8}} <- es*** EL***
+  {{PERSONA_9}} <- as*** el***
+  {{PERSONA_10}} <- SE*** SU***
+  {{PERSONA_11}} <- no*** un***
+  {{PERSONA_12}} <- DE*** MO***
+  {{PERSONA_13}} <- ti*** MZ***
+  {{PERSONA_14}} <- LE*** RE***
+  {{PERSONA_15}} <- co*** se***
+  {{PERSONA_16}} <- HA*** HI***
+  {{PERSONA_17}} <- RE*** FI***
+  {{PERSONA_18}} <- LI*** CE***
+  {{PERSONA_19}} <- VI*** MA***
+  {{PERSONA_20}} <- Ju*** de***
+  {{PERSONA_21}} <- DA*** DE***
+  {{PERSONA_22}} <- JI*** GA***
+  {{PERSONA_23}} <- PE*** DE***
+  {{PERSONA_24}} <- RE*** AL***
+  {{PERSONA_25}} <- PE*** RA***
+  {{PERSONA_26}} <- DE*** AC***
+  {{PERSONA_27}} <- MI*** PO***
+  {{PERSONA_28}} <- LA*** DE***
+  {{PERSONA_29}} <- DE*** ME***
+  {{PERSONA_30}} <- FU*** HE***
+  {{PERSONA_31}} <- ED*** LA***
+  {{PERSONA_32}} <- LU*** LA***
+  {{PERSONA_33}} <- AC*** CO***
+  {{PERSONA_34}} <- MO*** AL***
+  {{PERSONA_35}} <- PE*** AL***
+  {{PERSONA_36}} <- TR*** SE***
+  {{PERSONA_37}} <- SE*** UN***
+  {{PERSONA_38}} <- DÓ*** DE***
+  {{PERSONA_39}} <- TR*** DI***
+  {{PERSONA_40}} <- SE*** CI***
+  {{PERSONA_41}} <- CR*** HI***
+  {{PERSONA_42}} <- MI*** CA***
+  {{PERSONA_43}} <- IN*** PE***
+  {{PERSONA_44}} <- LA*** FE***
+  {{PERSONA_45}} <- CO*** PE***
+  {{PERSONA_46}} <- RE*** DE***
+  {{PERSONA_47}} <- NU*** MI***
+  {{PERSONA_48}} <- CO*** AS***
+  {{PERSONA_49}} <- AL*** VI***
+  {{PERSONA_50}} <- PA*** AS***
+  {{PERSONA_51}} <- LA*** DE***
+  {{PERSONA_52}} <- MI*** SE***
+  {{PERSONA_53}} <- NO*** CI***
+  {{PERSONA_54}} <- MI*** PA***
+  {{PERSONA_55}} <- SU*** DE***
+  {{PERSONA_56}} <- AT*** PO***
+  {{PERSONA_57}} <- EL*** EP***
+  {{PERSONA_58}} <- Dr*** A.***
+  {{PERSONA_59}} <- DI*** SU***
+  {{PERSONA_60}} <- EX*** ES***
+  {{PERSONA_61}} <- PR*** FA***
+  {{PERSONA_62}} <- PO*** SE***
+  {{PERSONA_63}} <- RE*** DE***
+  {{PERSONA_64}} <- PS*** IN***
+  {{PERSONA_65}} <- CO*** DE***
+  {{PERSONA_66}} <- CU*** OC***
+  {{PERSONA_67}} <- CO*** VI***
+  {{PERSONA_68}} <- SE*** EP***
+  {{PERSONA_69}} <- CO*** PA***
+  {{PERSONA_70}} <- CI*** CU***
+  {{PERSONA_71}} <- SE*** CO***
+  {{PERSONA_72}} <- CO*** DE***
+  {{PERSONA_73}} <- DO*** VE***
+  {{PERSONA_74}} <- ME*** UN***
+  {{PERSONA_75}} <- CO*** DE***
+  {{PERSONA_76}} <- DO*** TR***
+  {{PERSONA_77}} <- SE*** AC***
+  {{PERSONA_78}} <- GA*** RE***
+  {{PERSONA_79}} <- DE*** VI***
+  {{PERSONA_80}} <- CU*** CO***
+  {{PERSONA_81}} <- LA*** QU***
+  {{PERSONA_82}} <- SE*** AS***
+  {{PERSONA_83}} <- GA*** ES***
+  {{PERSONA_84}} <- IN*** EN***
+  {{PERSONA_85}} <- AD*** DE***
+  {{PERSONA_86}} <- LO*** AN***
+  {{PERSONA_87}} <- HA*** RE***
+  {{PERSONA_88}} <- AP*** LA***
+  {{PERSONA_89}} <- FI*** AT***
+  {{PERSONA_90}} <- CU*** MI***
+  {{PERSONA_91}} <- ME*** HI***
+  {{PERSONA_92}} <- OB*** AS***
+  {{PERSONA_93}} <- LA*** MA***
+  {{PERSONA_94}} <- LA*** PS***
+  {{PERSONA_95}} <- AM*** PA***
+  {{PERSONA_96}} <- SU*** PO***
+  {{PERSONA_97}} <- ME*** DE***
+  {{PERSONA_98}} <- LA*** YA***
+  {{PERSONA_99}} <- SE*** MI***
+  {{PERSONA_100}} <- PU*** DE***
+  {{PERSONA_101}} <- RE*** FR***
+  {{PERSONA_102}} <- NU*** HI***
+  {{PERSONA_103}} <- ME*** EC***
+  {{PERSONA_104}} <- LA*** SU***
+  {{PERSONA_105}} <- RE*** DE***
+  {{PERSONA_106}} <- AL*** AC***
+  {{PERSONA_107}} <- EN*** PR***
+  {{PERSONA_108}} <- FU*** DE***
+  {{PERSONA_109}} <- ME*** PR***
+  {{PERSONA_110}} <- FI*** RE***
+  {{PERSONA_111}} <- CI*** NU***
+  {{PERSONA_112}} <- PR*** DI***
+  {{PERSONA_113}} <- SE*** DI***
+  {{PERSONA_114}} <- PR*** JU***
+  {{PERSONA_115}} <- PI*** OR***
+  {{PERSONA_116}} <- LI*** HU***
+  {{PERSONA_117}} <- KA*** HU***
+  {{PERSONA_118}} <- GI*** HI***
+  {{PERSONA_119}} <- PO*** EX***
+  {{PERSONA_120}} <- ED*** PÉ***
+  {{PERSONA_121}} <- IN*** DE***
+
+DNI:
+  {{DNI_1}} <- 46****76
+  {{DNI_2}} <- 42****51
+  {{DNI_3}} <- 75****09
+  {{DNI_4}} <- 75****28
+  {{DNI_5}} <- 76****92
+  {{DNI_6}} <- 70****80
+
+DIRECCION:
+  {{DIRECCION_1}} <- Mz....ima
+  {{DIRECCION_2}} <- Av....503
+  {{DIRECCION_3}} <- Jir...s N
+  {{DIRECCION_4}} <- Urb...tre
+  {{DIRECCION_5}} <- SAN...RJA
+
+EMAIL:
+  {{EMAIL_1}} <- ma***@gmail.com
+
+TELEFONO:
+  {{TELEFONO_1}} <- 995***76
+
+----------------------------------------
+ADVERTENCIAS
+----------------------------------------
+  * Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.
+  * Los nombres fueron detectados mediante NER y patrones. Pueden existir nombres adicionales no detectados.
+  * Se detectaron 109 entidades que requieren revisión manual.
+  * Se anonimizaron 111 entidades adicionales tras la revisión manual.
+
+============================================================
