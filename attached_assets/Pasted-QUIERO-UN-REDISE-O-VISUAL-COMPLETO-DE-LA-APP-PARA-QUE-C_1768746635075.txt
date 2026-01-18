@@ -1,0 +1,101 @@
+QUIERO UN REDISEÑO VISUAL COMPLETO DE LA APP PARA QUE COINCIDA CON LA IDENTIDAD DE MARCA DE “APC JURÍDICA”, SIN CAMBIAR FUNCIONALIDAD NI FLUJO.
+
+CONTEXTO DE MARCA:
+- Marca jurídica peruana.
+- Estilo: corporativo, serio, sobrio, profesional, premium.
+- Público: abogados, estudios jurídicos, instituciones.
+- Debe verse como software legal, NO como app startup genérica.
+
+PALETA OBLIGATORIA:
+- Fondo general: #F2F2F2 (gris claro)
+- Cards / paneles: #FFFFFF (blanco)
+- Header / barra superior: #0B0B0B (negro)
+- Negro secundario: #141414
+- Color principal de acción (APC rojo): #B30000
+- Rojo suave: #D63A3A
+- Gris texto secundario: #6F6F6F
+- Gris bordes/divisiones: #E5E5E5
+- Blanco: #FFFFFF
+
+TIPOGRAFÍA:
+- Inter o system-ui.
+- Jerarquía clara:
+  - Títulos: semibold/bold
+  - Texto normal: regular
+  - Texto secundario: gris
+
+ESTILO GENERAL:
+- Bordes redondeados suaves (12–16px).
+- Sombras muy sutiles.
+- Nada de:
+  - degradados
+  - glassmorphism
+  - neon
+  - colores chillones
+  - estilo futurista o cripto
+- Sensación: software institucional serio.
+
+LAYOUT:
+- Fondo general gris claro #F2F2F2.
+- Todo el contenido dentro de “cards” blancas.
+- Header negro con logo APC.
+- Título principal:
+  “Anonimizador de documentos legales”
+- Subtítulo:
+  “Elimina datos sensibles sin guardar información ni reescribir documentos”
+
+BOTONES:
+- Botón principal:
+  - Fondo #B30000
+  - Texto blanco
+  - Grande
+  - Icono escudo o candado si ya existe librería.
+- Botones secundarios:
+  - Fondo gris claro o blanco
+  - Borde gris
+  - Texto negro/gris oscuro
+
+JERARQUÍA VISUAL:
+- El CTA principal “Anonimizar documento” debe ser el más visible.
+- Acciones secundarias en gris.
+- Estados:
+  - Éxito: verde sobrio
+  - Error: rojo APC
+  - Advertencia: ámbar sobrio
+
+INPUTS / SELECTORES / TOGGLES:
+- Estilo consistente:
+  - Bordes suaves
+  - Fondo blanco
+  - Focus con rojo APC o gris oscuro
+- Nada de estilos por defecto del navegador.
+
+NO CAMBIAR:
+- Flujo de la aplicación.
+- Lógica.
+- Funcionalidad.
+- Pantallas.
+- Textos funcionales.
+
+SOLO CAMBIAR:
+- Colores
+- Espaciados
+- Tipografía
+- Bordes
+- Estilo visual
+- Unificación de componentes UI
+
+OBJETIVO FINAL:
+Que la app se sienta como:
+“Software jurídico profesional de una empresa seria, confiable y estable.”
+
+ENTREGABLE:
+- Aplicar esta identidad visual a TODA la aplicación.
+- Unificar estilos de:
+  - Cards
+  - Botones
+  - Inputs
+  - Toggles
+  - Alertas
+  - Paneles
+- Mantener la app clara, rápida y legible para documentos largos.

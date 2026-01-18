@@ -1,55 +1,55 @@
 {% extends "base_anonymizer.html" %}
 
-{% block title %}Anonimizador Legal - Protege tus documentos{% endblock %}
+{% block title %}Anonimizador Legal - APC Jurídica{% endblock %}
 
 {% block content %}
 <div class="space-y-6 fade-in">
     <div class="text-center mb-8">
-        <h2 class="text-3xl font-semibold text-gray-800 mb-2">Anonimiza tus documentos legales</h2>
-        <p class="text-gray-600 max-w-2xl mx-auto">
+        <h2 class="text-2xl font-semibold text-apc-black mb-2">Anonimiza tus documentos legales</h2>
+        <p class="text-apc-gray-text max-w-2xl mx-auto">
             Sube un documento DOCX o PDF y nuestro sistema identificará automáticamente 
             datos personales usando IA y reglas especializadas para documentos legales peruanos.
         </p>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
         <div class="p-8">
             <form id="upload-form" action="{{ url_for('anonymizer_process') }}" method="POST" enctype="multipart/form-data">
-                <div id="drop-zone" class="drop-zone rounded-xl p-12 text-center cursor-pointer hover:border-indigo-400">
+                <div id="drop-zone" class="drop-zone rounded-xl p-12 text-center cursor-pointer">
                     <input type="file" name="documento" id="file-input" accept=".docx,.pdf" class="hidden" required>
                     
                     <div id="upload-prompt" class="space-y-4">
-                        <div class="w-20 h-20 mx-auto bg-indigo-50 rounded-full flex items-center justify-center">
-                            <i class="fas fa-cloud-upload-alt text-4xl text-indigo-500"></i>
+                        <div class="w-20 h-20 mx-auto bg-red-50 rounded-full flex items-center justify-center">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-apc-red"></i>
                         </div>
                         <div>
-                            <p class="text-lg font-medium text-gray-700">Arrastra tu archivo aquí</p>
-                            <p class="text-gray-500">o haz clic para seleccionar</p>
+                            <p class="text-lg font-medium text-apc-black-secondary">Arrastra tu archivo aquí</p>
+                            <p class="text-apc-gray-text">o haz clic para seleccionar</p>
                         </div>
-                        <div class="flex items-center justify-center space-x-4 text-sm text-gray-400">
-                            <span class="flex items-center"><i class="far fa-file-word text-blue-500 mr-1"></i> DOCX</span>
-                            <span class="flex items-center"><i class="far fa-file-pdf text-red-500 mr-1"></i> PDF</span>
+                        <div class="flex items-center justify-center space-x-4 text-sm text-apc-gray-text">
+                            <span class="flex items-center"><i class="far fa-file-word text-blue-600 mr-1"></i> DOCX</span>
+                            <span class="flex items-center"><i class="far fa-file-pdf text-apc-red mr-1"></i> PDF</span>
                         </div>
-                        <p class="text-xs text-gray-400">Máximo 10 MB | PDF hasta 50 páginas</p>
+                        <p class="text-xs text-apc-gray-text">Máximo 10 MB | PDF hasta 50 páginas</p>
                     </div>
 
                     <div id="file-selected" class="hidden space-y-4">
                         <div class="w-16 h-16 mx-auto bg-green-50 rounded-full flex items-center justify-center">
-                            <i class="fas fa-file-check text-3xl text-green-500"></i>
+                            <i class="fas fa-file-check text-3xl text-green-600"></i>
                         </div>
                         <div>
-                            <p id="selected-filename" class="text-lg font-medium text-gray-700"></p>
-                            <p id="selected-filesize" class="text-sm text-gray-500"></p>
+                            <p id="selected-filename" class="text-lg font-medium text-apc-black-secondary"></p>
+                            <p id="selected-filesize" class="text-sm text-apc-gray-text"></p>
                         </div>
-                        <button type="button" id="change-file" class="text-indigo-600 hover:text-indigo-700 text-sm font-medium">
+                        <button type="button" id="change-file" class="text-apc-red hover:text-apc-red-dark text-sm font-medium">
                             <i class="fas fa-exchange-alt mr-1"></i> Cambiar archivo
                         </button>
                     </div>
                 </div>
 
-                <div class="mt-6 p-6 bg-gray-50 rounded-xl space-y-6">
-                    <h3 class="font-semibold text-gray-800 flex items-center">
-                        <i class="fas fa-cog text-indigo-500 mr-2"></i>
+                <div class="mt-6 p-6 bg-apc-gray-bg rounded-xl space-y-6">
+                    <h3 class="font-medium text-apc-black-secondary flex items-center">
+                        <i class="fas fa-cog text-apc-gray-text mr-2"></i>
                         Opciones de anonimización
                     </h3>
                     
@@ -58,42 +58,42 @@
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div class="flex items-center justify-between sm:justify-start sm:space-x-4">
                             <div>
-                                <label for="strict_mode" class="text-sm font-medium text-gray-700">Modo estricto</label>
-                                <p class="text-xs text-gray-500">Revisión manual de nombres dudosos</p>
+                                <label for="strict_mode" class="text-sm font-medium text-apc-black-secondary">Modo estricto</label>
+                                <p class="text-xs text-apc-gray-text">Revisión manual de nombres dudosos</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" name="strict_mode" id="strict_mode" class="sr-only peer" checked>
-                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <div class="w-11 h-6 bg-apc-gray-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-apc-red"></div>
                             </label>
                         </div>
                         
                         <div class="flex items-center justify-between sm:justify-start sm:space-x-4">
                             <div>
-                                <label for="generate_mapping" class="text-sm font-medium text-gray-700">Diccionario CSV</label>
-                                <p class="text-xs text-gray-500">Exportar tabla de mapeo</p>
+                                <label for="generate_mapping" class="text-sm font-medium text-apc-black-secondary">Diccionario CSV</label>
+                                <p class="text-xs text-apc-gray-text">Exportar tabla de mapeo</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" name="generate_mapping" id="generate_mapping" class="sr-only peer">
-                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <div class="w-11 h-6 bg-apc-gray-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-apc-red"></div>
                             </label>
                         </div>
                     </div>
                 </div>
 
                 <div id="processing-section" class="hidden mt-6">
-                    <div class="bg-indigo-50 rounded-lg p-6 text-center">
+                    <div class="bg-red-50 rounded-xl p-6 text-center border border-red-100">
                         <div class="flex items-center justify-center space-x-3 mb-4">
-                            <div class="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                            <span class="text-indigo-700 font-medium">Procesando documento...</span>
+                            <div class="w-6 h-6 border-2 border-apc-red border-t-transparent rounded-full animate-spin"></div>
+                            <span class="text-apc-red font-medium">Procesando documento...</span>
                         </div>
-                        <div class="w-full bg-indigo-200 rounded-full h-2">
-                            <div id="progress-bar" class="progress-bar bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
+                        <div class="w-full bg-red-100 rounded-full h-2">
+                            <div id="progress-bar" class="progress-bar bg-apc-red h-2 rounded-full" style="width: 0%"></div>
                         </div>
-                        <p class="text-sm text-indigo-600 mt-2">Detectando datos personales con IA y reglas</p>
+                        <p class="text-sm text-apc-red-soft mt-2">Detectando datos personales con IA y reglas</p>
                     </div>
                 </div>
 
-                <button type="submit" id="submit-btn" class="mt-6 w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <button type="submit" id="submit-btn" class="mt-6 w-full py-4 btn-primary font-medium rounded-xl transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                     <i class="fas fa-shield-alt mr-2"></i>
                     Anonimizar documento
                 </button>
@@ -102,81 +102,81 @@
     </div>
 
     <div class="grid md:grid-cols-3 gap-6">
-        <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-            <div class="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
-                <i class="fas fa-brain text-blue-500 text-xl"></i>
+        <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-brain text-apc-red text-xl"></i>
             </div>
-            <h3 class="font-medium text-gray-800 mb-2">Detección híbrida</h3>
-            <p class="text-sm text-gray-500">Combina IA (spaCy NER) con reglas especializadas para documentos legales peruanos.</p>
+            <h3 class="font-medium text-apc-black-secondary mb-2">Detección híbrida</h3>
+            <p class="text-sm text-apc-gray-text">Combina IA (spaCy NER) con reglas especializadas para documentos legales peruanos.</p>
         </div>
-        <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-            <div class="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-4">
-                <i class="fas fa-user-check text-green-500 text-xl"></i>
+        <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-user-check text-apc-red text-xl"></i>
             </div>
-            <h3 class="font-medium text-gray-800 mb-2">Modo estricto</h3>
-            <p class="text-sm text-gray-500">Revisa manualmente entidades dudosas antes de finalizar la anonimización.</p>
+            <h3 class="font-medium text-apc-black-secondary mb-2">Modo estricto</h3>
+            <p class="text-sm text-apc-gray-text">Revisa manualmente entidades dudosas antes de finalizar la anonimización.</p>
         </div>
-        <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-            <div class="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center mb-4">
-                <i class="fas fa-code text-purple-500 text-xl"></i>
+        <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                <i class="fas fa-code text-apc-red text-xl"></i>
             </div>
-            <h3 class="font-medium text-gray-800 mb-2">Tokens determinísticos</h3>
-            <p class="text-sm text-gray-500">Reemplazo preciso con tokens como {{PERSONA_1}}, {{DNI_1}} para trazabilidad.</p>
+            <h3 class="font-medium text-apc-black-secondary mb-2">Tokens determinísticos</h3>
+            <p class="text-sm text-apc-gray-text">Reemplazo preciso con tokens como {{PERSONA_1}}, {{DNI_1}} para trazabilidad.</p>
         </div>
     </div>
 
-    <div class="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-        <h3 class="font-medium text-gray-800 mb-4 flex items-center">
-            <i class="fas fa-tags text-indigo-500 mr-2"></i>
+    <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+        <h3 class="font-medium text-apc-black-secondary mb-4 flex items-center">
+            <i class="fas fa-tags text-apc-gray-text mr-2"></i>
             Tipos de datos detectados
         </h3>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
-                <span class="px-2 py-0.5 bg-red-100 text-red-600 rounded font-mono text-xs">DNI</span>
-                <span class="text-gray-600">8 dígitos</span>
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                <span class="px-2 py-0.5 bg-red-100 text-apc-red rounded font-mono text-xs">DNI</span>
+                <span class="text-apc-gray-text">8 dígitos</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-orange-100 text-orange-600 rounded font-mono text-xs">RUC</span>
-                <span class="text-gray-600">11 dígitos</span>
+                <span class="text-apc-gray-text">11 dígitos</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-blue-100 text-blue-600 rounded font-mono text-xs">EMAIL</span>
-                <span class="text-gray-600">Correos</span>
+                <span class="text-apc-gray-text">Correos</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-green-100 text-green-600 rounded font-mono text-xs">TEL</span>
-                <span class="text-gray-600">Teléfonos</span>
+                <span class="text-apc-gray-text">Teléfonos</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-purple-100 text-purple-600 rounded font-mono text-xs">PERSONA</span>
-                <span class="text-gray-600">Nombres</span>
+                <span class="text-apc-gray-text">Nombres</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
-                <span class="px-2 py-0.5 bg-yellow-100 text-yellow-600 rounded font-mono text-xs">DIR</span>
-                <span class="text-gray-600">Direcciones</span>
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-600 rounded font-mono text-xs">DIR</span>
+                <span class="text-apc-gray-text">Direcciones</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-pink-100 text-pink-600 rounded font-mono text-xs">EXP</span>
-                <span class="text-gray-600">Expedientes</span>
+                <span class="text-apc-gray-text">Expedientes</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-cyan-100 text-cyan-600 rounded font-mono text-xs">CAS</span>
-                <span class="text-gray-600">Casillas</span>
+                <span class="text-apc-gray-text">Casillas</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded font-mono text-xs">JUZ</span>
-                <span class="text-gray-600">Juzgados</span>
+                <span class="text-apc-gray-text">Juzgados</span>
             </div>
-            <div class="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
                 <span class="px-2 py-0.5 bg-teal-100 text-teal-600 rounded font-mono text-xs">NER</span>
-                <span class="text-gray-600">IA spaCy</span>
+                <span class="text-apc-gray-text">IA spaCy</span>
             </div>
         </div>
     </div>
 
     <div class="bg-amber-50 rounded-xl p-4 border border-amber-200">
         <div class="flex items-start">
-            <i class="fas fa-lightbulb text-amber-500 mt-1 mr-3"></i>
+            <i class="fas fa-lightbulb text-amber-600 mt-1 mr-3"></i>
             <div class="text-sm text-amber-700">
                 <p class="font-medium mb-1">Placeholders preservados</p>
                 <p>Los marcadores existentes como <code class="bg-amber-100 px-1 rounded">{<!-- -->{FALTA_DATO}}</code> se mantienen sin modificar.</p>
@@ -280,10 +280,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = option.querySelector('input[type="radio"]');
             const check = option.querySelector('.mode-check');
             if (input.checked) {
-                option.classList.add('border-indigo-500', 'bg-indigo-50');
+                option.classList.add('border-apc-red', 'bg-red-50');
                 check.classList.remove('hidden');
             } else {
-                option.classList.remove('border-indigo-500', 'bg-indigo-50');
+                option.classList.remove('border-apc-red', 'bg-red-50');
                 check.classList.add('hidden');
             }
         });

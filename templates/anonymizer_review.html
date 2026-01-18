@@ -4,23 +4,23 @@
 
 {% block content %}
 <div class="space-y-6 fade-in">
-    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6">
+    <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
+        <div class="bg-apc-black px-8 py-6">
             <div class="flex items-center space-x-4">
-                <div class="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
-                    <i class="fas fa-user-check text-white text-3xl"></i>
+                <div class="w-14 h-14 bg-apc-red rounded-xl flex items-center justify-center">
+                    <i class="fas fa-user-check text-white text-2xl"></i>
                 </div>
                 <div class="text-white">
-                    <h2 class="text-2xl font-semibold">Revisión interactiva</h2>
-                    <p class="text-amber-100">{{ pending_count }} entidades pendientes de confirmación</p>
+                    <h2 class="text-xl font-semibold">Revisión interactiva</h2>
+                    <p class="text-gray-400">{{ pending_count }} entidades pendientes de confirmación</p>
                 </div>
             </div>
         </div>
 
         <div class="p-8">
-            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
                 <div class="flex items-start">
-                    <i class="fas fa-exclamation-triangle text-amber-500 mt-1 mr-3"></i>
+                    <i class="fas fa-exclamation-triangle text-amber-600 mt-1 mr-3"></i>
                     <div class="text-sm text-amber-700">
                         <p class="font-medium mb-1">Modo estricto activado</p>
                         <p>Revisa las entidades detectadas, busca texto adicional y selecciona manualmente datos que no fueron detectados. Los cambios se aplican en vivo al preview.</p>
@@ -30,23 +30,23 @@
 
             <div class="mb-6">
                 <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-medium text-gray-700 flex items-center">
-                        <i class="fas fa-search text-gray-400 mr-2"></i>
+                    <h4 class="font-medium text-apc-black-secondary flex items-center">
+                        <i class="fas fa-search text-apc-gray-text mr-2"></i>
                         Buscar en documento
                     </h4>
                 </div>
                 <div class="flex gap-3 mb-3">
                     <input type="text" id="search-input" placeholder="Buscar texto..." 
-                           class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                    <button type="button" id="search-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                           class="flex-1 px-4 py-3 border border-apc-gray-border rounded-xl bg-white focus:ring-2 focus:ring-red-100 focus:border-apc-red">
+                    <button type="button" id="search-btn" class="px-6 py-3 btn-primary rounded-xl">
                         <i class="fas fa-search mr-1"></i> Buscar
                     </button>
                 </div>
-                <div id="search-results" class="hidden bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div id="search-results" class="hidden bg-apc-gray-bg rounded-xl p-4 border border-apc-gray-border">
                     <div class="flex items-center justify-between mb-3">
-                        <span id="search-count" class="text-sm text-gray-600"></span>
+                        <span id="search-count" class="text-sm text-apc-gray-text"></span>
                         <div class="flex items-center gap-2">
-                            <select id="tokenize-type" class="px-3 py-1 border border-gray-300 rounded text-sm">
+                            <select id="tokenize-type" class="px-3 py-2 border border-apc-gray-border rounded-lg text-sm bg-white">
                                 <option value="PERSONA">PERSONA</option>
                                 <option value="DNI">DNI</option>
                                 <option value="RUC">RUC</option>
@@ -63,7 +63,7 @@
                                 <option value="SELLO">SELLO</option>
                                 <option value="HUELLA">HUELLA</option>
                             </select>
-                            <button type="button" id="tokenize-all-btn" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                            <button type="button" id="tokenize-all-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
                                 <i class="fas fa-magic mr-1"></i> Tokenizar todas
                             </button>
                         </div>
@@ -72,37 +72,37 @@
                 </div>
             </div>
 
-            <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h4 class="font-medium text-gray-700 mb-3 flex items-center">
-                    <i class="fas fa-file-alt text-gray-400 mr-2"></i>
+            <div class="mb-6 p-4 bg-apc-gray-bg rounded-xl border border-apc-gray-border">
+                <h4 class="font-medium text-apc-black-secondary mb-3 flex items-center">
+                    <i class="fas fa-file-alt text-apc-gray-text mr-2"></i>
                     Vista previa del documento
-                    <span class="ml-2 text-xs text-gray-400">(selecciona texto para tokenizar)</span>
+                    <span class="ml-2 text-xs text-apc-gray-text">(selecciona texto para tokenizar)</span>
                 </h4>
-                <div id="document-preview" class="bg-white p-4 rounded border border-gray-200 max-h-80 overflow-y-auto text-sm whitespace-pre-wrap font-mono leading-relaxed">{{ document_text }}</div>
+                <div id="document-preview" class="bg-white p-4 rounded-xl border border-apc-gray-border max-h-80 overflow-y-auto text-sm whitespace-pre-wrap font-mono leading-relaxed">{{ document_text }}</div>
             </div>
 
-            <div id="selection-toolbar" class="hidden fixed bg-white shadow-xl rounded-lg p-4 border border-gray-200 z-50 max-w-md">
-                <p class="text-xs text-gray-500 mb-2">Marcar "<span id="selected-text-display" class="font-medium text-gray-800"></span>" como:</p>
+            <div id="selection-toolbar" class="hidden fixed bg-white shadow-xl rounded-xl p-4 border border-apc-gray-border z-50 max-w-md">
+                <p class="text-xs text-apc-gray-text mb-2">Marcar "<span id="selected-text-display" class="font-medium text-apc-black-secondary"></span>" como:</p>
                 <div class="flex flex-wrap gap-2 mb-3">
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-purple-100 text-purple-700 rounded text-xs font-medium hover:bg-purple-200" data-type="PERSONA">PERSONA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200" data-type="DNI">DNI</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-orange-100 text-orange-700 rounded text-xs font-medium hover:bg-orange-200" data-type="RUC">RUC</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded text-xs font-medium hover:bg-yellow-200" data-type="DIRECCION">DIRECCION</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-medium hover:bg-blue-200" data-type="EMAIL">EMAIL</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200" data-type="TELEFONO">TELEFONO</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-pink-100 text-pink-700 rounded text-xs font-medium hover:bg-pink-200" data-type="EXPEDIENTE">EXPEDIENTE</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded text-xs font-medium hover:bg-cyan-200" data-type="ACTA">ACTA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-teal-100 text-teal-700 rounded text-xs font-medium hover:bg-teal-200" data-type="CASILLA">CASILLA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium hover:bg-indigo-200" data-type="ENTIDAD">ENTIDAD</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-lime-100 text-lime-700 rounded text-xs font-medium hover:bg-lime-200" data-type="CUENTA">CUENTA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-amber-100 text-amber-700 rounded text-xs font-medium hover:bg-amber-200" data-type="PLACA">PLACA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-rose-100 text-rose-700 rounded text-xs font-medium hover:bg-rose-200" data-type="FIRMA">FIRMA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-fuchsia-100 text-fuchsia-700 rounded text-xs font-medium hover:bg-fuchsia-200" data-type="SELLO">SELLO</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-violet-100 text-violet-700 rounded text-xs font-medium hover:bg-violet-200" data-type="HUELLA">HUELLA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200" data-type="PERSONA">PERSONA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-red-100 text-apc-red rounded-lg text-xs font-medium hover:bg-red-200" data-type="DNI">DNI</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200" data-type="RUC">RUC</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200" data-type="DIRECCION">DIRECCION</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200" data-type="EMAIL">EMAIL</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200" data-type="TELEFONO">TELEFONO</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-pink-100 text-pink-700 rounded-lg text-xs font-medium hover:bg-pink-200" data-type="EXPEDIENTE">EXPEDIENTE</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-lg text-xs font-medium hover:bg-cyan-200" data-type="ACTA">ACTA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-teal-100 text-teal-700 rounded-lg text-xs font-medium hover:bg-teal-200" data-type="CASILLA">CASILLA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium hover:bg-indigo-200" data-type="ENTIDAD">ENTIDAD</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-lime-100 text-lime-700 rounded-lg text-xs font-medium hover:bg-lime-200" data-type="CUENTA">CUENTA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200" data-type="PLACA">PLACA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-rose-100 text-rose-700 rounded-lg text-xs font-medium hover:bg-rose-200" data-type="FIRMA">FIRMA</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-fuchsia-100 text-fuchsia-700 rounded-lg text-xs font-medium hover:bg-fuchsia-200" data-type="SELLO">SELLO</button>
+                    <button type="button" class="mark-btn px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-medium hover:bg-violet-200" data-type="HUELLA">HUELLA</button>
                 </div>
-                <div class="flex items-center gap-4 border-t border-gray-100 pt-3">
-                    <label class="flex items-center text-xs text-gray-600 cursor-pointer">
-                        <input type="checkbox" id="replace-all-toggle" checked class="mr-2 rounded text-indigo-600">
+                <div class="flex items-center gap-4 border-t border-apc-gray-border pt-3">
+                    <label class="flex items-center text-xs text-apc-gray-text cursor-pointer">
+                        <input type="checkbox" id="replace-all-toggle" checked class="mr-2 rounded text-apc-red focus:ring-apc-red">
                         Reemplazar todas las ocurrencias
                     </label>
                 </div>
@@ -114,13 +114,13 @@
                 
                 <div class="mb-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-800">Entidades detectadas automáticamente</h3>
+                        <h3 class="font-semibold text-apc-black-secondary">Entidades detectadas automáticamente</h3>
                         <div class="flex items-center space-x-2">
-                            <button type="button" id="select-all" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                            <button type="button" id="select-all" class="text-sm text-apc-red hover:text-apc-red-dark font-medium">
                                 <i class="fas fa-check-double mr-1"></i> Seleccionar todos
                             </button>
-                            <span class="text-gray-300">|</span>
-                            <button type="button" id="deselect-all" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+                            <span class="text-apc-gray-border">|</span>
+                            <button type="button" id="deselect-all" class="text-sm text-apc-gray-text hover:text-apc-black-secondary font-medium">
                                 <i class="fas fa-times mr-1"></i> Deseleccionar todos
                             </button>
                         </div>
@@ -128,19 +128,19 @@
 
                     <div class="space-y-3 max-h-64 overflow-y-auto">
                         {% for entity in pending_entities %}
-                        <div class="entity-card bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-all">
+                        <div class="entity-card bg-apc-gray-bg rounded-xl p-4 border border-apc-gray-border hover:border-apc-red transition-all">
                             <label class="flex items-start cursor-pointer">
                                 <input type="checkbox" name="decisions[{{ entity.id }}]" value="true" 
-                                       class="entity-checkbox mt-1 w-5 h-5 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500" checked>
+                                       class="entity-checkbox mt-1 w-5 h-5 text-apc-red bg-white border-apc-gray-border rounded focus:ring-apc-red" checked>
                                 <div class="ml-4 flex-1">
                                     <div class="flex items-center space-x-2 mb-2">
-                                        <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">{{ entity.type }}</span>
-                                        <span class="text-xs text-gray-400">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
+                                        <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium">{{ entity.type }}</span>
+                                        <span class="text-xs text-apc-gray-text">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
                                     </div>
-                                    <p class="text-gray-800 font-medium">{{ entity.value }}</p>
-                                    <p class="text-sm text-gray-500 mt-1">
-                                        <span class="text-gray-400">Contexto:</span> 
-                                        "...{{ entity.context|replace(entity.value, '<mark class="bg-yellow-200 px-0.5 rounded">' + entity.value + '</mark>')|safe }}..."
+                                    <p class="text-apc-black-secondary font-medium">{{ entity.value }}</p>
+                                    <p class="text-sm text-apc-gray-text mt-1">
+                                        <span class="text-apc-gray-text">Contexto:</span> 
+                                        "...{{ entity.context|replace(entity.value, '<mark class="bg-amber-200 px-0.5 rounded">' + entity.value + '</mark>')|safe }}..."
                                     </p>
                                 </div>
                             </label>
@@ -150,35 +150,35 @@
                 </div>
 
                 <div id="manual-entities-section" class="mb-6 hidden">
-                    <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-hand-pointer text-indigo-500 mr-2"></i>
+                    <h3 class="font-semibold text-apc-black-secondary mb-4 flex items-center">
+                        <i class="fas fa-hand-pointer text-apc-red mr-2"></i>
                         Entidades marcadas manualmente (<span id="manual-count">0</span>)
                     </h3>
                     <div id="manual-entities-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
                 </div>
 
-                <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                    <h4 class="font-medium text-gray-700 mb-3 flex items-center">
-                        <i class="fas fa-chart-pie text-gray-400 mr-2"></i>
+                <div class="bg-apc-gray-bg rounded-xl p-4 mb-6 border border-apc-gray-border">
+                    <h4 class="font-medium text-apc-black-secondary mb-3 flex items-center">
+                        <i class="fas fa-chart-pie text-apc-gray-text mr-2"></i>
                         Entidades ya anonimizadas ({{ confirmed_count }})
                     </h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {% for entity_type, count in entities_summary.items() %}
-                        <div class="bg-white rounded-lg p-3 text-center border border-gray-100">
-                            <div class="text-2xl font-bold text-indigo-600">{{ count }}</div>
-                            <div class="text-xs text-gray-600">{{ entity_type }}</div>
+                        <div class="bg-white rounded-xl p-3 text-center border border-apc-gray-border">
+                            <div class="text-2xl font-bold text-apc-red">{{ count }}</div>
+                            <div class="text-xs text-apc-gray-text">{{ entity_type }}</div>
                         </div>
                         {% endfor %}
                     </div>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-4">
-                    <button type="submit" class="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all flex items-center justify-center">
+                    <button type="submit" class="flex-1 py-4 btn-primary font-medium rounded-xl transition-all flex items-center justify-center">
                         <i class="fas fa-check-circle mr-2"></i>
                         Aplicar cambios y continuar
                     </button>
                     <a href="{{ url_for('anonymizer_home') }}" 
-                       class="py-4 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all flex items-center justify-center">
+                       class="py-4 px-6 btn-secondary font-medium rounded-xl transition-all flex items-center justify-center">
                         <i class="fas fa-times mr-2"></i>
                         Cancelar
                     </a>
@@ -187,9 +187,9 @@
         </div>
     </div>
 
-    <div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
+    <div class="bg-blue-50 rounded-xl p-6 border border-blue-200">
         <div class="flex items-start">
-            <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+            <i class="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
             <div class="text-sm text-blue-700">
                 <p class="font-medium mb-1">Instrucciones</p>
                 <ul class="list-disc list-inside space-y-1">
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const regex = new RegExp(`(${escapeRegExp(term)})`, 'gi');
         const text = preview.textContent;
-        preview.innerHTML = text.replace(regex, '<mark class="bg-yellow-300 px-0.5 rounded">$1</mark>');
+        preview.innerHTML = text.replace(regex, '<mark class="bg-amber-200 px-0.5 rounded">$1</mark>');
     }
     
     function updatePreview() {
@@ -356,9 +356,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (matches.length > 0) {
             const uniqueMatches = [...new Set(matches)];
             searchMatches.innerHTML = uniqueMatches.map(m => `
-                <div class="flex items-center justify-between bg-white p-2 rounded border border-gray-100">
+                <div class="flex items-center justify-between bg-white p-2 rounded-lg border border-apc-gray-border">
                     <span class="text-sm font-mono">${m}</span>
-                    <button type="button" class="tokenize-one px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200" data-value="${m}">
+                    <button type="button" class="tokenize-one px-2 py-1 bg-red-50 text-apc-red rounded-lg text-xs hover:bg-red-100" data-value="${m}">
                         Tokenizar
                     </button>
                 </div>
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
         } else {
-            searchMatches.innerHTML = '<p class="text-sm text-gray-500">No se encontraron coincidencias</p>';
+            searchMatches.innerHTML = '<p class="text-sm text-apc-gray-text">No se encontraron coincidencias</p>';
         }
     }
     
@@ -400,14 +400,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (manualEntities.length > 0) {
             manualSection.classList.remove('hidden');
             manualList.innerHTML = manualEntities.map((e, idx) => `
-                <div class="flex items-center justify-between bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                <div class="flex items-center justify-between bg-red-50 rounded-xl p-3 border border-red-200">
                     <div class="flex items-center space-x-3 flex-1 min-w-0">
-                        <span class="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium shrink-0">${e.type}</span>
-                        <span class="text-gray-800 font-medium truncate">${e.value}</span>
-                        <span class="text-indigo-600 font-mono text-sm shrink-0">${e.token}</span>
-                        ${e.replaceAll ? '<span class="text-xs text-gray-400 shrink-0">(todas)</span>' : '<span class="text-xs text-gray-400 shrink-0">(una vez)</span>'}
+                        <span class="px-2 py-0.5 bg-red-100 text-apc-red rounded-lg text-xs font-medium shrink-0">${e.type}</span>
+                        <span class="text-apc-black-secondary font-medium truncate">${e.value}</span>
+                        <span class="text-apc-red font-mono text-sm shrink-0">${e.token}</span>
+                        ${e.replaceAll ? '<span class="text-xs text-apc-gray-text shrink-0">(todas)</span>' : '<span class="text-xs text-apc-gray-text shrink-0">(una vez)</span>'}
                     </div>
-                    <button type="button" class="remove-manual text-red-500 hover:text-red-700 ml-2 shrink-0" data-idx="${idx}">
+                    <button type="button" class="remove-manual text-apc-red hover:text-apc-red-dark ml-2 shrink-0" data-idx="${idx}">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
