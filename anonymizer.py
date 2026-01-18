@@ -387,79 +387,82 @@ def detect_persona_aggressive(text: str, placeholder_positions: List[Tuple[int, 
     """
     entities = []
     
-    uppercase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\b')
-    for match in uppercase_pattern.finditer(text):
-        if is_in_placeholder(match.start(), match.end(), placeholder_positions):
-            continue
+    try:
+        uppercase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\b')
+        for match in uppercase_pattern.finditer(text):
+            if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                continue
+            
+            value = match.group(1)
+            words = value.split()
+            
+            if len(words) < 2 or len(words) > 5:
+                continue
+            
+            if _is_excluded_name(value):
+                continue
+            
+            score = 0.40
+            
+            context_start = max(0, match.start() - 80)
+            context_end = min(len(text), match.end() + 30)
+            context = text[context_start:context_end].lower()
+            
+            for trigger in LEGAL_CONTEXT_TRIGGERS:
+                if trigger in context:
+                    score += 0.15
+                    break
+            
+            if any(w.title() in PERUVIAN_FIRST_NAMES or w.title() in [n.upper() for n in PERUVIAN_FIRST_NAMES] for w in words):
+                score += 0.10
+            
+            if any(w.title() in PERUVIAN_LAST_NAMES or w.title() in [n.upper() for n in PERUVIAN_LAST_NAMES] for w in words):
+                score += 0.10
+            
+            if len(words) >= 2 and len(words) <= 4:
+                score += 0.10
+            
+            if score >= 0.50:
+                entities.append(('PERSONA', value, match.start(), match.end(), min(score, 0.95)))
         
-        value = match.group(1)
-        words = value.split()
-        
-        if len(words) < 2 or len(words) > 5:
-            continue
-        
-        if _is_excluded_name(value):
-            continue
-        
-        score = 0.40
-        
-        context_start = max(0, match.start() - 80)
-        context_end = min(len(text), match.end() + 30)
-        context = text[context_start:context_end].lower()
-        
-        for trigger in LEGAL_CONTEXT_TRIGGERS:
-            if trigger in context:
+        titlecase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:de\s+(?:la\s+)?)?[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})\b')
+        for match in titlecase_pattern.finditer(text):
+            if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                continue
+            
+            value = match.group(1)
+            words = [w for w in value.split() if w.lower() not in {'de', 'la', 'del', 'los', 'las'}]
+            
+            if len(words) < 2 or len(words) > 5:
+                continue
+            
+            if _is_excluded_name(value):
+                continue
+            
+            if any((match.start(), match.end()) == (e[2], e[3]) for e in entities):
+                continue
+            
+            score = 0.35
+            
+            context_start = max(0, match.start() - 80)
+            context_end = min(len(text), match.end() + 30)
+            context = text[context_start:context_end].lower()
+            
+            for trigger in LEGAL_CONTEXT_TRIGGERS:
+                if trigger in context:
+                    score += 0.20
+                    break
+            
+            if any(w in PERUVIAN_FIRST_NAMES for w in words):
                 score += 0.15
-                break
-        
-        if any(w.title() in PERUVIAN_FIRST_NAMES or w.title() in [n.upper() for n in PERUVIAN_FIRST_NAMES] for w in words):
-            score += 0.10
-        
-        if any(w.title() in PERUVIAN_LAST_NAMES or w.title() in [n.upper() for n in PERUVIAN_LAST_NAMES] for w in words):
-            score += 0.10
-        
-        if len(words) >= 2 and len(words) <= 4:
-            score += 0.10
-        
-        if score >= 0.50:
-            entities.append(('PERSONA', value, match.start(), match.end(), min(score, 0.95)))
-    
-    titlecase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:de\s+(?:la\s+)?)?[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})\b')
-    for match in titlecase_pattern.finditer(text):
-        if is_in_placeholder(match.start(), match.end(), placeholder_positions):
-            continue
-        
-        value = match.group(1)
-        words = [w for w in value.split() if w.lower() not in {'de', 'la', 'del', 'los', 'las'}]
-        
-        if len(words) < 2 or len(words) > 5:
-            continue
-        
-        if _is_excluded_name(value):
-            continue
-        
-        if any((match.start(), match.end()) == (e[2], e[3]) for e in entities):
-            continue
-        
-        score = 0.35
-        
-        context_start = max(0, match.start() - 80)
-        context_end = min(len(text), match.end() + 30)
-        context = text[context_start:context_end].lower()
-        
-        for trigger in LEGAL_CONTEXT_TRIGGERS:
-            if trigger in context:
-                score += 0.20
-                break
-        
-        if any(w in PERUVIAN_FIRST_NAMES for w in words):
-            score += 0.15
-        
-        if any(w in PERUVIAN_LAST_NAMES for w in words):
-            score += 0.15
-        
-        if score >= 0.50:
-            entities.append(('PERSONA', value, match.start(), match.end(), min(score, 0.95)))
+            
+            if any(w in PERUVIAN_LAST_NAMES for w in words):
+                score += 0.15
+            
+            if score >= 0.50:
+                entities.append(('PERSONA', value, match.start(), match.end(), min(score, 0.95)))
+    except Exception as e:
+        logging.warning(f"Error in detect_persona_aggressive: {e}")
     
     return entities
 
@@ -470,37 +473,40 @@ def detect_direccion_enhanced(text: str, placeholder_positions: List[Tuple[int, 
     """
     entities = []
     
-    for pattern in DOMICILIO_PATTERNS:
-        for match in pattern.finditer(text):
+    try:
+        for pattern in DOMICILIO_PATTERNS:
+            for match in pattern.finditer(text):
+                if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                    continue
+                
+                if match.lastindex and match.lastindex >= 1:
+                    value = match.group(1).strip()
+                else:
+                    value = match.group().strip()
+                
+                if len(value) > 10 and len(value) < 300:
+                    if not any(e[2] == match.start() for e in entities):
+                        entities.append(('DIRECCION', value, match.start(), match.end(), 0.90))
+        
+        enhanced_addr_pattern = re.compile(
+            r'(' + '|'.join(ENHANCED_ADDRESS_KEYWORDS) + r')[A-Za-záéíóúñÁÉÍÓÚÑ0-9\s,.\-°º#]+(?=[\.\n,;]|$)',
+            re.IGNORECASE
+        )
+        for match in enhanced_addr_pattern.finditer(text):
             if is_in_placeholder(match.start(), match.end(), placeholder_positions):
                 continue
             
-            if match.lastindex and match.lastindex >= 1:
-                value = match.group(1).strip()
-            else:
-                value = match.group().strip()
-            
-            if len(value) > 10 and len(value) < 300:
-                if not any(e[2] == match.start() for e in entities):
-                    entities.append(('DIRECCION', value, match.start(), match.end(), 0.90))
-    
-    enhanced_addr_pattern = re.compile(
-        r'(' + '|'.join(ENHANCED_ADDRESS_KEYWORDS) + r')[A-Za-záéíóúñÁÉÍÓÚÑ0-9\s,.\-°º#]+(?=[\.\n,;]|$)',
-        re.IGNORECASE
-    )
-    for match in enhanced_addr_pattern.finditer(text):
-        if is_in_placeholder(match.start(), match.end(), placeholder_positions):
-            continue
-        
-        value = match.group().strip()
-        if len(value) > 8:
-            overlaps = False
-            for e in entities:
-                if not (match.end() <= e[2] or match.start() >= e[3]):
-                    overlaps = True
-                    break
-            if not overlaps:
-                entities.append(('DIRECCION', value, match.start(), match.end(), 0.80))
+            value = match.group().strip()
+            if len(value) > 8:
+                overlaps = False
+                for e in entities:
+                    if not (match.end() <= e[2] or match.start() >= e[3]):
+                        overlaps = True
+                        break
+                if not overlaps:
+                    entities.append(('DIRECCION', value, match.start(), match.end(), 0.80))
+    except Exception as e:
+        logging.warning(f"Error in detect_direccion_enhanced: {e}")
     
     return entities
 
@@ -509,20 +515,23 @@ def detect_telefono_enhanced(text: str, placeholder_positions: List[Tuple[int, i
     """Enhanced phone detection with various formats."""
     entities = []
     
-    for pattern in ENHANCED_PHONE_PATTERNS:
-        for match in pattern.finditer(text):
-            if is_in_placeholder(match.start(), match.end(), placeholder_positions):
-                continue
-            
-            if match.lastindex and match.lastindex >= 1:
-                value = match.group(1).strip()
-            else:
-                value = match.group().strip()
-            
-            value_clean = re.sub(r'[\s\-\(\)]', '', value)
-            if len(value_clean) >= 7:
-                if not any(e[2] == match.start() for e in entities):
-                    entities.append(('TELEFONO', value, match.start(), match.end(), 0.90))
+    try:
+        for pattern in ENHANCED_PHONE_PATTERNS:
+            for match in pattern.finditer(text):
+                if is_in_placeholder(match.start(), match.end(), placeholder_positions):
+                    continue
+                
+                if match.lastindex and match.lastindex >= 1:
+                    value = match.group(1).strip()
+                else:
+                    value = match.group().strip()
+                
+                value_clean = re.sub(r'[\s\-\(\)]', '', value)
+                if len(value_clean) >= 7:
+                    if not any(e[2] == match.start() for e in entities):
+                        entities.append(('TELEFONO', value, match.start(), match.end(), 0.90))
+    except Exception as e:
+        logging.warning(f"Error in detect_telefono_enhanced: {e}")
     
     return entities
 
