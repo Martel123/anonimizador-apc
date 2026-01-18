@@ -1,0 +1,92 @@
+CADA VEZ QUE SUBO UN ARCHIVO ME SALE UN ERROR DISTINTO (error_id distinto). NO QUIERO SEGUIR DEPURANDO CASO POR CASO. ME QUEDA 1 PROMPT: NECESITO QUE ENDUREZCAS TODO EL PIPELINE PARA QUE NUNCA SE CAIGA Y SIEMPRE DEVUELVA RESULTADO O UN ERROR CONTROLADO.
+
+OBJETIVO:
+- Que subir DOCX/PDF SIEMPRE responda 200 con resultado, usando FALLBACK si es necesario.
+- Que si no se puede procesar, responda un error CONTROLADO (400/413/422) con message_public y error_id, sin 500.
+- Que no haya “Error genérico” ni crashes aunque cambie el error.
+- Mantener cero almacenamiento: /tmp + borrado + TTL.
+- NO cambiar diseño ni flujo.
+
+REGLAS:
+- NO logs con contenido del documento.
+- NO DB.
+- NO reescritura: solo tokens.
+
+CAMBIO PRINCIPAL (OBLIGATORIO): “PIPELINE ROBUSTO CON FALLBACK”
+Implementa un pipeline con etapas y fallback:
+ETAPA 0: VALIDACIÓN DE REQUEST (NO CRASHEAR)
+- Acepta multipart/form-data con campo EXACTO “file”.
+- Si falta file -> 400 (UPLOAD_ERROR).
+- Valida size: si > 10MB -> 413 con mensaje claro.
+- Valida extensión/mimetype real:
+  - DOCX debe ser zip/office, si no -> 422 “Archivo DOCX inválido”.
+  - PDF debe comenzar con %PDF, si no -> 422 “Archivo PDF inválido”.
+
+ETAPA 1: EXTRACCIÓN DE TEXTO (CON FALLBACK)
+- Si DOCX:
+  - usa un extractor principal (python-docx / docx parsing actual).
+  - si falla, fallback a extractor alterno (mammoth o parsing simple).
+  - si igual falla -> 422 PARSE_ERROR “No se pudo leer el DOCX”.
+- Si PDF:
+  - usa extractor principal (PyMuPDF/fitz recomendado).
+  - si falla, fallback a pdfplumber.
+  - si el PDF parece escaneado y no hay texto -> responder 422 “PDF escaneado sin texto (OCR no incluido)” (sin crashear).
+
+ETAPA 2: DETECCIÓN PII (CON FALLBACK)
+- Detector preferido: (si existe) spaCy NER + reglas.
+- Si spaCy no carga / modelo no existe / cualquier excepción:
+  => NO CRASHEAR: usar fallback “solo regex + heurísticas legales” (DNI/email/tel/dirección disparadores).
+- La app debe funcionar aunque spaCy no esté instalado o el modelo no esté disponible.
+
+ETAPA 3: ANONIMIZACIÓN
+- Aplicar reemplazos token 1:1.
+- Si reemplazo falla por runs (DOCX), capturar excepción y usar método alterno:
+  - como mínimo devolver texto anonimizado plano para que el usuario no se quede sin salida.
+  - NO devolver 500.
+
+ETAPA 4: POST-SCAN FINAL
+- Re-escan del resultado final:
+  - si detecta posibles PII, marcar needs_review=true pero IGUAL devolver resultado (no crashear).
+- Bloqueo de descarga solo si tu UI ya lo maneja; si no, al menos advertir.
+
+MANEJO GLOBAL DE ERRORES (ESTO ES LO MÁS IMPORTANTE)
+- En backend, crea un wrapper global para todo endpoint /api/anonymize:
+  - try/catch alrededor de TODO.
+  - Nunca responder 500 sin control.
+  - Cualquier excepción -> convertir a respuesta JSON controlada con:
+    {
+      ok:false,
+      error_id:"<uuid8>",
+      code:"UPLOAD_ERROR|PARSE_ERROR|MODEL_ERROR|CONFIG_ERROR|UNKNOWN_ERROR",
+      message_public:"No se pudo procesar el documento. Error ID: <id>"
+    }
+- En logs (sin PII) imprimir:
+  - error_id
+  - code
+  - etapa donde falló (ETAPA 0/1/2/3)
+  - stacktrace técnico
+
+FRONTEND
+- Mostrar message_public exacto + error_id.
+- Si 413: mostrar “Archivo demasiado grande”.
+- Si 422: mostrar “Archivo inválido o sin texto”.
+
+PRIVACIDAD
+- Archivos en /tmp/<job_id>/...
+- Borrado SIEMPRE en finally (pase lo que pase).
+- TTL cleanup (ej 10 minutos) por seguridad.
+- No guardar historial.
+
+PRUEBA OBLIGATORIA (ANTES DE TERMINAR)
+- Probar con 1 DOCX válido y 1 PDF válido.
+- Confirmar que:
+  - devuelve ok:true y resultado.
+- Probar con:
+  - un archivo no válido -> debe devolver 422 (no 500).
+  - un archivo >10MB -> 413.
+- Confirmar en logs que NO se imprime texto del documento.
+
+ENTREGABLE FINAL:
+- El sistema deja de “fallar distinto cada vez” porque todo error queda controlado por etapas.
+- DOCX y PDF procesan o devuelven error controlado, pero nunca crashean.
+- No cambiar diseño ni flujo.

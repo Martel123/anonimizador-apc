@@ -16,6 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
 import anonymizer as anon_module
+import anonymizer_robust as anon_robust
 
 from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse
 import qrcode
@@ -1562,105 +1563,130 @@ def generate_error_id():
 
 @app.route("/anonymizer/process", methods=["POST"])
 def anonymizer_process():
-    error_id = generate_error_id()
+    """
+    ROBUST ANONYMIZATION PIPELINE
+    Processes documents through stages with fallbacks. Never returns 500.
+    """
+    error_id = anon_robust.generate_error_id()
     file_type = "unknown"
     file_size = 0
-    original_name = "unknown"
-    
-    if 'documento' not in request.files:
-        flash("Por favor selecciona un documento.", "error")
-        return redirect(url_for('anonymizer_home'))
-    
-    archivo = request.files['documento']
-    if archivo.filename == '':
-        flash("No se seleccionó ningún archivo.", "error")
-        return redirect(url_for('anonymizer_home'))
-    
-    original_name = archivo.filename
-    ext = os.path.splitext(archivo.filename)[1].lower()
-    file_type = ext.replace('.', '').upper()
-    
-    if ext not in anon_module.ALLOWED_EXTENSIONS_ANON:
-        flash("Formato no permitido. Solo se aceptan archivos DOCX y PDF.", "error")
-        return redirect(url_for('anonymizer_home'))
-    
-    archivo.seek(0, 2)
-    file_size = archivo.tell()
-    archivo.seek(0)
-    
-    max_size = anon_module.MAX_FILE_SIZE_MB * 1024 * 1024
-    if file_size > max_size:
-        flash(f"El archivo excede el tamaño máximo de {anon_module.MAX_FILE_SIZE_MB} MB.", "error")
-        return redirect(url_for('anonymizer_home'))
-    
-    modo = 'tokens'
-    strict_mode = 'strict_mode' in request.form
-    generate_mapping = 'generate_mapping' in request.form
-    
-    job_id = uuid.uuid4().hex
-    original_filename = secure_filename(archivo.filename)
-    temp_path = os.path.join(ANONYMIZER_TEMP_DIR, f"{job_id}_{original_filename}")
-    archivo.save(temp_path)
+    temp_path = None
     
     try:
-        needs_review = []
+        if 'documento' not in request.files:
+            flash("Por favor selecciona un documento.", "error")
+            return redirect(url_for('anonymizer_home'))
         
-        document_text = ""
+        archivo = request.files['documento']
+        if archivo.filename == '':
+            flash("No se seleccionó ningún archivo.", "error")
+            return redirect(url_for('anonymizer_home'))
         
-        if ext == '.docx':
-            doc, summary, mapping, needs_review = anon_module.anonymize_docx(temp_path, mode=modo, strict_mode=strict_mode)
-            output_filename = f"{job_id}_anonimizado.docx"
-            output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
-            anon_module.save_anonymized_docx(doc, output_path)
-            output_type = 'docx'
-            document_text = anon_module.extract_docx_text(output_path)
-        else:
-            text, summary, mapping, is_scanned, needs_review = anon_module.anonymize_pdf(temp_path, mode=modo, strict_mode=strict_mode)
-            if is_scanned:
-                flash("El PDF parece ser escaneado y no contiene texto extraíble. Por ahora solo soportamos PDFs con texto.", "warning")
-                os.remove(temp_path)
-                return redirect(url_for('anonymizer_home'))
-            output_filename = f"{job_id}_anonimizado.pdf"
-            output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
-            anon_module.create_anonymized_pdf(text, output_path)
-            text_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_text.txt")
-            with open(text_path, 'w', encoding='utf-8') as f:
-                f.write(text)
-            output_type = 'pdf'
-            document_text = text
+        original_filename = secure_filename(archivo.filename)
+        ext = os.path.splitext(archivo.filename)[1].lower()
+        file_type = ext.replace('.', '').upper()
         
-        report = anon_module.generate_report(summary, original_filename, ext.upper())
-        report_json_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.json")
-        with open(report_json_path, 'w', encoding='utf-8') as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
+        if ext not in anon_robust.ALLOWED_EXTENSIONS:
+            flash("Formato no permitido. Solo se aceptan archivos DOCX y PDF.", "error")
+            return redirect(url_for('anonymizer_home'))
         
-        report_txt = anon_module.generate_report_txt(report)
-        report_txt_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.txt")
-        with open(report_txt_path, 'w', encoding='utf-8') as f:
-            f.write(report_txt)
+        archivo.seek(0, 2)
+        file_size = archivo.tell()
+        archivo.seek(0)
         
-        if generate_mapping:
-            mapping_csv = anon_module.generate_mapping_csv(mapping)
-            mapping_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_mapping.csv")
-            with open(mapping_path, 'w', encoding='utf-8') as f:
-                f.write(mapping_csv)
+        max_size = anon_robust.MAX_FILE_SIZE_MB * 1024 * 1024
+        if file_size > max_size:
+            flash(f"Archivo demasiado grande. Máximo permitido: {anon_robust.MAX_FILE_SIZE_MB} MB.", "error")
+            return redirect(url_for('anonymizer_home'))
+        
+        file_data = archivo.read()
+        archivo.seek(0)
+        is_valid, format_error = anon_robust.validate_file_content(file_data, ext)
+        if not is_valid:
+            if ext == '.docx':
+                flash("Archivo DOCX inválido o corrupto.", "error")
+            else:
+                flash("Archivo PDF inválido o corrupto.", "error")
+            return redirect(url_for('anonymizer_home'))
+        
+        strict_mode = 'strict_mode' in request.form
+        generate_mapping = 'generate_mapping' in request.form
+        
+        job_id = uuid.uuid4().hex
+        temp_path = os.path.join(ANONYMIZER_TEMP_DIR, f"{job_id}_{original_filename}")
+        archivo.save(temp_path)
+        
+        result = anon_robust.process_document_robust(
+            file_path=temp_path,
+            ext=ext,
+            file_size=file_size,
+            strict_mode=strict_mode,
+            generate_mapping=generate_mapping
+        )
+        
+        if not result.get('ok', False):
+            error_code = result.get('code', 'UNKNOWN_ERROR')
+            
+            if error_code == 'PDF_SCANNED':
+                flash("El PDF parece ser escaneado y no contiene texto extraíble. Por favor sube un PDF con texto seleccionable o un archivo DOCX.", "warning")
+            elif error_code == 'SIZE_ERROR':
+                flash(result.get('text', 'El archivo es demasiado grande.'), "error")
+            elif error_code == 'FORMAT_ERROR':
+                flash("El archivo está corrupto o no es un formato válido.", "error")
+            elif error_code == 'DOCX_PARSE_ERROR':
+                flash("No se pudo leer el archivo DOCX. Por favor verifica que no esté dañado.", "error")
+            elif error_code == 'PDF_PARSE_ERROR':
+                flash("No se pudo leer el archivo PDF. Por favor verifica que no esté dañado.", "error")
+            else:
+                message = result.get('message_public', f"No se pudo procesar el documento. Error ID: {error_id}")
+                flash(message, "error")
+            
+            return redirect(url_for('anonymizer_home'))
+        
+        output = anon_robust.save_output_robust(
+            result=result,
+            job_id=job_id,
+            output_dir=ANONYMIZER_OUTPUT_DIR,
+            original_filename=original_filename,
+            ext=ext,
+            generate_mapping=generate_mapping
+        )
+        
+        if not output.get('ok', False):
+            flash(f"Error al guardar el documento. Error ID: {error_id}", "error")
+            return redirect(url_for('anonymizer_home'))
+        
+        document_text = result.get('anonymized_text', result.get('text', ''))
+        if len(document_text) > 50000:
+            document_text = document_text[:50000]
+        
+        summary = result.get('summary', {})
+        needs_review = result.get('needs_review', [])
+        mapping = result.get('mapping')
+        output_type = output.get('output_type', ext.replace('.', ''))
         
         job_state = {
             'original_filename': original_filename,
             'output_type': output_type,
-            'modo': modo,
+            'modo': 'tokens',
             'strict_mode': strict_mode,
             'generate_mapping': generate_mapping,
             'needs_review': needs_review,
             'summary': summary,
-            'mapping_state': mapping.to_dict(),
-            'document_text': document_text[:50000] if len(document_text) > 50000 else document_text
+            'mapping_state': mapping.to_dict() if mapping else {},
+            'document_text': document_text
         }
         state_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_state.json")
         with open(state_path, 'w', encoding='utf-8') as f:
             json.dump(job_state, f, ensure_ascii=False)
         
-        os.remove(temp_path)
+        all_warnings = result.get('warnings', [])
+        if output.get('warning'):
+            all_warnings.append(output['warning'])
+        
+        report = output.get('report', {})
+        report_warnings = report.get('advertencias', [])
+        all_warnings.extend(report_warnings)
         
         if strict_mode and needs_review:
             return render_template("anonymizer_review.html",
@@ -1669,42 +1695,31 @@ def anonymizer_process():
                                  pending_entities=needs_review,
                                  confirmed_count=summary.get('total_entities', 0),
                                  entities_summary=summary.get('entities_found', {}),
-                                 document_text=document_text[:50000] if len(document_text) > 50000 else document_text)
+                                 document_text=document_text)
         
         return render_template("anonymizer_result.html",
                              job_id=job_id,
                              total_entities=summary.get('total_entities', 0),
                              entities_summary=summary.get('entities_found', {}),
                              replacements=summary.get('replacements', {}),
-                             warnings=report.get('advertencias', []),
+                             warnings=all_warnings,
                              output_type=output_type,
-                             mode=modo,
+                             mode='tokens',
                              has_mapping=generate_mapping)
     
-    except ValueError as e:
-        flash(str(e), "error")
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        return redirect(url_for('anonymizer_home'))
     except Exception as e:
         import traceback
-        error_code = "PROCESS_ERROR"
-        if "pdf" in str(e).lower() or "PyPDF2" in str(e):
-            error_code = "PDF_PARSE_ERROR"
-        elif "docx" in str(e).lower() or "Document" in str(e):
-            error_code = "DOCX_PARSE_ERROR"
-        elif "spacy" in str(e).lower() or "nlp" in str(e).lower():
-            error_code = "NLP_ERROR"
-        elif "regex" in str(e).lower() or "pattern" in str(e).lower():
-            error_code = "REGEX_ERROR"
-        
-        logging.error(f"[{error_id}] ANONYMIZER_ERROR | code={error_code} | type={file_type} | size={file_size} | error={type(e).__name__}: {e}")
+        logging.error(f"[{error_id}] GLOBAL_CATCH | type={file_type} | size={file_size} | error={type(e).__name__}: {str(e)[:300]}")
         logging.error(f"[{error_id}] Traceback:\n{traceback.format_exc()}")
-        
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
         flash(f"No se pudo procesar el documento. Error ID: {error_id}", "error")
         return redirect(url_for('anonymizer_home'))
+    
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except:
+                pass
 
 
 @app.route("/anonymizer/review/<job_id>/apply", methods=["POST"])

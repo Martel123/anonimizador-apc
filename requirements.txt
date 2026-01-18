@@ -20,3 +20,6 @@ docx
 reportlab
 spacy
 pytest
+mammoth
+pdfplumber
+pymupdf
