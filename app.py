@@ -1575,20 +1575,28 @@ def anonymizer_process():
         flash(f"El archivo excede el tamaño máximo de {anon_module.MAX_FILE_SIZE_MB} MB.", "error")
         return redirect(url_for('anonymizer_home'))
     
+    modo = request.form.get('modo', 'tokens')
+    if modo not in ['tokens', 'asterisks', 'synthetic']:
+        modo = 'tokens'
+    strict_mode = 'strict_mode' in request.form
+    generate_mapping = 'generate_mapping' in request.form
+    
     job_id = uuid.uuid4().hex
     original_filename = secure_filename(archivo.filename)
     temp_path = os.path.join(ANONYMIZER_TEMP_DIR, f"{job_id}_{original_filename}")
     archivo.save(temp_path)
     
     try:
+        needs_review = []
+        
         if ext == '.docx':
-            doc, summary, mapping = anon_module.anonymize_docx(temp_path)
+            doc, summary, mapping, needs_review = anon_module.anonymize_docx(temp_path, mode=modo, strict_mode=strict_mode)
             output_filename = f"{job_id}_anonimizado.docx"
             output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
             anon_module.save_anonymized_docx(doc, output_path)
             output_type = 'docx'
         else:
-            text, summary, mapping, is_scanned = anon_module.anonymize_pdf(temp_path)
+            text, summary, mapping, is_scanned, needs_review = anon_module.anonymize_pdf(temp_path, mode=modo, strict_mode=strict_mode)
             if is_scanned:
                 flash("El PDF parece ser escaneado y no contiene texto extraíble. Por ahora solo soportamos PDFs con texto.", "warning")
                 os.remove(temp_path)
@@ -1596,6 +1604,9 @@ def anonymizer_process():
             output_filename = f"{job_id}_anonimizado.pdf"
             output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
             anon_module.create_anonymized_pdf(text, output_path)
+            text_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_text.txt")
+            with open(text_path, 'w', encoding='utf-8') as f:
+                f.write(text)
             output_type = 'pdf'
         
         report = anon_module.generate_report(summary, original_filename, ext.upper())
@@ -1608,7 +1619,35 @@ def anonymizer_process():
         with open(report_txt_path, 'w', encoding='utf-8') as f:
             f.write(report_txt)
         
+        if generate_mapping:
+            mapping_csv = anon_module.generate_mapping_csv(mapping)
+            mapping_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_mapping.csv")
+            with open(mapping_path, 'w', encoding='utf-8') as f:
+                f.write(mapping_csv)
+        
+        job_state = {
+            'original_filename': original_filename,
+            'output_type': output_type,
+            'modo': modo,
+            'strict_mode': strict_mode,
+            'generate_mapping': generate_mapping,
+            'needs_review': needs_review,
+            'summary': summary,
+            'mapping_state': mapping.to_dict()
+        }
+        state_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_state.json")
+        with open(state_path, 'w', encoding='utf-8') as f:
+            json.dump(job_state, f, ensure_ascii=False)
+        
         os.remove(temp_path)
+        
+        if strict_mode and needs_review:
+            return render_template("anonymizer_review.html",
+                                 job_id=job_id,
+                                 pending_count=len(needs_review),
+                                 pending_entities=needs_review,
+                                 confirmed_count=summary.get('total_entities', 0),
+                                 entities_summary=summary.get('entities_found', {}))
         
         return render_template("anonymizer_result.html",
                              job_id=job_id,
@@ -1616,7 +1655,9 @@ def anonymizer_process():
                              entities_summary=summary.get('entities_found', {}),
                              replacements=summary.get('replacements', {}),
                              warnings=report.get('advertencias', []),
-                             output_type=output_type)
+                             output_type=output_type,
+                             mode=modo,
+                             has_mapping=generate_mapping)
     
     except ValueError as e:
         flash(str(e), "error")
@@ -1629,6 +1670,146 @@ def anonymizer_process():
             os.remove(temp_path)
         flash("Error al procesar el documento. Por favor intenta de nuevo.", "error")
         return redirect(url_for('anonymizer_home'))
+
+
+@app.route("/anonymizer/review/<job_id>/apply", methods=["POST"])
+def anonymizer_apply_review(job_id):
+    if not re.match(r'^[a-f0-9]{32}$', job_id):
+        flash("ID de trabajo inválido.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    state_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_state.json")
+    if not os.path.exists(state_path):
+        flash("La sesión ha expirado. Por favor procesa el documento de nuevo.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    with open(state_path, 'r', encoding='utf-8') as f:
+        job_state = json.load(f)
+    
+    decisions = {}
+    for key, value in request.form.items():
+        if key.startswith('decisions[') and key.endswith(']'):
+            entity_id = key[10:-1]
+            decisions[entity_id] = True
+    
+    pending_entities = job_state.get('needs_review', [])
+    approved_entities = [e for e in pending_entities if decisions.get(e['id'], False)]
+    approved_count = len(approved_entities)
+    
+    output_type = job_state.get('output_type', 'docx')
+    modo = job_state.get('modo', 'tokens')
+    
+    mapping = anon_module.EntityMapping.from_dict(job_state.get('mapping_state', {'mode': modo}))
+    
+    if approved_entities:
+        for e in approved_entities:
+            _ = mapping.get_substitute(e['type'], e['value'])
+        
+        if output_type == 'docx':
+            docx_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_anonimizado.docx")
+            if os.path.exists(docx_path):
+                from docx import Document
+                doc = Document(docx_path)
+                for e in approved_entities:
+                    substitute = mapping.get_substitute(e['type'], e['value'])
+                    for para in doc.paragraphs:
+                        if e['value'] in para.text:
+                            for run in para.runs:
+                                if e['value'] in run.text:
+                                    run.text = run.text.replace(e['value'], substitute)
+                            if e['value'] in para.text:
+                                para.text = para.text.replace(e['value'], substitute)
+                    for table in doc.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                for para in cell.paragraphs:
+                                    if e['value'] in para.text:
+                                        para.text = para.text.replace(e['value'], substitute)
+                doc.save(docx_path)
+        else:
+            pdf_text_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_text.txt")
+            pdf_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_anonimizado.pdf")
+            if os.path.exists(pdf_text_path):
+                with open(pdf_text_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                for e in approved_entities:
+                    substitute = mapping.get_substitute(e['type'], e['value'])
+                    text = text.replace(e['value'], substitute)
+                anon_module.create_anonymized_pdf(text, pdf_path)
+                with open(pdf_text_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+    
+    updated_summary = job_state['summary'].copy()
+    updated_summary['total_entities'] = updated_summary.get('total_entities', 0) + approved_count
+    updated_summary['entities_found'] = mapping.get_summary()
+    updated_summary['replacements'] = mapping.get_replacements_for_report()
+    
+    job_state['summary'] = updated_summary
+    job_state['mapping_state'] = mapping.to_dict()
+    job_state['needs_review'] = [e for e in pending_entities if not decisions.get(e['id'], False)]
+    with open(state_path, 'w', encoding='utf-8') as f:
+        json.dump(job_state, f, ensure_ascii=False)
+    
+    report = anon_module.generate_report(updated_summary, job_state.get('original_filename', ''), output_type.upper())
+    if approved_count > 0:
+        report['advertencias'].append(f"Se anonimizaron {approved_count} entidades adicionales tras la revisión manual.")
+    
+    report_json_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.json")
+    with open(report_json_path, 'w', encoding='utf-8') as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    
+    report_txt = anon_module.generate_report_txt(report)
+    report_txt_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.txt")
+    with open(report_txt_path, 'w', encoding='utf-8') as f:
+        f.write(report_txt)
+    
+    if job_state.get('generate_mapping', False):
+        mapping_csv = anon_module.generate_mapping_csv(mapping)
+        mapping_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_mapping.csv")
+        with open(mapping_path, 'w', encoding='utf-8') as f:
+            f.write(mapping_csv)
+    
+    return render_template("anonymizer_result.html",
+                         job_id=job_id,
+                         total_entities=updated_summary.get('total_entities', 0),
+                         entities_summary=updated_summary.get('entities_found', {}),
+                         replacements=updated_summary.get('replacements', {}),
+                         warnings=report.get('advertencias', []),
+                         output_type=output_type,
+                         mode=modo,
+                         has_mapping=job_state.get('generate_mapping', False))
+
+
+@app.route("/anonymizer/review/<job_id>/skip")
+def anonymizer_skip_review(job_id):
+    if not re.match(r'^[a-f0-9]{32}$', job_id):
+        flash("ID de trabajo inválido.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    state_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_state.json")
+    if not os.path.exists(state_path):
+        flash("La sesión ha expirado. Por favor procesa el documento de nuevo.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    with open(state_path, 'r', encoding='utf-8') as f:
+        job_state = json.load(f)
+    
+    report_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.json")
+    warnings = []
+    if os.path.exists(report_path):
+        with open(report_path, 'r', encoding='utf-8') as f:
+            report = json.load(f)
+            warnings = report.get('advertencias', [])
+    
+    return render_template("anonymizer_result.html",
+                         job_id=job_id,
+                         total_entities=job_state['summary'].get('total_entities', 0),
+                         entities_summary=job_state['summary'].get('entities_found', {}),
+                         replacements=job_state['summary'].get('replacements', {}),
+                         warnings=warnings,
+                         output_type=job_state.get('output_type', 'docx'),
+                         mode=job_state.get('modo', 'tokens'),
+                         has_mapping=job_state.get('generate_mapping', False))
 
 
 @app.route("/anonymizer/download/<job_id>/<file_type>")
@@ -1653,6 +1834,11 @@ def anonymizer_download(job_id, file_type):
         filepath = os.path.join(ANONYMIZER_OUTPUT_DIR, filename)
         if os.path.exists(filepath):
             return send_file(filepath, as_attachment=True, download_name="reporte_anonimizacion.json")
+    elif file_type == 'mapping':
+        filename = f"{job_id}_mapping.csv"
+        filepath = os.path.join(ANONYMIZER_OUTPUT_DIR, filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, as_attachment=True, download_name="diccionario_mapeo.csv")
     
     flash("Archivo no encontrado. Es posible que haya expirado.", "error")
     return redirect(url_for('anonymizer_home'))

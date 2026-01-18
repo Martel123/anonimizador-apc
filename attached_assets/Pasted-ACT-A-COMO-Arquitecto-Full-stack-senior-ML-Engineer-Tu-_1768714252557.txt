@@ -1,0 +1,152 @@
+ACTÚA COMO: Arquitecto + Full-stack senior + ML Engineer. Tu misión es crear una app independiente “Anonimizador Legal” a partir de este repo base (mi sistema de Centro de Conciliación). Debe quedar lista para producción en Replit al presionar Run.
+
+OBJETIVO PRINCIPAL
+- Subir DOCX o PDF.
+- Detectar y anonimizar datos personales en español (Perú, legal).
+- Mostrar un “resumen + revisión” y permitir descargar:
+  1) Archivo anonimizado (DOCX y PDF)
+  2) Reporte (JSON + TXT)
+  3) (Opcional) Diccionario de mapeo (CSV/JSON) si el usuario lo habilita.
+
+REGLA DE ORO (ANTI-FALLOS COMO “EDUARDO”)
+NO prometer 100% automático. Implementa “MODO ESTRICTO”:
+- Si después de anonimizar detectas que quedan ENTIDADES PERSONA potenciales (por NER o heurística), NO permitas descargar sin revisión.
+- En revisión, muestra el texto con resaltado y lista de entidades detectadas para “Confirmar como PII” o “Ignorar”.
+- Solo después de confirmar, habilita descarga.
+
+CAPACIDADES TIPO “NYMIZ” (SIN COPIAR NADA PROPIETARIO)
+Implementa 3 modos de sustitución seleccionables en UI:
+1) TOKENS (pseudonimización):
+   - Nombres -> {{PERSONA_1}}, {{PERSONA_2}}
+   - DNI -> {{DNI_1}}
+   - Teléfono -> {{TELEFONO_1}}
+   - Email -> {{EMAIL_1}}
+   - Dirección -> {{DIRECCION_1}}
+   - RUC -> {{RUC_1}}
+   - Expediente/Juzgado/Casilla -> {{EXPEDIENTE_1}}, {{JUZGADO_1}}, {{CASILLA_1}}
+   Consistencia total por documento.
+2) ASTERISCOS / REDACCIÓN:
+   - Reemplaza PII por máscaras (ej: DNI ********, email ****@****.***, nombre ********).
+3) DATOS SINTÉTICOS:
+   - Sustituye por datos sintéticos realistas (pero falsos), conservando formato:
+     - Nombres españoles/peruanos plausibles
+     - DNIs y teléfonos con longitud correcta (pero no reales)
+     - Direcciones plausibles (Av., Jr., etc.)
+   - Mantén consistencia: la misma persona siempre recibe el mismo nombre sintético dentro del documento.
+
+IMPORTANTE SOBRE “{{FALTA_DATO}}”
+Mi sistema de generación ya usa placeholders estilo {{FALTA_DATO}} cuando falta info. Respeta ese estilo: no lo “anonimices” ni lo modifiques. (Ejemplo: mis modelos contienen placeholders {{...}} en muchos campos.)
+
+STACK Y AUDITORÍA
+1) Primero inspecciona el repo: framework, rutas, UI, cómo corre, dónde está el layout.
+2) Decide si conviene:
+   a) Mantener la app y agregar un módulo nuevo, o
+   b) Podar el repo dejando solo lo necesario para el anonimizador.
+3) No asumas. Escribe un resumen de arquitectura al inicio del README.
+
+DETECCIÓN: HÍBRIDA (OBLIGATORIA)
+Implementa detección PII combinando:
+A) Reglas Regex/heurísticas:
+- DNI Perú: \b\d{8}\b (con validaciones: evita montos, evita números que están pegados a “S/”, “US$”, “%”, etc.)
+- RUC: \b\d{11}\b
+- Email: regex estándar robusta
+- Teléfono Perú:
+  - 9 dígitos \b9\d{8}\b
+  - +51 opcional: (\+51\s?)?9\d{8}
+  - Formatos con espacios y guiones
+- Dirección (heurística legal Perú):
+  - Disparadores: “Av.”, “Avenida”, “Jr.”, “Calle”, “Mz.”, “Lote”, “Dpto”, “Urb.”, “Urbanización”, “Distrito”, “Provincia”, “Departamento”, “N°”, “Nro.”
+  - Captura ventana de texto alrededor (ej: 10-25 tokens) y recórtala inteligentemente.
+- Casilla electrónica: “CASILLA” + números
+- N° expediente: “EXPEDIENTE”, “Exp.”, “N°” + patrones
+- Entidades típicas legales: “identificado con DNI”, “domicilio real”, “domicilio procesal”, “correo electrónico”, “WhatsApp”, “con el debido respeto…”
+B) NER en español:
+- Usa spaCy español (modelo mediano o grande si es posible) para PERSON, LOC, ORG.
+- Complementa con Presidio (Microsoft Presidio) si el stack es Python, porque permite “analyzers + anonymizers” y custom recognizers.
+- Ajusta para legal: cuando PERSON aparece cerca de “identificado”, “demandante”, “demandado”, “Señor”, “Doña”, “Abogado”, “madre/padre”, “menor”, incrementar score.
+C) Lista de exclusiones (anti-falsos positivos):
+- Palabras comunes en mayúsculas en escritos (SEÑOR, JUEZ, DEMANDA, etc.)
+- Ciudades/países si no se consideran PII en el modo elegido (configurable)
+- Entidades genéricas (CÓDIGO CIVIL, etc.)
+D) Post-verificación obligatoria:
+- Recorre el resultado final y vuelve a correr NER + reglas.
+- Si detectas PERSON probable (como “EDUARDO”), dispara MODO ESTRICTO con revisión.
+
+ANONIMIZACIÓN EN DOCX (CALIDAD ALTA)
+- Debes anonimizar:
+  - Párrafos
+  - Tablas
+  - Headers/footers
+  - Text boxes si el stack lo permite (si no, documenta limitación)
+- Mantén formato:
+  - No rompas estilos ni saltos.
+  - Reemplaza a nivel “run” cuando sea necesario para no destruir formato.
+- Asegura consistencia global con un mapping central.
+
+ANONIMIZACIÓN EN PDF (MVP + OPCIÓN PRO)
+MVP (obligatorio):
+- Si PDF tiene texto seleccionable:
+  - Extrae texto y genera un NUEVO PDF legible con el texto anonimizado (formato simple).
+- Si es escaneado:
+  - Detecta que no hay texto y muestra: “PDF escaneado: activa OCR (beta)” con toggle.
+BETA OCR (si es viable con librería libre):
+- Implementa OCR con Tesseract si el entorno lo permite.
+- Si no, explica cómo habilitarlo y mantén fallback.
+
+UI/UX (OBLIGATORIA Y “PRO”)
+- Página principal / con:
+  - Drag & Drop
+  - Selector de “Modo”: Tokens / Asteriscos / Sintético
+  - Toggle “Modo estricto (recomendado)”
+  - Toggle “Generar diccionario de mapeo” (OFF por defecto)
+  - Botón “Anonimizar”
+- Pantalla de resultados:
+  - Contadores por tipo
+  - Advertencias
+  - Descargas (archivo + reporte + mapping si se activó)
+- Pantalla de revisión (si modo estricto):
+  - Texto resaltado por entidades
+  - Lista de entidades detectadas con checkbox (Confirmar/Excluir)
+  - Botón “Aplicar y descargar”
+
+PRIVACIDAD Y SEGURIDAD (OBLIGATORIO)
+- No guardes documentos en DB.
+- Guarda en /tmp con ID aleatorio.
+- Borra automáticamente:
+  - al descargar, y/o
+  - por TTL (30 min) con un job scheduler simple.
+- No logs con PII.
+
+ENDPOINTS MÍNIMOS
+- GET / -> home
+- POST /api/anonymize -> recibe archivo y config, devuelve result_id + stats + si requiere revisión
+- POST /api/review/apply -> aplica decisiones de revisión
+- GET /download/:id
+- GET /report/:id
+- GET /mapping/:id (solo si se activó)
+- (Opcional) GET /health
+
+PRUEBAS AUTOMÁTICAS (OBLIGATORIO PARA EVITAR “EDUARDO”)
+1) Crea un folder /tests y agrega tests que:
+- carguen un DOCX de ejemplo (puede ser un fixture generado dentro del repo)
+- verifiquen que:
+  - ningún nombre de persona de la lista test queda sin reemplazar
+  - DNIs, emails, teléfonos, direcciones se reemplazan
+  - placeholders {{FALTA_DATO}} se mantienen
+2) Agrega un “smoke test” al iniciar que imprime un OK si pasa.
+
+ACEPTACIÓN FINAL (DEBES CUMPLIR)
+- Subo un DOCX con nombres (ej: “Eduardo Gamarra Pérez”) y NO queda ningún nombre real sin reemplazar cuando MODO ESTRICTO está ON:
+  - Si se detecta un nombre que pudo pasar, se bloquea descarga y se exige revisión.
+- Descarga de DOCX y reporte funciona.
+- PDF MVP funciona (nuevo PDF legible).
+- UI limpia y responsive.
+- README con instrucciones y limitaciones.
+
+AHORA EMPIEZA:
+1) Inspecciona el repo y describe el stack.
+2) Implementa módulo anonymizer con detección híbrida.
+3) Implementa UI + endpoints.
+4) Implementa modo estricto + revisión.
+5) Implementa tests.
+6) Ejecuta y asegúrate que todo funcione al presionar Run.

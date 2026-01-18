@@ -1,0 +1,244 @@
+{
+  "fecha_procesamiento": "2026-01-18T05:26:26.707937",
+  "archivo_original": "DEMANDA_DE_REDUCCION_DE_PENSION_DE_ALIMENTOS_-_SR._EDUARDO_.docx",
+  "tipo_archivo": ".DOCX",
+  "resumen": {
+    "total_entidades_detectadas": 53,
+    "entidades_por_tipo": {
+      "PERSONA": 40,
+      "DNI": 6,
+      "DIRECCION": 5,
+      "EMAIL": 1,
+      "TELEFONO": 1
+    }
+  },
+  "reemplazos": {
+    "PERSONA": [
+      {
+        "placeholder": "{{PERSONA_1}}",
+        "masked_original": "JU*** PA***"
+      },
+      {
+        "placeholder": "{{PERSONA_2}}",
+        "masked_original": "DE*** SU***"
+      },
+      {
+        "placeholder": "{{PERSONA_3}}",
+        "masked_original": "de*** hi***"
+      },
+      {
+        "placeholder": "{{PERSONA_4}}",
+        "masked_original": "LI*** CR***"
+      },
+      {
+        "placeholder": "{{PERSONA_5}}",
+        "masked_original": "PE*** RA***"
+      },
+      {
+        "placeholder": "{{PERSONA_6}}",
+        "masked_original": "MI*** PO***"
+      },
+      {
+        "placeholder": "{{PERSONA_7}}",
+        "masked_original": "tu*** di***"
+      },
+      {
+        "placeholder": "{{PERSONA_8}}",
+        "masked_original": "TR*** SE***"
+      },
+      {
+        "placeholder": "{{PERSONA_9}}",
+        "masked_original": "MI*** SE***"
+      },
+      {
+        "placeholder": "{{PERSONA_10}}",
+        "masked_original": "SE*** UN***"
+      },
+      {
+        "placeholder": "{{PERSONA_11}}",
+        "masked_original": "TR*** DI***"
+      },
+      {
+        "placeholder": "{{PERSONA_12}}",
+        "masked_original": "SE*** CI***"
+      },
+      {
+        "placeholder": "{{PERSONA_13}}",
+        "masked_original": "CR*** HI***"
+      },
+      {
+        "placeholder": "{{PERSONA_14}}",
+        "masked_original": "MI*** CA***"
+      },
+      {
+        "placeholder": "{{PERSONA_15}}",
+        "masked_original": "IN*** PE***"
+      },
+      {
+        "placeholder": "{{PERSONA_16}}",
+        "masked_original": "CO*** PE***"
+      },
+      {
+        "placeholder": "{{PERSONA_17}}",
+        "masked_original": "NU*** MI***"
+      },
+      {
+        "placeholder": "{{PERSONA_18}}",
+        "masked_original": "CO*** AS***"
+      },
+      {
+        "placeholder": "{{PERSONA_19}}",
+        "masked_original": "NO*** CI***"
+      },
+      {
+        "placeholder": "{{PERSONA_20}}",
+        "masked_original": "MI*** PA***"
+      },
+      {
+        "placeholder": "{{PERSONA_21}}",
+        "masked_original": "AT*** PO***"
+      },
+      {
+        "placeholder": "{{PERSONA_22}}",
+        "masked_original": "PR*** FA***"
+      },
+      {
+        "placeholder": "{{PERSONA_23}}",
+        "masked_original": "PO*** SE***"
+      },
+      {
+        "placeholder": "{{PERSONA_24}}",
+        "masked_original": "PS*** IN***"
+      },
+      {
+        "placeholder": "{{PERSONA_25}}",
+        "masked_original": "CU*** OC***"
+      },
+      {
+        "placeholder": "{{PERSONA_26}}",
+        "masked_original": "es*** as***"
+      },
+      {
+        "placeholder": "{{PERSONA_27}}",
+        "masked_original": "co*** as***"
+      },
+      {
+        "placeholder": "{{PERSONA_28}}",
+        "masked_original": "es*** EL***"
+      },
+      {
+        "placeholder": "{{PERSONA_29}}",
+        "masked_original": "as*** el***"
+      },
+      {
+        "placeholder": "{{PERSONA_30}}",
+        "masked_original": "SE*** SU***"
+      },
+      {
+        "placeholder": "{{PERSONA_31}}",
+        "masked_original": "no*** un***"
+      },
+      {
+        "placeholder": "{{PERSONA_32}}",
+        "masked_original": "DE*** MO***"
+      },
+      {
+        "placeholder": "{{PERSONA_33}}",
+        "masked_original": "ti*** MZ***"
+      },
+      {
+        "placeholder": "{{PERSONA_34}}",
+        "masked_original": "LE*** RE***"
+      },
+      {
+        "placeholder": "{{PERSONA_35}}",
+        "masked_original": "co*** se***"
+      },
+      {
+        "placeholder": "{{PERSONA_36}}",
+        "masked_original": "HA*** HI***"
+      },
+      {
+        "placeholder": "{{PERSONA_37}}",
+        "masked_original": "RE*** FI***"
+      },
+      {
+        "placeholder": "{{PERSONA_38}}",
+        "masked_original": "LI*** CE***"
+      },
+      {
+        "placeholder": "{{PERSONA_39}}",
+        "masked_original": "VI*** MA***"
+      },
+      {
+        "placeholder": "{{PERSONA_40}}",
+        "masked_original": "Ju*** de***"
+      }
+    ],
+    "DNI": [
+      {
+        "placeholder": "{{DNI_1}}",
+        "masked_original": "46****76"
+      },
+      {
+        "placeholder": "{{DNI_2}}",
+        "masked_original": "42****51"
+      },
+      {
+        "placeholder": "{{DNI_3}}",
+        "masked_original": "75****09"
+      },
+      {
+        "placeholder": "{{DNI_4}}",
+        "masked_original": "75****28"
+      },
+      {
+        "placeholder": "{{DNI_5}}",
+        "masked_original": "76****92"
+      },
+      {
+        "placeholder": "{{DNI_6}}",
+        "masked_original": "70****80"
+      }
+    ],
+    "DIRECCION": [
+      {
+        "placeholder": "{{DIRECCION_1}}",
+        "masked_original": "Mz....ima"
+      },
+      {
+        "placeholder": "{{DIRECCION_2}}",
+        "masked_original": "Av....503"
+      },
+      {
+        "placeholder": "{{DIRECCION_3}}",
+        "masked_original": "URB...MA."
+      },
+      {
+        "placeholder": "{{DIRECCION_4}}",
+        "masked_original": "Urb...tre"
+      },
+      {
+        "placeholder": "{{DIRECCION_5}}",
+        "masked_original": "MZ....PTO"
+      }
+    ],
+    "EMAIL": [
+      {
+        "placeholder": "{{EMAIL_1}}",
+        "masked_original": "ma***@gmail.com"
+      }
+    ],
+    "TELEFONO": [
+      {
+        "placeholder": "{{TELEFONO_1}}",
+        "masked_original": "995***76"
+      }
+    ]
+  },
+  "advertencias": [
+    "Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.",
+    "Los nombres fueron detectados mediante patrones. Pueden existir nombres adicionales no detectados."
+  ],
+  "version": "1.0.0"
+}

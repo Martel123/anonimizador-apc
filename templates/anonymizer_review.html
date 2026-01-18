@@ -1,0 +1,134 @@
+{% extends "base_anonymizer.html" %}
+
+{% block title %}Revisión - Anonimizador Legal{% endblock %}
+
+{% block content %}
+<div class="space-y-6 fade-in">
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6">
+            <div class="flex items-center space-x-4">
+                <div class="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
+                    <i class="fas fa-user-check text-white text-3xl"></i>
+                </div>
+                <div class="text-white">
+                    <h2 class="text-2xl font-semibold">Revisión requerida</h2>
+                    <p class="text-amber-100">Se detectaron {{ pending_count }} entidades que requieren confirmación</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-8">
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <div class="flex items-start">
+                    <i class="fas fa-exclamation-triangle text-amber-500 mt-1 mr-3"></i>
+                    <div class="text-sm text-amber-700">
+                        <p class="font-medium mb-1">Modo estricto activado</p>
+                        <p>El sistema detectó posibles nombres de personas que necesitan tu confirmación antes de ser anonimizados. 
+                           Revisa cada entidad y decide si debe ser anonimizada o conservada.</p>
+                    </div>
+                </div>
+            </div>
+
+            <form action="{{ url_for('anonymizer_apply_review', job_id=job_id) }}" method="POST" id="review-form">
+                <input type="hidden" name="job_id" value="{{ job_id }}">
+                
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-800">Entidades pendientes de revisión</h3>
+                        <div class="flex items-center space-x-2">
+                            <button type="button" id="select-all" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                                <i class="fas fa-check-double mr-1"></i> Seleccionar todos
+                            </button>
+                            <span class="text-gray-300">|</span>
+                            <button type="button" id="deselect-all" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+                                <i class="fas fa-times mr-1"></i> Deseleccionar todos
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        {% for entity in pending_entities %}
+                        <div class="entity-card bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-all">
+                            <label class="flex items-start cursor-pointer">
+                                <input type="checkbox" name="decisions[{{ entity.id }}]" value="true" 
+                                       class="entity-checkbox mt-1 w-5 h-5 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500" checked>
+                                <div class="ml-4 flex-1">
+                                    <div class="flex items-center space-x-2 mb-2">
+                                        <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">{{ entity.type }}</span>
+                                        <span class="text-xs text-gray-400">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
+                                    </div>
+                                    <p class="text-gray-800 font-medium">{{ entity.value }}</p>
+                                    <p class="text-sm text-gray-500 mt-1">
+                                        <span class="text-gray-400">Contexto:</span> 
+                                        "...{{ entity.context|replace(entity.value, '<mark class="bg-yellow-200 px-0.5 rounded">' + entity.value + '</mark>')|safe }}..."
+                                    </p>
+                                </div>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <h4 class="font-medium text-gray-700 mb-3 flex items-center">
+                        <i class="fas fa-chart-pie text-gray-400 mr-2"></i>
+                        Entidades ya anonimizadas ({{ confirmed_count }})
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {% for entity_type, count in entities_summary.items() %}
+                        <div class="bg-white rounded-lg p-3 text-center border border-gray-100">
+                            <div class="text-2xl font-bold text-indigo-600">{{ count }}</div>
+                            <div class="text-xs text-gray-600">{{ entity_type }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <button type="submit" class="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all flex items-center justify-center">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        Aplicar y descargar
+                    </button>
+                    <a href="{{ url_for('anonymizer_skip_review', job_id=job_id) }}" 
+                       class="py-4 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all flex items-center justify-center">
+                        <i class="fas fa-forward mr-2"></i>
+                        Omitir revisión
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
+        <div class="flex items-start">
+            <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+            <div class="text-sm text-blue-700">
+                <p class="font-medium mb-1">Cómo revisar</p>
+                <ul class="list-disc list-inside space-y-1">
+                    <li><strong>Casilla marcada:</strong> La entidad será anonimizada</li>
+                    <li><strong>Casilla desmarcada:</strong> La entidad se conservará tal cual</li>
+                    <li>Revisa el contexto para determinar si es información personal real</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllBtn = document.getElementById('select-all');
+    const deselectAllBtn = document.getElementById('deselect-all');
+    const checkboxes = document.querySelectorAll('.entity-checkbox');
+    
+    selectAllBtn.addEventListener('click', () => {
+        checkboxes.forEach(cb => cb.checked = true);
+    });
+    
+    deselectAllBtn.addEventListener('click', () => {
+        checkboxes.forEach(cb => cb.checked = false);
+    });
+});
+</script>
+{% endblock %}

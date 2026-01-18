@@ -12,7 +12,7 @@
                 </div>
                 <div class="text-white">
                     <h2 class="text-2xl font-semibold">Documento anonimizado</h2>
-                    <p class="text-green-100">Se detectaron y reemplazaron {{ total_entities }} datos personales</p>
+                    <p class="text-green-100">Se detectaron y reemplazaron {{ total_entities }} datos personales (modo: {{ mode }})</p>
                 </div>
             </div>
         </div>
@@ -41,6 +41,21 @@
                     </div>
                 </a>
             </div>
+
+            {% if has_mapping %}
+            <div class="mb-6">
+                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='mapping') }}" 
+                   class="flex items-center p-4 bg-teal-50 rounded-xl border-2 border-teal-200 hover:border-teal-400 hover:bg-teal-100 transition-all group">
+                    <div class="w-12 h-12 bg-teal-500 rounded-lg flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-table text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-800">Descargar diccionario de mapeo</p>
+                        <p class="text-sm text-gray-500">Tabla CSV con todas las sustituciones</p>
+                    </div>
+                </a>
+            </div>
+            {% endif %}
 
             <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
                 <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>
