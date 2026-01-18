@@ -1,0 +1,199 @@
+ESTE PROYECTO USA:
+- Backend: Python + Flask + Gunicorn
+- DOCX: python-docx
+- PDF: PyMuPDF (fitz)
+- NER: spaCy español
+- Regex: DNI, RUC, email, teléfono
+- Front: Jinja2 + Tailwind + JS vanilla
+
+NO QUIERO CAMBIAR:
+- El flujo
+- Las pantallas
+- La UI
+- La lógica de producto
+
+SOLO QUIERO:
+- Mejorar la DETECCIÓN (recall máximo)
+- Añadir POST-SCAN del resultado final
+- Evitar FUGAS
+
+REGLAS ABSOLUTAS:
+- NO reescribir texto.
+- SOLO reemplazo por TOKENS.
+- Cero almacenamiento (archivos solo en /tmp + borrado + TTL).
+- NO logs con contenido del documento.
+- Mantener todo el flujo actual.
+
+OBJETIVO MEDIBLE:
+Procesando un DOCX o PDF legal:
+- El resultado final NO debe contener:
+  - nombres reales
+  - DNIs reales
+  - correos reales
+  - teléfonos reales
+  - direcciones reales
+  - expediente / acta / casilla reales
+- Si algo queda:
+  - el POST-SCAN debe detectarlo y marcar needs_review=true (y bloquear descarga si ya existe ese comportamiento).
+
+========================
+IMPLEMENTACIÓN OBLIGATORIA
+========================
+
+1) DETECTOR POR ENSAMBLE (PIPELINE EN CAPAS)
+
+CAPA 1 — REGEX DETERMINÍSTICO (Python re)
+- DNI: 8 dígitos con anti-falsos positivos:
+  - NO reemplazar si cerca hay: S/, US$, %, soles, dólares.
+- RUC: 11 dígitos.
+- Email: regex estándar.
+- Teléfono:
+  - soportar +51 opcional
+  - 9 dígitos
+  - espacios, guiones, paréntesis.
+- Casilla / Expediente / Acta:
+  - detectar:
+    “CASILLA”, “EXPEDIENTE”, “Exp.”, “ACTA”, “N°”
+  - capturar el identificador completo (con guiones y números).
+
+CAPA 2 — HEURÍSTICA LEGAL PERÚ (CONTEXTO)
+- Si aparece “identificado con DNI”:
+  - capturar el NOMBRE COMPLETO cercano
+  - y el DNI cercano.
+- Si aparece “domicilio real” o “domicilio procesal”:
+  - capturar TODO el texto hasta:
+    “;” o “.” o salto de línea
+  - marcarlo como UNA SOLA DIRECCION.
+- Si aparece “correo electrónico” o “email”:
+  - capturar el email cercano.
+- Si aparece “teléfono”, “celular” o “WhatsApp”:
+  - capturar el teléfono cercano.
+
+CAPA 3 — PERSONAS (recall alto con spaCy + fallback)
+- Usa spaCy español (es_core_news_md o lg) para PERSON/ORG/LOC.
+- Si spaCy:
+  - no está instalado
+  - no carga
+  - o lanza excepción
+  => NO CRASHEAR, activar fallback:
+    - heurística:
+      - secuencias de 2 a 4 palabras en:
+        * TODO MAYÚSCULAS
+        * o Title Case
+      - cerca de disparadores:
+        demandante, demandado, señor, doña, abogado, menor, hijo, hija,
+        madre, padre, identificado, suscrito, interpone.
+- Lista de exclusión mínima:
+  SEÑOR, JUEZ, DEMANDA, SUMILLA, PETITORIO, FUNDAMENTOS, MEDIOS, PRUEBAS, ANEXOS, OTROSÍ.
+
+CAPA 4 — MERGE DE RESULTADOS
+- Unificar entidades de CAPA 1, 2 y 3.
+- Eliminar duplicados.
+- Resolver solapamientos:
+  - priorizar spans más largos.
+- Mantener mapping consistente:
+  - mismo valor real -> mismo TOKEN.
+- Tipos de token:
+  {{PERSONA_n}}, {{DNI_n}}, {{RUC_n}}, {{EMAIL_n}}, {{TELEFONO_n}},
+  {{DIRECCION_n}}, {{EXPEDIENTE_n}}, {{ACTA_n}}, {{CASILLA_n}}
+
+========================
+DOCX (CRÍTICO)
+========================
+
+- Con python-docx:
+  - recorrer:
+    - document.paragraphs
+    - document.tables
+    - headers
+    - footers
+- Implementar reemplazo RUN-AWARE:
+  - si el texto de una entidad está partido en varios runs,
+    igual debe reemplazarse completo.
+- La detección debe hacerse sobre TEXTO CONTINUO,
+  pero el reemplazo debe mapearse de vuelta a runs.
+
+========================
+PDF
+========================
+
+- Con PyMuPDF:
+  - extraer texto por páginas.
+  - trabajar sobre texto plano.
+- La salida PDF:
+  - si el pipeline actual reconstruye PDF, mantenerlo.
+  - si no, al menos devolver texto/DOCX.
+- Si el PDF es escaneado (sin texto):
+  - NO CRASHEAR.
+  - devolver error controlado: “PDF escaneado sin texto (OCR no incluido)”.
+
+========================
+POST-SCAN OBLIGATORIO
+========================
+
+- Después de generar el ARCHIVO FINAL:
+  - volver a extraer su texto.
+  - volver a correr CAPA 1 + CAPA 2 + CAPA 3.
+- Si se detecta CUALQUIER posible PII:
+  - set needs_review=true
+  - incluir lista de tipos detectados (sin mostrar texto).
+- Esto debe evitar fugas aunque algo falle antes.
+
+========================
+ROBUSTEZ
+========================
+
+- En TODO el pipeline:
+  - usar try/except.
+  - NUNCA devolver 500 sin control.
+- Si spaCy falla:
+  - usar fallback heurístico.
+- Si algo del reemplazo DOCX falla:
+  - NO crashear.
+  - marcar needs_review=true y devolver salida alternativa.
+
+========================
+PRUEBAS (OBLIGATORIAS)
+========================
+
+- Crear tests automáticos con pytest o similar:
+  - 1 DOCX fixture con:
+    - nombre completo en MAYÚSCULAS
+    - DNI, email, teléfono
+    - “domicilio real/procesal” con dirección larga
+    - expediente/acta/casilla
+    - también en header, footer y una tabla
+  - 1 PDF fixture (con texto real).
+- Tests deben verificar:
+  - que ninguno de los valores originales aparece en el output final
+  - que el post-scan no detecta PII residual (o marca needs_review=true).
+- Ejecutar tests y mostrar PASS.
+
+========================
+NO CAMBIAR:
+========================
+- UI
+- Flujo
+- Pantallas
+- Diseño
+- Producto
+
+SOLO:
+- Mejorar detección
+- Mejorar reemplazo
+- Añadir post-scan
+
+========================
+CHECKLIST FINAL (OBLIGATORIO)
+========================
+
+Al terminar, responde con:
+- Confirmación:
+  - CAPA 1 OK
+  - CAPA 2 OK
+  - CAPA 3 OK
+  - CAPA 4 OK
+  - DOCX run-aware OK
+  - PDF OK
+  - POST-SCAN OK
+- Output de tests: PASS

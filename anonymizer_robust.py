@@ -399,7 +399,7 @@ def detect_pii_regex_only(text: str) -> Tuple[List, List]:
 
 def detect_pii_with_fallback(text: str) -> Dict:
     """
-    STAGE 2: Detect PII with spaCy+regex, falling back to regex-only if NLP fails.
+    STAGE 2: Detect PII using 4-layer detection system.
     Returns a dict with confirmed entities, needs_review entities, and status.
     """
     result = {
@@ -407,33 +407,62 @@ def detect_pii_with_fallback(text: str) -> Dict:
         'confirmed': [],
         'needs_review': [],
         'detector_used': None,
-        'warning': None
+        'warning': None,
+        'metadata': {}
     }
     
     try:
-        import anonymizer as anon
+        # Use new 4-layer detection system
+        from detector_capas import detect_all_pii
         
-        try:
-            confirmed, needs_review = anon.detect_entities_hybrid(text)
-            result['confirmed'] = confirmed
-            result['needs_review'] = needs_review
-            result['detector_used'] = 'hybrid (spacy+regex)'
-            return result
-        except Exception as e:
-            logging.warning(f"Hybrid detection failed, falling back to regex-only: {e}")
-            result['warning'] = 'NLP no disponible, usando solo patrones regex'
+        entities, metadata = detect_all_pii(text)
+        result['metadata'] = metadata
         
-        confirmed, needs_review = detect_pii_regex_only(text)
+        # Convert Entity objects to tuple format for compatibility
+        confirmed = []
+        for e in entities:
+            # Format: (type, value, start, end, confidence)
+            confirmed.append((e.type, e.value, e.start, e.end, e.confidence))
+        
         result['confirmed'] = confirmed
-        result['needs_review'] = needs_review
-        result['detector_used'] = 'regex-only'
+        result['needs_review'] = []  # New system handles all entities as confirmed
+        
+        # Determine detector description
+        if metadata.get('spacy_used'):
+            result['detector_used'] = 'capas (spacy+regex+heuristic)'
+        else:
+            result['detector_used'] = 'capas (regex+heuristic)'
+        
         return result
         
     except Exception as e:
-        logging.error(f"PII detection failed completely: {e}")
-        result['success'] = False
-        result['warning'] = 'Error en detección de datos sensibles'
-        return result
+        logging.warning(f"New detector failed, falling back to legacy: {e}")
+        
+        # Fallback to legacy detection
+        try:
+            import anonymizer as anon
+            confirmed, needs_review = anon.detect_entities_hybrid(text)
+            result['confirmed'] = confirmed
+            result['needs_review'] = needs_review
+            result['detector_used'] = 'legacy (hybrid)'
+            result['warning'] = 'Usando detector legacy'
+            return result
+        except Exception as e2:
+            logging.warning(f"Legacy detection also failed: {e2}")
+        
+        # Final fallback to regex-only
+        try:
+            confirmed, needs_review = detect_pii_regex_only(text)
+            result['confirmed'] = confirmed
+            result['needs_review'] = needs_review
+            result['detector_used'] = 'regex-only'
+            result['warning'] = 'Usando solo patrones regex'
+            return result
+        except Exception as e3:
+            logging.error(f"All detection methods failed: {e3}")
+            result['success'] = False
+            result['warning'] = 'Error en detección de datos sensibles'
+            return result
 
 
 def anonymize_text_robust(text: str, confirmed_entities: List, mapping) -> Tuple[str, bool]:
@@ -472,6 +501,7 @@ def anonymize_docx_robust(doc, confirmed_entities: List, mapping) -> bool:
 def post_scan_final(anonymized_text: str, original_confirmed: List) -> Dict:
     """
     STAGE 4: Final scan to check if any PII might have been missed.
+    Uses the new 4-layer detection system on the final output.
     Returns scan result with needs_review flag.
     """
     result = {
@@ -481,14 +511,31 @@ def post_scan_final(anonymized_text: str, original_confirmed: List) -> Dict:
     }
     
     try:
-        import anonymizer as anon
-        missed = anon.post_verification(anonymized_text, original_confirmed)
-        if missed:
+        # Use new 4-layer post-scan
+        from detector_capas import post_scan_final as new_post_scan
+        
+        needs_review, detected = new_post_scan(anonymized_text)
+        if needs_review:
             result['needs_review'] = True
-            result['potential_issues'] = missed
+            # Convert to tuple format for compatibility
+            for item in detected:
+                # Create pseudo-entity tuples: (type, 'DETECTED', 0, 0, 1.0)
+                result['potential_issues'].append(
+                    (item['type'], f"POSIBLE_{item['type']}", 0, 0, 1.0)
+                )
+        
     except Exception as e:
-        logging.warning(f"Post-scan failed: {e}")
-        result['warning'] = 'Post-verificación no disponible'
+        logging.warning(f"New post-scan failed, trying legacy: {e}")
+        
+        try:
+            import anonymizer as anon
+            missed = anon.post_verification(anonymized_text, original_confirmed)
+            if missed:
+                result['needs_review'] = True
+                result['potential_issues'] = missed
+        except Exception as e2:
+            logging.warning(f"Legacy post-scan also failed: {e2}")
+            result['warning'] = 'Post-verificación no disponible'
     
     return result
 
