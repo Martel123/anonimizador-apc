@@ -1,0 +1,90 @@
+Eres un Ingeniero Full-Stack Senior y Product Builder. Vas a crear un nuevo proyecto llamado “Anonimizador Legal” reutilizando como base el repositorio actual (mi sistema de Centro de Conciliación). OBJETIVO: que al final, al correr la app, exista una página principal (/) con un anonimizador funcional: subo un archivo (DOCX o PDF), se anonimizan datos personales, me muestra un resumen y me deja descargar el archivo anonimizado + un reporte.
+
+REGLAS IMPORTANTES
+1) NO rompas nada del repo base sin necesidad: reutiliza su layout, estilos, header, componentes, autenticación si existe. Pero si el repo base es muy grande, puedes dejar solo lo necesario para esta app.
+2) Debes INSPECCIONAR primero el repositorio y decidir el stack real (Flask/FastAPI/Node/Next/etc). NO asumas. Después implementa en el stack que ya existe.
+3) El anonimizador NO debe depender de servicios pagos. Prioriza librerías open-source. Si falta alguna, agrégala a requirements/package.
+4) Privacidad: por defecto NO guardes documentos en base de datos. Procesa en memoria y guarda solo temporalmente en /tmp o carpeta local con expiración. Borra el archivo procesado automáticamente (por ejemplo, después de 30 minutos) o al terminar la descarga.
+5) UI: debe ser simple y limpia (tipo SaaS). Un card central con drag&drop. Barra de progreso real o simulada si el procesamiento es corto. Sin exceso de botones.
+6) Salida: el usuario debe poder descargar:
+   - Archivo anonimizado (DOCX o PDF)
+   - Reporte (JSON y/o TXT) con: fecha, tipo de archivo, cuántas entidades detectadas por tipo (DNI, email, teléfono, dirección, nombres), y lista de reemplazos (sin mostrar el dato real completo; enmascara parte).
+7) Placeholders: usa placeholders consistentes:
+   - Nombres -> {{NOMBRE_1}}, {{NOMBRE_2}} o {{PERSONA_1}}
+   - DNI -> {{DNI_1}}
+   - Teléfono -> {{TELEFONO_1}}
+   - Email -> {{EMAIL_1}}
+   - Dirección -> {{DIRECCION_1}}
+   - RUC -> {{RUC_1}}
+   - Expediente/Juzgado/Casilla (si detectas) -> {{EXPEDIENTE_1}}, {{JUZGADO_1}}, {{CASILLA_1}}
+   Además: si el documento tiene campos faltantes como en mis modelos, respeta el estilo {{FALTA_DATO}}.
+   (Referencia del estilo: mis documentos tienen placeholders {{FALTA_DATO}} repetidos en múltiples campos.)
+
+FUNCIONALIDAD MÍNIMA (MVP) – DEBE QUEDAR LISTA HOY
+A) Subida de archivos
+- Aceptar .docx y .pdf
+- Validar tamaño (ej: 10MB) y páginas si es PDF (ej: 50 páginas). Si excede: mostrar error amigable.
+
+B) Anonimización DOCX
+- Extraer texto de párrafos y tablas.
+- Detectar PII por reglas:
+  - DNI: patrones de 8 dígitos con validaciones simples (no reemplazar números que parezcan montos con separadores).
+  - RUC: 11 dígitos
+  - Email: regex estándar
+  - Teléfono: patrones 9 dígitos en PE y variantes con +51
+  - Direcciones: heurística: palabras clave (Av., Jr., Calle, Mz., Lote, Dpto., Urb., Distrito, Provincia) + tramo de texto cercano
+  - Nombres: heurística inicial:
+      - Secuencias de palabras en mayúsculas o Título (2-4 tokens) cerca de “identificado”, “demandante”, “demandado”, “señor”, “doña”, “abogado”, “madre/padre”, “menor”
+- Reemplazar por placeholders consistentes, manteniendo consistencia (si el mismo DNI aparece 3 veces, siempre {{DNI_1}}).
+- Guardar DOCX anonimizado para descarga.
+
+C) Anonimización PDF
+- Si es PDF de texto: extraer texto y “redactar” reescribiendo a un nuevo PDF (mínimo viable) o generar un PDF con el texto anonimizado conservando formato básico.
+- Si es escaneado: informar “PDF escaneado: por ahora solo soportamos PDFs con texto” (MVP) o implementar OCR opcional si es fácil con una librería libre.
+- IMPORTANTE: aunque el PDF final no conserve el mismo layout perfecto en MVP, debe ser descargable y legible.
+
+D) Pantalla de resultados
+- Mostrar:
+  - “Procesado exitosamente”
+  - Contadores por tipo: DNI, Email, Teléfono, Dirección, Nombre, RUC, etc.
+  - Botones: “Descargar archivo anonimizado” y “Descargar reporte”
+  - Botón: “Procesar otro documento”
+- Mostrar advertencias si detectas cosas inciertas (ej: direcciones heurísticas).
+
+E) Endpoints / Rutas
+- GET / -> home subida
+- POST /api/anonymize -> recibe archivo, devuelve job_id o responde directo si es rápido
+- GET /download/:id -> descarga doc
+- GET /report/:id -> descarga reporte
+
+IMPLEMENTACIÓN (PASOS OBLIGATORIOS)
+1) Auditoría del repo:
+   - Lista estructura, framework, rutas, cómo corre.
+   - Identifica dónde está el layout principal y componentes UI.
+2) Crear módulo/servicio “anonymizer”:
+   - funciones: detect_entities(text), replace_entities(text, mapping), anonymize_docx(file), anonymize_pdf(file)
+   - mapping global por documento.
+3) UI:
+   - Reutiliza estilos del proyecto base, pero adapta textos y navegación a “Anonimizador Legal”.
+4) Testing manual:
+   - Crea un archivo de prueba interno o usa un texto sample.
+   - Asegura que descarga funcione.
+5) Documentación rápida:
+   - README: cómo correr, límites, privacidad, formatos soportados.
+6) Deja TODO funcionando al presionar Run.
+
+BONUS (SI ALCANZA)
+- Modo “Legal Perú” (toggle):
+  - Prioriza DNI, RUC, direcciones peruanas.
+- Modo “IA Segura”:
+  - además de PII, elimina: casilla electrónica, números de expediente, firmas.
+
+ENTREGABLES
+- App funcionando en / (home).
+- Anonimiza DOCX seguro.
+- PDF: mínimo viable.
+- Descargas: archivo + reporte.
+- Código limpio y comentado.
+- README.
+
+Ahora empieza. Primero inspecciona el repo, describe el stack y luego implementa.
