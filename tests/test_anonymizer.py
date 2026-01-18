@@ -1,6 +1,7 @@
 """
 Automated tests for the Legal Document Anonymizer.
 Tests regex detection, NER integration, and placeholder preservation.
+Only Tokens mode is supported.
 """
 
 import os
@@ -95,36 +96,32 @@ class TestPlaceholderPreservation(unittest.TestCase):
         self.assertEqual(len(placeholder_positions), 3)
 
 
-class TestSubstitutionModes(unittest.TestCase):
-    """Tests for the three substitution modes."""
+class TestTokenMode(unittest.TestCase):
+    """Tests for the Token substitution mode (only mode available)."""
     
-    def test_token_mode(self):
-        """Test token-based substitution."""
-        mapping = anon.EntityMapping(mode=anon.SubstitutionMode.TOKENS)
+    def test_token_format(self):
+        """Test token-based substitution format."""
+        mapping = anon.EntityMapping()
         result = mapping.get_substitute('DNI', '12345678')
         self.assertTrue(result.startswith('{{'), "Should produce token placeholder")
         self.assertTrue(result.endswith('}}'), "Should produce token placeholder")
         self.assertIn('DNI', result)
     
-    def test_asterisk_mode(self):
-        """Test asterisk-based redaction."""
-        mapping = anon.EntityMapping(mode=anon.SubstitutionMode.ASTERISKS)
-        result = mapping.get_substitute('DNI', '12345678')
-        self.assertTrue('*' in result, "Should contain asterisks")
-    
-    def test_synthetic_mode(self):
-        """Test synthetic data generation."""
-        mapping = anon.EntityMapping(mode=anon.SubstitutionMode.SYNTHETIC)
-        result = mapping.get_substitute('DNI', '12345678')
-        self.assertTrue(result.isdigit(), "Synthetic DNI should be numeric")
-        self.assertEqual(len(result), 8, "Synthetic DNI should have 8 digits")
-    
     def test_consistent_mapping(self):
         """Test that same value gets same placeholder."""
-        mapping = anon.EntityMapping(mode=anon.SubstitutionMode.TOKENS)
+        mapping = anon.EntityMapping()
         result1 = mapping.get_substitute('DNI', '12345678')
         result2 = mapping.get_substitute('DNI', '12345678')
         self.assertEqual(result1, result2, "Same value should get same placeholder")
+    
+    def test_different_values_different_tokens(self):
+        """Test that different values get different tokens."""
+        mapping = anon.EntityMapping()
+        result1 = mapping.get_substitute('DNI', '12345678')
+        result2 = mapping.get_substitute('DNI', '87654321')
+        self.assertNotEqual(result1, result2, "Different values should get different tokens")
+        self.assertEqual(result1, '{{DNI_1}}')
+        self.assertEqual(result2, '{{DNI_2}}')
 
 
 class TestMoneyExclusion(unittest.TestCase):
@@ -158,6 +155,40 @@ class TestExcludedWords(unittest.TestCase):
         person_entities = [e for e in entities if e[0] == 'PERSONA']
         for entity in person_entities:
             self.assertNotIn('SEÑOR JUEZ', entity[1].upper())
+
+
+class TestCompleteAnonymization(unittest.TestCase):
+    """End-to-end tests for complete anonymization."""
+    
+    def test_full_document_anonymization(self):
+        """Test that a document with all PII types is fully anonymized."""
+        test_text = """
+        SEÑOR JUEZ DEL JUZGADO CIVIL DE LIMA
+        
+        El demandante don EDUARDO GAMARRA PÉREZ, identificado con DNI 46789123,
+        con domicilio real en JIRÓN LAS PALMERAS N°2121 BLOQUE B DPTO 301 URB. LOS JARDINES DISTRITO SAN ISIDRO;
+        correo electrónico eduardo.gamarra@gmail.com y celular 987654321,
+        interpone demanda.
+        """
+        
+        anonymized, summary, mapping, needs_review = anon.anonymize_text(test_text)
+        
+        self.assertNotIn('EDUARDO', anonymized.upper())
+        self.assertNotIn('GAMARRA', anonymized.upper())
+        self.assertNotIn('PÉREZ', anonymized.upper())
+        self.assertNotIn('46789123', anonymized)
+        self.assertNotIn('eduardo.gamarra@gmail.com', anonymized.lower())
+        self.assertNotIn('987654321', anonymized)
+        
+        self.assertIn('{{', anonymized)
+        self.assertIn('}}', anonymized)
+    
+    def test_address_complete_replacement(self):
+        """Test that full address is replaced as single token."""
+        text = "con domicilio real en Av. Los Pinos 123, Miraflores, Lima."
+        confirmed, _ = anon.detect_entities_hybrid(text)
+        addr_entities = [e for e in confirmed if e[0] == 'DIRECCION']
+        self.assertTrue(len(addr_entities) > 0, "Address should be detected")
 
 
 def run_smoke_test():
@@ -196,11 +227,18 @@ def run_smoke_test():
     if len(placeholders) != 1:
         errors.append(f"Expected 1 placeholder, found {len(placeholders)}")
     
-    for mode in [anon.SubstitutionMode.TOKENS, anon.SubstitutionMode.ASTERISKS, anon.SubstitutionMode.SYNTHETIC]:
-        mapping = anon.EntityMapping(mode=mode)
-        result = mapping.get_substitute('DNI', '12345678')
-        if not result:
-            errors.append(f"Mode {mode} failed to produce substitution")
+    mapping = anon.EntityMapping()
+    result = mapping.get_substitute('DNI', '12345678')
+    if result != '{{DNI_1}}':
+        errors.append(f"Token format incorrect: {result}")
+    
+    anonymized, summary, _, _ = anon.anonymize_text(test_text)
+    if 'EDUARDO' in anonymized.upper():
+        errors.append("Name EDUARDO still present in anonymized text")
+    if '12345678' in anonymized:
+        errors.append("DNI still present in anonymized text")
+    if 'eduardo@email.com' in anonymized.lower():
+        errors.append("Email still present in anonymized text")
     
     if errors:
         print("\nFAILED - Errors found:")
@@ -212,6 +250,8 @@ def run_smoke_test():
         print(f"  - Detected {len(all_entities)} entities")
         print(f"  - Entity types: {', '.join(sorted(entity_types))}")
         print(f"  - Placeholders preserved: {len(placeholders)}")
+        print(f"  - Token format verified: {{DNI_1}}")
+        print(f"  - Full anonymization verified")
         return True
 
 

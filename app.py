@@ -1575,9 +1575,7 @@ def anonymizer_process():
         flash(f"El archivo excede el tamaño máximo de {anon_module.MAX_FILE_SIZE_MB} MB.", "error")
         return redirect(url_for('anonymizer_home'))
     
-    modo = request.form.get('modo', 'tokens')
-    if modo not in ['tokens', 'asterisks', 'synthetic']:
-        modo = 'tokens'
+    modo = 'tokens'
     strict_mode = 'strict_mode' in request.form
     generate_mapping = 'generate_mapping' in request.form
     
@@ -1589,12 +1587,15 @@ def anonymizer_process():
     try:
         needs_review = []
         
+        document_text = ""
+        
         if ext == '.docx':
             doc, summary, mapping, needs_review = anon_module.anonymize_docx(temp_path, mode=modo, strict_mode=strict_mode)
             output_filename = f"{job_id}_anonimizado.docx"
             output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
             anon_module.save_anonymized_docx(doc, output_path)
             output_type = 'docx'
+            document_text = anon_module.extract_docx_text(output_path)
         else:
             text, summary, mapping, is_scanned, needs_review = anon_module.anonymize_pdf(temp_path, mode=modo, strict_mode=strict_mode)
             if is_scanned:
@@ -1608,6 +1609,7 @@ def anonymizer_process():
             with open(text_path, 'w', encoding='utf-8') as f:
                 f.write(text)
             output_type = 'pdf'
+            document_text = text
         
         report = anon_module.generate_report(summary, original_filename, ext.upper())
         report_json_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.json")
@@ -1633,7 +1635,8 @@ def anonymizer_process():
             'generate_mapping': generate_mapping,
             'needs_review': needs_review,
             'summary': summary,
-            'mapping_state': mapping.to_dict()
+            'mapping_state': mapping.to_dict(),
+            'document_text': document_text[:50000] if len(document_text) > 50000 else document_text
         }
         state_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_state.json")
         with open(state_path, 'w', encoding='utf-8') as f:
@@ -1647,7 +1650,8 @@ def anonymizer_process():
                                  pending_count=len(needs_review),
                                  pending_entities=needs_review,
                                  confirmed_count=summary.get('total_entities', 0),
-                                 entities_summary=summary.get('entities_found', {}))
+                                 entities_summary=summary.get('entities_found', {}),
+                                 document_text=document_text[:50000] if len(document_text) > 50000 else document_text)
         
         return render_template("anonymizer_result.html",
                              job_id=job_id,
@@ -1692,8 +1696,22 @@ def anonymizer_apply_review(job_id):
             entity_id = key[10:-1]
             decisions[entity_id] = True
     
+    manual_entities_json = request.form.get('manual_entities', '[]')
+    try:
+        manual_entities = json.loads(manual_entities_json)
+    except:
+        manual_entities = []
+    
     pending_entities = job_state.get('needs_review', [])
     approved_entities = [e for e in pending_entities if decisions.get(e['id'], False)]
+    
+    for me in manual_entities:
+        approved_entities.append({
+            'id': me.get('id', 'manual'),
+            'type': me.get('type', 'PERSONA'),
+            'value': me.get('value', '')
+        })
+    
     approved_count = len(approved_entities)
     
     output_type = job_state.get('output_type', 'docx')

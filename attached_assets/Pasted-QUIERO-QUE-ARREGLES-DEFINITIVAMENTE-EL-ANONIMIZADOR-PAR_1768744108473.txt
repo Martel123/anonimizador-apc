@@ -1,0 +1,181 @@
+QUIERO QUE ARREGLES DEFINITIVAMENTE EL ANONIMIZADOR PARA QUE NO VUELVA A FALLAR.
+
+NO QUIERO REDISEÑAR LA APP.
+NO QUIERO QUITAR EL FLUJO ACTUAL.
+QUIERO MANTENER:
+- Pantalla de subida
+- Pantalla de procesamiento
+- Pantalla de resultados
+- Pantalla de revisión
+- Contadores
+- Modo estricto
+- Optimizar para IA
+- Cero almacenamiento
+
+CAMBIO DE PRODUCTO (DECISIÓN FINAL):
+- ELIMINA COMPLETAMENTE:
+  - Modo “Sintético”
+  - Modo “Asteriscos”
+- DEJA SOLO:
+  - Modo “Tokens”
+
+REGLAS DURAS DEL MOTOR (NO NEGOCIABLE)
+- PROHIBIDO:
+  - Reescribir texto
+  - Resumir
+  - Reformular
+  - Generar nombres o datos nuevos
+  - Insertar texto inventado
+- SOLO se permite:
+  - Reemplazo 1:1 de spans detectados por TOKENS determinísticos.
+
+TOKENS EXACTOS A USAR:
+- {{PERSONA_1}}, {{PERSONA_2}}, ...
+- {{DNI_1}}
+- {{RUC_1}}
+- {{EMAIL_1}}
+- {{TELEFONO_1}}
+- {{DIRECCION_1}}
+- {{EXPEDIENTE_1}}
+- {{ACTA_1}}
+- {{CASILLA_1}}
+
+Si el documento ya tiene {{FALTA_DATO}} o {{...}}, NO los toques.
+
+OBJETIVO DE CALIDAD
+“CERO FUGAS OPERATIVAS”:
+No puede existir ningún caso donde el usuario descargue un documento con PII real.
+
+FLUJO OBLIGATORIO (MUY IMPORTANTE)
+1) El sistema:
+   - Detecta automáticamente PII
+   - Aplica TOKENS
+2) Luego hace POST-SCAN del DOCUMENTO FINAL:
+   - Con NER + reglas
+3) Si se detecta CUALQUIER posible PII residual:
+   - BLOQUEAR descarga
+   - ENTRAR en modo revisión obligatoria
+
+PANTALLA DE REVISIÓN (NUEVO COMPORTAMIENTO CLAVE)
+En la pantalla de revisión:
+- Muestra el texto del documento con:
+  - Lo detectado automáticamente resaltado
+- ADEMÁS:
+  - Permite al usuario:
+    - Seleccionar con el mouse cualquier fragmento del texto
+    - Marcarlo como:
+      - PERSONA
+      - DNI
+      - DIRECCION
+      - EMAIL
+      - TELEFONO
+      - RUC
+      - EXPEDIENTE / ACTA / CASILLA
+  - Al marcarlo:
+    - Se añade a la lista de reemplazos
+    - Se reemplaza por el token correspondiente
+
+El usuario puede:
+- Corregir falsos negativos (cosas que la IA no vio)
+- Corregir falsos positivos
+- Añadir manualmente campos sensibles
+
+SOLO cuando:
+- El usuario presione “Aplicar y continuar”
+- El sistema vuelva a hacer POST-SCAN
+- Y NO se detecte ningún PII residual
+
+➡️ Recién ahí:
+- Se habilita el botón “Descargar documento anonimizado”
+
+DETECCIÓN AUTOMÁTICA (OBLIGATORIA)
+1) DOCX:
+- Procesar:
+  - párrafos
+  - tablas
+  - headers
+  - footers
+- Manejar “runs” (texto fragmentado), porque ahí se están escapando nombres.
+
+2) Direcciones (REGLA DURA):
+- Si aparece:
+  - “domicilio real”
+  - “domicilio procesal”
+- Reemplaza TODA la frase hasta el siguiente “;” o “.” como {{DIRECCION_n}}
+
+- También detectar direcciones en mayúsculas:
+  - JIRON / AV / CALLE + N° + BLOQUE / DPTO / URB / DISTRITO
+
+3) Personas:
+- NER en español
+- + heurística legal:
+  - “identificado”
+  - “demandante”
+  - “demandado”
+  - “señor”
+  - “doña”
+  - “abogado”
+  - “madre”
+  - “padre”
+  - “menor”
+  - “hijos”
+
+4) DNI / RUC / Email / Teléfono / Casilla / Expediente / Acta:
+- Regex robustos
+
+5) Exclusiones:
+- No marcar palabras legales comunes:
+  - SEÑOR
+  - JUEZ
+  - DEMANDA
+  - etc.
+
+OPTIMIZAR PARA IA (SOLO LIMPIEZA)
+Si el toggle está ON:
+- Eliminar:
+  - headers repetidos
+  - footers repetidos
+  - numeración de páginas
+  - espacios vacíos excesivos
+  - líneas repetidas
+  - anotaciones internas tipo:
+    - “sumalo”
+    - “nota”
+    - “esto cambiar”
+- NO resumir
+- NO reformular
+- NO cambiar el sentido
+
+PRIVACIDAD (MANTENER)
+- Cero base de datos
+- Archivos solo en /tmp por job_id
+- Borrar:
+  - al descargar
+  - y por TTL automático
+- No logs con contenido
+
+PRUEBAS OBLIGATORIAS
+- Crea un test automático con un texto que contenga:
+  - “EDUARDO GAMARRA PÉREZ”
+  - un DNI
+  - un email
+  - un teléfono
+  - una dirección larga tipo:
+    “JIRÓN ... N°2121 BLOQUE ... DPTO ... URB ... DISTRITO ...”
+- El test debe verificar que:
+  - NADA de eso aparece en el resultado final
+- Ejecuta los tests y muestra “PASS” antes de terminar.
+
+ENTREGABLE DE ESTA ITERACIÓN
+- UI sigue igual, solo:
+  - Ya no existe Sintético ni Asteriscos
+- Existe:
+  - Revisión interactiva con selección manual
+- Nunca se puede descargar si queda PII
+- DOCX no deja escapar nada (headers, footers, runs, tablas)
+- Optimizar para IA funciona
+- Tests pasan
+
+NO AGREGUES FEATURES NUEVAS.
+NO CAMBIES EL PRODUCTO.
+SOLO CIERRA BIEN ESTO PARA QUE NO FALLE NUNCA MAS.

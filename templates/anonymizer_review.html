@@ -23,18 +23,45 @@
                     <i class="fas fa-exclamation-triangle text-amber-500 mt-1 mr-3"></i>
                     <div class="text-sm text-amber-700">
                         <p class="font-medium mb-1">Modo estricto activado</p>
-                        <p>El sistema detectó posibles nombres de personas que necesitan tu confirmación antes de ser anonimizados. 
-                           Revisa cada entidad y decide si debe ser anonimizada o conservada.</p>
+                        <p>El sistema detectó posible información personal. Revisa las entidades detectadas y 
+                           <strong>selecciona texto adicional</strong> si encuentras datos que no fueron detectados.</p>
                     </div>
+                </div>
+            </div>
+
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 class="font-medium text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-file-alt text-gray-400 mr-2"></i>
+                    Vista previa del documento
+                </h4>
+                <p class="text-xs text-gray-500 mb-3">
+                    <i class="fas fa-mouse-pointer mr-1"></i>
+                    Selecciona cualquier texto con el mouse y elige el tipo de entidad para anonimizarlo.
+                </p>
+                <div id="document-preview" class="bg-white p-4 rounded border border-gray-200 max-h-64 overflow-y-auto text-sm whitespace-pre-wrap font-mono">{{ document_text }}</div>
+            </div>
+
+            <div id="selection-toolbar" class="hidden fixed bg-white shadow-xl rounded-lg p-3 border border-gray-200 z-50">
+                <p class="text-xs text-gray-500 mb-2">Marcar selección como:</p>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="mark-btn px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium hover:bg-purple-200" data-type="PERSONA">PERSONA</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200" data-type="DNI">DNI</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium hover:bg-yellow-200" data-type="DIRECCION">DIRECCIÓN</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium hover:bg-blue-200" data-type="EMAIL">EMAIL</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200" data-type="TELEFONO">TELÉFONO</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium hover:bg-orange-200" data-type="RUC">RUC</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-pink-100 text-pink-700 rounded text-xs font-medium hover:bg-pink-200" data-type="EXPEDIENTE">EXPEDIENTE</button>
+                    <button type="button" class="mark-btn px-3 py-1 bg-cyan-100 text-cyan-700 rounded text-xs font-medium hover:bg-cyan-200" data-type="CASILLA">CASILLA</button>
                 </div>
             </div>
 
             <form action="{{ url_for('anonymizer_apply_review', job_id=job_id) }}" method="POST" id="review-form">
                 <input type="hidden" name="job_id" value="{{ job_id }}">
+                <input type="hidden" name="manual_entities" id="manual-entities" value="[]">
                 
                 <div class="mb-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-800">Entidades pendientes de revisión</h3>
+                        <h3 class="font-semibold text-gray-800">Entidades detectadas automáticamente</h3>
                         <div class="flex items-center space-x-2">
                             <button type="button" id="select-all" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
                                 <i class="fas fa-check-double mr-1"></i> Seleccionar todos
@@ -46,7 +73,7 @@
                         </div>
                     </div>
 
-                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                    <div class="space-y-3 max-h-64 overflow-y-auto">
                         {% for entity in pending_entities %}
                         <div class="entity-card bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-all">
                             <label class="flex items-start cursor-pointer">
@@ -69,6 +96,14 @@
                     </div>
                 </div>
 
+                <div id="manual-entities-section" class="mb-6 hidden">
+                    <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-hand-pointer text-indigo-500 mr-2"></i>
+                        Entidades marcadas manualmente
+                    </h3>
+                    <div id="manual-entities-list" class="space-y-2"></div>
+                </div>
+
                 <div class="bg-gray-50 rounded-lg p-4 mb-6">
                     <h4 class="font-medium text-gray-700 mb-3 flex items-center">
                         <i class="fas fa-chart-pie text-gray-400 mr-2"></i>
@@ -87,12 +122,12 @@
                 <div class="flex flex-col sm:flex-row gap-4">
                     <button type="submit" class="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all flex items-center justify-center">
                         <i class="fas fa-check-circle mr-2"></i>
-                        Aplicar y descargar
+                        Aplicar y continuar
                     </button>
-                    <a href="{{ url_for('anonymizer_skip_review', job_id=job_id) }}" 
+                    <a href="{{ url_for('anonymizer_home') }}" 
                        class="py-4 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all flex items-center justify-center">
-                        <i class="fas fa-forward mr-2"></i>
-                        Omitir revisión
+                        <i class="fas fa-times mr-2"></i>
+                        Cancelar
                     </a>
                 </div>
             </form>
@@ -105,9 +140,9 @@
             <div class="text-sm text-blue-700">
                 <p class="font-medium mb-1">Cómo revisar</p>
                 <ul class="list-disc list-inside space-y-1">
-                    <li><strong>Casilla marcada:</strong> La entidad será anonimizada</li>
+                    <li><strong>Casilla marcada:</strong> La entidad será anonimizada con un token</li>
                     <li><strong>Casilla desmarcada:</strong> La entidad se conservará tal cual</li>
-                    <li>Revisa el contexto para determinar si es información personal real</li>
+                    <li><strong>Selección manual:</strong> Selecciona texto en la vista previa para marcar datos que no fueron detectados</li>
                 </ul>
             </div>
         </div>
@@ -121,6 +156,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllBtn = document.getElementById('select-all');
     const deselectAllBtn = document.getElementById('deselect-all');
     const checkboxes = document.querySelectorAll('.entity-checkbox');
+    const preview = document.getElementById('document-preview');
+    const toolbar = document.getElementById('selection-toolbar');
+    const manualInput = document.getElementById('manual-entities');
+    const manualSection = document.getElementById('manual-entities-section');
+    const manualList = document.getElementById('manual-entities-list');
+    
+    let manualEntities = [];
+    let selectedText = '';
     
     selectAllBtn.addEventListener('click', () => {
         checkboxes.forEach(cb => cb.checked = true);
@@ -129,6 +172,76 @@ document.addEventListener('DOMContentLoaded', function() {
     deselectAllBtn.addEventListener('click', () => {
         checkboxes.forEach(cb => cb.checked = false);
     });
+    
+    preview.addEventListener('mouseup', function(e) {
+        const selection = window.getSelection();
+        selectedText = selection.toString().trim();
+        
+        if (selectedText.length > 1) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            
+            toolbar.style.top = (rect.bottom + window.scrollY + 10) + 'px';
+            toolbar.style.left = Math.max(10, Math.min(rect.left + window.scrollX, window.innerWidth - 400)) + 'px';
+            toolbar.classList.remove('hidden');
+        } else {
+            toolbar.classList.add('hidden');
+        }
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!toolbar.contains(e.target) && !preview.contains(e.target)) {
+            toolbar.classList.add('hidden');
+        }
+    });
+    
+    document.querySelectorAll('.mark-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const entityType = this.dataset.type;
+            
+            if (selectedText && !manualEntities.find(e => e.value === selectedText)) {
+                manualEntities.push({
+                    id: 'manual_' + Date.now(),
+                    type: entityType,
+                    value: selectedText
+                });
+                
+                updateManualEntitiesList();
+                manualInput.value = JSON.stringify(manualEntities);
+                
+                toolbar.classList.add('hidden');
+                window.getSelection().removeAllRanges();
+            }
+        });
+    });
+    
+    function updateManualEntitiesList() {
+        if (manualEntities.length > 0) {
+            manualSection.classList.remove('hidden');
+            manualList.innerHTML = manualEntities.map((e, idx) => `
+                <div class="flex items-center justify-between bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                    <div class="flex items-center space-x-3">
+                        <span class="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">${e.type}</span>
+                        <span class="text-gray-800 font-medium">${e.value}</span>
+                    </div>
+                    <button type="button" class="remove-manual text-red-500 hover:text-red-700" data-idx="${idx}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+            
+            document.querySelectorAll('.remove-manual').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.idx);
+                    manualEntities.splice(idx, 1);
+                    updateManualEntitiesList();
+                    manualInput.value = JSON.stringify(manualEntities);
+                });
+            });
+        } else {
+            manualSection.classList.add('hidden');
+        }
+    }
 });
 </script>
 {% endblock %}

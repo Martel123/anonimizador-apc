@@ -147,23 +147,19 @@ PERUVIAN_DISTRICTS = [
 
 class SubstitutionMode:
     TOKENS = 'tokens'
-    ASTERISKS = 'asterisks'
-    SYNTHETIC = 'synthetic'
 
 
 class EntityMapping:
-    """Maintains consistent mapping of entities to placeholders/substitutes."""
+    """Maintains consistent mapping of entities to token placeholders."""
     
     def __init__(self, mode: str = SubstitutionMode.TOKENS):
-        self.mode = mode
+        self.mode = SubstitutionMode.TOKENS
         self.mappings: Dict[str, Dict[str, str]] = defaultdict(dict)
         self.counters: Dict[str, int] = defaultdict(int)
         self.reverse_mappings: Dict[str, Dict[str, str]] = defaultdict(dict)
-        self._used_synthetic_names: Set[str] = set()
-        self._synthetic_data_cache: Dict[str, str] = {}
     
     def get_substitute(self, entity_type: str, value: str) -> str:
-        """Get or create a substitute for a value based on mode."""
+        """Get or create a token placeholder for a value."""
         normalized = value.strip()
         normalized_key = normalized.upper()
         
@@ -171,108 +167,15 @@ class EntityMapping:
             return self.mappings[entity_type][normalized_key]
         
         self.counters[entity_type] += 1
-        
-        if self.mode == SubstitutionMode.TOKENS:
-            substitute = f"{{{{{entity_type}_{self.counters[entity_type]}}}}}"
-        elif self.mode == SubstitutionMode.ASTERISKS:
-            substitute = self._generate_asterisks(value, entity_type)
-        else:
-            substitute = self._generate_synthetic(value, entity_type)
+        substitute = f"{{{{{entity_type}_{self.counters[entity_type]}}}}}"
         
         self.mappings[entity_type][normalized_key] = substitute
         self.reverse_mappings[entity_type][substitute] = {
             'original_masked': self._mask_value(value, entity_type),
-            'original': value if self.mode != SubstitutionMode.TOKENS else None
+            'original': None
         }
         
         return substitute
-    
-    def _generate_asterisks(self, value: str, entity_type: str) -> str:
-        """Generate asterisk-based redaction."""
-        if entity_type == 'DNI':
-            return '********'
-        elif entity_type == 'RUC':
-            return '***********'
-        elif entity_type == 'EMAIL':
-            parts = value.split('@')
-            if len(parts) == 2:
-                return '****@****.' + parts[1].split('.')[-1] if '.' in parts[1] else '****@****.***'
-            return '****@****.***'
-        elif entity_type == 'TELEFONO':
-            return '*' * len(re.sub(r'\D', '', value))
-        elif entity_type in ['PERSONA', 'NOMBRE']:
-            words = value.split()
-            return ' '.join('*' * len(w) for w in words)
-        elif entity_type == 'DIRECCION':
-            return '[DIRECCIÓN REDACTADA]'
-        elif entity_type == 'EXPEDIENTE':
-            return '*****-****-*-****-**-**-**'
-        elif entity_type == 'CASILLA':
-            return 'CASILLA ****'
-        elif entity_type == 'JUZGADO':
-            return '[JUZGADO REDACTADO]'
-        return '*' * len(value)
-    
-    def _generate_synthetic(self, value: str, entity_type: str) -> str:
-        """Generate synthetic data that maintains format."""
-        cache_key = f"{entity_type}:{value.upper()}"
-        if cache_key in self._synthetic_data_cache:
-            return self._synthetic_data_cache[cache_key]
-        
-        synthetic = self._create_synthetic(value, entity_type)
-        self._synthetic_data_cache[cache_key] = synthetic
-        return synthetic
-    
-    def _create_synthetic(self, value: str, entity_type: str) -> str:
-        """Create synthetic replacement data."""
-        if entity_type == 'DNI':
-            return str(random.randint(10000000, 99999999))
-        elif entity_type == 'RUC':
-            prefix = random.choice(['10', '20'])
-            return prefix + str(random.randint(100000000, 999999999))
-        elif entity_type == 'EMAIL':
-            first = random.choice(PERUVIAN_FIRST_NAMES).lower()
-            last = random.choice(PERUVIAN_LAST_NAMES).lower()
-            last = last.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u').replace('ñ', 'n')
-            domains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com']
-            return f"{first}.{last}{random.randint(1, 99)}@{random.choice(domains)}"
-        elif entity_type == 'TELEFONO':
-            return f"9{random.randint(10000000, 99999999)}"
-        elif entity_type in ['PERSONA', 'NOMBRE']:
-            words = value.split()
-            num_words = len(words)
-            attempts = 0
-            while attempts < 100:
-                if num_words >= 4:
-                    name = f"{random.choice(PERUVIAN_FIRST_NAMES)} {random.choice(PERUVIAN_FIRST_NAMES)} {random.choice(PERUVIAN_LAST_NAMES)} {random.choice(PERUVIAN_LAST_NAMES)}"
-                elif num_words == 3:
-                    name = f"{random.choice(PERUVIAN_FIRST_NAMES)} {random.choice(PERUVIAN_LAST_NAMES)} {random.choice(PERUVIAN_LAST_NAMES)}"
-                else:
-                    name = f"{random.choice(PERUVIAN_FIRST_NAMES)} {random.choice(PERUVIAN_LAST_NAMES)}"
-                
-                if value.isupper():
-                    name = name.upper()
-                
-                if name not in self._used_synthetic_names:
-                    self._used_synthetic_names.add(name)
-                    return name
-                attempts += 1
-            return name
-        elif entity_type == 'DIRECCION':
-            street_type = random.choice(['Av.', 'Jr.', 'Calle'])
-            street = random.choice(PERUVIAN_STREETS)
-            number = random.randint(100, 2000)
-            district = random.choice(PERUVIAN_DISTRICTS)
-            return f"{street_type} {street} N° {number}, {district}"
-        elif entity_type == 'EXPEDIENTE':
-            return f"{random.randint(10000, 99999)}-{random.randint(2018, 2024)}-0-{random.randint(1000, 2000)}-JR-CI-{random.randint(10, 20):02d}"
-        elif entity_type == 'CASILLA':
-            return f"CASILLA N° {random.randint(10000, 99999)}"
-        elif entity_type == 'JUZGADO':
-            num = random.randint(1, 30)
-            tipo = random.choice(['Civil', 'Familia', 'Laboral', 'Paz Letrado'])
-            return f"{num}° Juzgado de {tipo} de Lima"
-        return value
     
     def _mask_value(self, value: str, entity_type: str) -> str:
         """Create a masked version of the value for the report."""
@@ -327,20 +230,16 @@ class EntityMapping:
             'mode': self.mode,
             'mappings': dict(self.mappings),
             'counters': dict(self.counters),
-            'reverse_mappings': {k: dict(v) for k, v in self.reverse_mappings.items()},
-            'used_synthetic_names': list(self._used_synthetic_names),
-            'synthetic_data_cache': dict(self._synthetic_data_cache)
+            'reverse_mappings': {k: dict(v) for k, v in self.reverse_mappings.items()}
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'EntityMapping':
         """Restore mapping state from dictionary."""
-        mapping = cls(mode=data.get('mode', SubstitutionMode.TOKENS))
+        mapping = cls()
         mapping.mappings = defaultdict(dict, {k: dict(v) for k, v in data.get('mappings', {}).items()})
         mapping.counters = defaultdict(int, data.get('counters', {}))
         mapping.reverse_mappings = defaultdict(dict, {k: dict(v) for k, v in data.get('reverse_mappings', {}).items()})
-        mapping._used_synthetic_names = set(data.get('used_synthetic_names', []))
-        mapping._synthetic_data_cache = dict(data.get('synthetic_data_cache', {}))
         return mapping
 
 
@@ -775,6 +674,29 @@ def apply_review_decisions(text: str, decisions: Dict[str, bool], pending_entiti
 def save_anonymized_docx(doc, output_path: str):
     """Save the anonymized DOCX document."""
     doc.save(output_path)
+
+
+def extract_docx_text(file_path: str) -> str:
+    """Extract all text from a DOCX file for preview."""
+    from docx import Document
+    doc = Document(file_path)
+    
+    text_parts = []
+    for para in doc.paragraphs:
+        if para.text.strip():
+            text_parts.append(para.text)
+    
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = []
+            for cell in row.cells:
+                cell_text = ' '.join(p.text for p in cell.paragraphs if p.text.strip())
+                if cell_text:
+                    row_text.append(cell_text)
+            if row_text:
+                text_parts.append(' | '.join(row_text))
+    
+    return '\n'.join(text_parts)
 
 
 def create_anonymized_pdf(text: str, output_path: str):
