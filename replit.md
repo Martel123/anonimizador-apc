@@ -1,6 +1,20 @@
-# Plataforma de Centros de Conciliación - Multi-Tenant SaaS
+# Anonimizador Legal + Plataforma de Centros de Conciliación
 
 ## Overview
+This project now includes a standalone **Legal Document Anonymizer** as its main feature (accessible at `/`). The anonymizer automatically detects and replaces personal identifiable information (PII) in legal documents using regex-based patterns, without requiring any paid external services.
+
+The platform also includes a multi-tenant SaaS system for Conciliation Centers, accessible via `/dashboard-app` for authenticated users.
+
+## Legal Anonymizer (Main Feature)
+- **URL**: `/` (home page) or `/anonymizer`
+- **Supported formats**: DOCX and PDF (text-based)
+- **PII Detection**: DNI, RUC, emails, phones, addresses, names, expedientes, casillas, juzgados
+- **Placeholders**: `{{DNI_1}}`, `{{PERSONA_1}}`, `{{EMAIL_1}}`, etc.
+- **Output**: Anonymized document + detailed report (JSON/TXT)
+- **Privacy**: Files processed in memory, auto-deleted after 30 minutes
+- **No paid services**: Pure regex/rule-based detection
+
+## Original Platform Overview
 This project is a multi-tenant SaaS web platform built with Flask, designed for Conciliation Centers. It enables multiple centers to register, each operating with isolated data, including templates, users, documents, and styles. Each tenant benefits from customizable branding (logo, contact information) and the system supports three distinct user roles, along with a subscription-based plan system (Basic, Medium, Advanced) that gates access to features like user count, document limits, and AI argumentation. The platform aims to streamline document generation, improve legal argumentation with AI, and provide a comprehensive management system for conciliation processes.
 
 ## User Preferences
