@@ -15,6 +15,7 @@ from docx.shared import Pt, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
 from openai import OpenAI
+import anonymizer as anon_module
 
 from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse
 import qrcode
@@ -1531,11 +1532,136 @@ def inject_tenant():
     }
 
 
+@app.context_processor
+def inject_current_year():
+    return {'current_year': datetime.now().year}
+
+
+ANONYMIZER_TEMP_DIR = os.path.join(os.getcwd(), 'temp_anonymizer')
+ANONYMIZER_OUTPUT_DIR = os.path.join(os.getcwd(), 'anonymizer_output')
+os.makedirs(ANONYMIZER_TEMP_DIR, exist_ok=True)
+os.makedirs(ANONYMIZER_OUTPUT_DIR, exist_ok=True)
+
+
 @app.route("/")
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    return redirect(url_for('anonymizer_home'))
+
+
+@app.route("/anonymizer")
+def anonymizer_home():
+    anon_module.cleanup_old_files(ANONYMIZER_TEMP_DIR, max_age_minutes=30)
+    anon_module.cleanup_old_files(ANONYMIZER_OUTPUT_DIR, max_age_minutes=30)
+    return render_template("anonymizer_home.html")
+
+
+@app.route("/anonymizer/process", methods=["POST"])
+def anonymizer_process():
+    if 'documento' not in request.files:
+        flash("Por favor selecciona un documento.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    archivo = request.files['documento']
+    if archivo.filename == '':
+        flash("No se seleccionó ningún archivo.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    ext = os.path.splitext(archivo.filename)[1].lower()
+    if ext not in anon_module.ALLOWED_EXTENSIONS_ANON:
+        flash("Formato no permitido. Solo se aceptan archivos DOCX y PDF.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    if archivo.content_length and archivo.content_length > anon_module.MAX_FILE_SIZE_MB * 1024 * 1024:
+        flash(f"El archivo excede el tamaño máximo de {anon_module.MAX_FILE_SIZE_MB} MB.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    job_id = uuid.uuid4().hex
+    original_filename = secure_filename(archivo.filename)
+    temp_path = os.path.join(ANONYMIZER_TEMP_DIR, f"{job_id}_{original_filename}")
+    archivo.save(temp_path)
+    
+    try:
+        if ext == '.docx':
+            doc, summary, mapping = anon_module.anonymize_docx(temp_path)
+            output_filename = f"{job_id}_anonimizado.docx"
+            output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
+            anon_module.save_anonymized_docx(doc, output_path)
+            output_type = 'docx'
+        else:
+            text, summary, mapping, is_scanned = anon_module.anonymize_pdf(temp_path)
+            if is_scanned:
+                flash("El PDF parece ser escaneado y no contiene texto extraíble. Por ahora solo soportamos PDFs con texto.", "warning")
+                os.remove(temp_path)
+                return redirect(url_for('anonymizer_home'))
+            output_filename = f"{job_id}_anonimizado.pdf"
+            output_path = os.path.join(ANONYMIZER_OUTPUT_DIR, output_filename)
+            anon_module.create_anonymized_pdf(text, output_path)
+            output_type = 'pdf'
+        
+        report = anon_module.generate_report(summary, original_filename, ext.upper())
+        report_json_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.json")
+        with open(report_json_path, 'w', encoding='utf-8') as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        
+        report_txt = anon_module.generate_report_txt(report)
+        report_txt_path = os.path.join(ANONYMIZER_OUTPUT_DIR, f"{job_id}_reporte.txt")
+        with open(report_txt_path, 'w', encoding='utf-8') as f:
+            f.write(report_txt)
+        
+        os.remove(temp_path)
+        
+        return render_template("anonymizer_result.html",
+                             job_id=job_id,
+                             total_entities=summary.get('total_entities', 0),
+                             entities_summary=summary.get('entities_found', {}),
+                             replacements=summary.get('replacements', {}),
+                             warnings=report.get('advertencias', []),
+                             output_type=output_type)
+    
+    except ValueError as e:
+        flash(str(e), "error")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return redirect(url_for('anonymizer_home'))
+    except Exception as e:
+        logging.error(f"Error en anonimización: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        flash("Error al procesar el documento. Por favor intenta de nuevo.", "error")
+        return redirect(url_for('anonymizer_home'))
+
+
+@app.route("/anonymizer/download/<job_id>/<file_type>")
+def anonymizer_download(job_id, file_type):
+    if not re.match(r'^[a-f0-9]{32}$', job_id):
+        flash("ID de trabajo inválido.", "error")
+        return redirect(url_for('anonymizer_home'))
+    
+    if file_type == 'document':
+        for ext in ['docx', 'pdf']:
+            filename = f"{job_id}_anonimizado.{ext}"
+            filepath = os.path.join(ANONYMIZER_OUTPUT_DIR, filename)
+            if os.path.exists(filepath):
+                return send_file(filepath, as_attachment=True, download_name=f"documento_anonimizado.{ext}")
+    elif file_type == 'report':
+        filename = f"{job_id}_reporte.txt"
+        filepath = os.path.join(ANONYMIZER_OUTPUT_DIR, filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, as_attachment=True, download_name="reporte_anonimizacion.txt")
+    elif file_type == 'report_json':
+        filename = f"{job_id}_reporte.json"
+        filepath = os.path.join(ANONYMIZER_OUTPUT_DIR, filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, as_attachment=True, download_name="reporte_anonimizacion.json")
+    
+    flash("Archivo no encontrado. Es posible que haya expirado.", "error")
+    return redirect(url_for('anonymizer_home'))
+
+
+@app.route("/dashboard-app")
+@login_required
+def dashboard_redirect():
+    return redirect(url_for('dashboard'))
 
 
 @app.route("/demo")

@@ -1,0 +1,129 @@
+{% extends "base_anonymizer.html" %}
+
+{% block title %}Resultado - Anonimizador Legal{% endblock %}
+
+{% block content %}
+<div class="space-y-6 fade-in">
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-green-500 to-emerald-500 px-8 py-6">
+            <div class="flex items-center space-x-4">
+                <div class="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
+                    <i class="fas fa-check-circle text-white text-3xl"></i>
+                </div>
+                <div class="text-white">
+                    <h2 class="text-2xl font-semibold">Documento anonimizado</h2>
+                    <p class="text-green-100">Se detectaron y reemplazaron {{ total_entities }} datos personales</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-8">
+            <div class="grid md:grid-cols-2 gap-6 mb-8">
+                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='document') }}" 
+                   class="flex items-center p-6 bg-indigo-50 rounded-xl border-2 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-100 transition-all group">
+                    <div class="w-14 h-14 bg-indigo-500 rounded-lg flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-file-download text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-800">Descargar documento</p>
+                        <p class="text-sm text-gray-500">Archivo anonimizado ({{ output_type|upper }})</p>
+                    </div>
+                </a>
+
+                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='report') }}" 
+                   class="flex items-center p-6 bg-purple-50 rounded-xl border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-100 transition-all group">
+                    <div class="w-14 h-14 bg-purple-500 rounded-lg flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-file-alt text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-800">Descargar reporte</p>
+                        <p class="text-sm text-gray-500">Detalle de cambios realizados</p>
+                    </div>
+                </a>
+            </div>
+
+            <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>
+                Resumen de entidades detectadas
+            </h3>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {% for entity_type, count in entities_summary.items() %}
+                <div class="bg-gray-50 rounded-lg p-4 text-center border border-gray-100">
+                    <div class="text-3xl font-bold text-indigo-600 mb-1">{{ count }}</div>
+                    <div class="text-sm text-gray-600">{{ entity_type }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if replacements %}
+            <div class="mt-6">
+                <h4 class="font-medium text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-exchange-alt text-gray-400 mr-2"></i>
+                    Reemplazos realizados
+                </h4>
+                <div class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                    <div class="space-y-3">
+                        {% for entity_type, items in replacements.items() %}
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase mb-2">{{ entity_type }}</p>
+                            <div class="flex flex-wrap gap-2">
+                                {% for item in items %}
+                                <div class="inline-flex items-center space-x-2 bg-white px-3 py-1.5 rounded border border-gray-200">
+                                    <span class="font-mono text-xs text-indigo-600">{{ item.placeholder }}</span>
+                                    <i class="fas fa-arrow-left text-gray-300 text-xs"></i>
+                                    <span class="text-sm text-gray-600">{{ item.masked_original }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if warnings %}
+            <div class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <h4 class="font-medium text-yellow-800 mb-2 flex items-center">
+                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                    Advertencias
+                </h4>
+                <ul class="text-sm text-yellow-700 space-y-1">
+                    {% for warning in warnings %}
+                    <li class="flex items-start">
+                        <i class="fas fa-circle text-yellow-400 text-xs mt-1.5 mr-2"></i>
+                        {{ warning }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row gap-4">
+                <a href="{{ url_for('anonymizer_home') }}" 
+                   class="flex-1 py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all flex items-center justify-center">
+                    <i class="fas fa-plus mr-2"></i>
+                    Procesar otro documento
+                </a>
+                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='report_json') }}" 
+                   class="py-3 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all flex items-center justify-center">
+                    <i class="fas fa-code mr-2"></i>
+                    Reporte JSON
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
+        <div class="flex items-start">
+            <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+            <div class="text-sm text-blue-700">
+                <p class="font-medium mb-1">Nota de privacidad</p>
+                <p>Los archivos procesados se eliminan automáticamente del servidor después de 30 minutos. 
+                   No almacenamos copias de tus documentos ni de la información detectada.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
