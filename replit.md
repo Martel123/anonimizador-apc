@@ -23,7 +23,17 @@ I prefer detailed explanations and an iterative development approach. I expect t
 ## System Architecture
 
 ### UI/UX Decisions
-The front-end utilizes HTML5 and Tailwind CSS for a modern, responsive design. The Roboto font is used for readability. Each tenant can customize their branding, including logo, primary, and secondary colors, ensuring a personalized experience while maintaining a consistent design system across the platform. Users can also set their preferred theme (light/dark) and visual density (normal/compact).
+The Legal Anonymizer uses the **APC Jurídica** brand identity with a corporate, serious, professional aesthetic:
+- **Typography**: Inter font family (system-ui fallback)
+- **Color Palette**: 
+  - Background: #F2F2F2 (gray), Cards: #FFFFFF (white)
+  - Header: #0B0B0B (black), Primary action: #B30000 (APC red)
+  - Borders: #E5E5E5, Secondary text: #6F6F6F
+- **Style**: Soft rounded corners (12px), subtle shadows, no gradients/glassmorphism
+- **Components**: White cards on gray background, black header with APC logo
+- **Design file**: See `design_guidelines.md` for complete specifications
+
+The platform (dashboard) uses Tailwind CSS with Roboto font. Each tenant can customize branding (logo, colors).
 
 ### Technical Implementations
 The core application is built with Flask, leveraging Flask-Login for authentication and Flask-SQLAlchemy for ORM. PostgreSQL (hosted on Neon) is used as the primary database. Document generation is handled by `python-docx`, and AI capabilities are powered by the OpenAI API (specifically `gpt-4o`). Gunicorn serves the application.
