@@ -1,0 +1,104 @@
+============================================================
+REPORTE DE ANONIMIZACIÓN
+============================================================
+
+Fecha de procesamiento: 2026-01-18T15:45:47.612541
+Archivo original: DEMANDA_DE_REDUCCION_DE_PENSION_DE_ALIMENTOS_-_SR._EDUARDO_.docx
+Tipo de archivo: .DOCX
+Modo de sustitución: tokens
+Modo estricto: Sí
+
+----------------------------------------
+RESUMEN DE ENTIDADES DETECTADAS
+----------------------------------------
+Total de entidades: 48
+Pendientes de revisión: 107
+
+  JUZGADO: 1
+  DNI: 6
+  DIRECCION: 19
+  EMAIL: 1
+  TELEFONO: 1
+  PERSONA: 15
+  ACTA: 1
+  ENTIDAD: 2
+  FIRMA: 2
+
+----------------------------------------
+REEMPLAZOS REALIZADOS
+----------------------------------------
+
+JUZGADO:
+  {{JUZGADO_1}} <- JUZ...RJA
+
+DNI:
+  {{DNI_1}} <- 46****76
+  {{DNI_2}} <- 42****51
+  {{DNI_3}} <- 75****09
+  {{DNI_4}} <- 75****28
+  {{DNI_5}} <- 76****92
+  {{DNI_6}} <- 70****80
+
+DIRECCION:
+  {{DIRECCION_1}} <- Mz....ima
+  {{DIRECCION_2}} <- Av....503
+  {{DIRECCION_3}} <- URB...MA.
+  {{DIRECCION_4}} <- N° ...022
+  {{DIRECCION_5}} <- Jir...s N
+  {{DIRECCION_6}} <- Urb...tre
+  {{DIRECCION_7}} <- Urb...022
+  {{DIRECCION_8}} <- N° ...jos
+  {{DIRECCION_9}} <- N° ...nte
+  {{DIRECCION_10}} <- nro...res
+  {{DIRECCION_11}} <- nro...tos
+  {{DIRECCION_12}} <- nro...tos
+  {{DIRECCION_13}} <- nro...ado
+  {{DIRECCION_14}} <- nro...ico
+  {{DIRECCION_15}} <- nro...466
+  {{DIRECCION_16}} <- nro...iño
+  {{DIRECCION_17}} <- nro...IOS
+  {{DIRECCION_18}} <- MZ....PTO
+  {{DIRECCION_19}} <- DIS...te.
+
+EMAIL:
+  {{EMAIL_1}} <- ma***@gmail.com
+
+TELEFONO:
+  {{TELEFONO_1}} <- 995***76
+
+PERSONA:
+  {{PERSONA_1}} <- de*** hi***
+  {{PERSONA_2}} <- LI*** CR***
+  {{PERSONA_3}} <- tu*** di***
+  {{PERSONA_4}} <- Dr*** A.***
+  {{PERSONA_5}} <- es*** as***
+  {{PERSONA_6}} <- co*** as***
+  {{PERSONA_7}} <- es*** EL***
+  {{PERSONA_8}} <- as*** el***
+  {{PERSONA_9}} <- SE*** SU***
+  {{PERSONA_10}} <- no*** un***
+  {{PERSONA_11}} <- DE*** MO***
+  {{PERSONA_12}} <- RE*** FI***
+  {{PERSONA_13}} <- LI*** CE***
+  {{PERSONA_14}} <- VI*** MA***
+  {{PERSONA_15}} <- Ju*** de***
+
+ACTA:
+  {{ACTA_1}} <- Act...022
+
+ENTIDAD:
+  {{ENTIDAD_1}} <- Ban...ú S
+  {{ENTIDAD_2}} <- ban...dos
+
+FIRMA:
+  {{FIRMA_1}} <- fir....  
+  {{FIRMA_2}} <- ___...___
+
+----------------------------------------
+ADVERTENCIAS
+----------------------------------------
+  * Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.
+  * Los nombres fueron detectados mediante NER y patrones. Pueden existir nombres adicionales no detectados.
+  * Se detectaron 107 entidades que requieren revisión manual.
+
+============================================================

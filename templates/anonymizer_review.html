@@ -310,8 +310,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const rect = range.getBoundingClientRect();
             
             selectedTextDisplay.textContent = selectedText.length > 30 ? selectedText.substring(0, 30) + '...' : selectedText;
-            toolbar.style.top = (rect.bottom + window.scrollY + 10) + 'px';
-            toolbar.style.left = Math.max(10, Math.min(rect.left + window.scrollX, window.innerWidth - 450)) + 'px';
+            
+            // Position toolbar near selection (fixed positioning uses viewport coordinates)
+            let topPos = rect.bottom + 8;
+            let leftPos = rect.left;
+            
+            // Keep toolbar in viewport
+            const toolbarHeight = 150;
+            const toolbarWidth = 400;
+            
+            if (topPos + toolbarHeight > window.innerHeight) {
+                topPos = rect.top - toolbarHeight - 8;
+            }
+            if (leftPos + toolbarWidth > window.innerWidth) {
+                leftPos = window.innerWidth - toolbarWidth - 10;
+            }
+            if (leftPos < 10) leftPos = 10;
+            
+            toolbar.style.top = topPos + 'px';
+            toolbar.style.left = leftPos + 'px';
             toolbar.classList.remove('hidden');
         } else {
             toolbar.classList.add('hidden');
