@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revisar Detecciones - APC Jurídica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; background-color: #F2F2F2; min-height: 100vh; }
+        .header { background-color: #0B0B0B; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+        .header-title { color: #FFFFFF; font-size: 1.25rem; font-weight: 600; }
+        .main-container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: #FFFFFF; border-radius: 12px; padding: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #E5E5E5; margin-bottom: 1rem; }
+        .card-title { font-size: 1.25rem; font-weight: 600; color: #0B0B0B; margin-bottom: 0.5rem; }
+        .card-subtitle { color: #6F6F6F; margin-bottom: 1rem; font-size: 0.875rem; }
+        .entity-list { list-style: none; }
+        .entity-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem; border-bottom: 1px solid #E5E5E5; }
+        .entity-item:last-child { border-bottom: none; }
+        .entity-checkbox { width: 20px; height: 20px; accent-color: #B30000; }
+        .entity-type { font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 4px; background: #F3F4F6; color: #374151; min-width: 80px; text-align: center; }
+        .entity-type.dni { background: #DBEAFE; color: #1E40AF; }
+        .entity-type.email { background: #FCE7F3; color: #9D174D; }
+        .entity-type.telefono { background: #D1FAE5; color: #065F46; }
+        .entity-type.direccion { background: #FEF3C7; color: #92400E; }
+        .entity-type.persona { background: #E0E7FF; color: #3730A3; }
+        .entity-value { flex: 1; font-family: monospace; font-size: 0.875rem; color: #0B0B0B; word-break: break-all; }
+        .btn-group { display: flex; gap: 1rem; margin-top: 1.5rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 1rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; flex: 1; }
+        .btn-primary { background-color: #B30000; color: #FFFFFF; border: none; }
+        .btn-primary:hover { background-color: #8B0000; }
+        .btn-secondary { background-color: #FFFFFF; color: #0B0B0B; border: 2px solid #E5E5E5; }
+        .btn-secondary:hover { border-color: #B30000; }
+        .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        .alert-warning { background-color: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+        .confirmed-badge { font-size: 0.75rem; color: #059669; background: #D1FAE5; padding: 0.25rem 0.5rem; border-radius: 4px; }
+        .loading { display: none; text-align: center; padding: 2rem; }
+        .loading.visible { display: block; }
+        .spinner { width: 32px; height: 32px; border: 3px solid #E5E5E5; border-top-color: #B30000; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <span class="header-title">APC Jurídica</span>
+        <span class="header-title">Revisar Detecciones</span>
+    </header>
+    
+    <main class="main-container">
+        {% if post_scan_warning %}
+        <div class="alert alert-warning">
+            <strong>Advertencia:</strong> {{ post_scan_warning }}
+        </div>
+        {% endif %}
+        
+        <div class="card">
+            <h2 class="card-title">Entidades Detectadas Automáticamente</h2>
+            <p class="card-subtitle">{{ original_filename }} - {{ confirmed|length }} entidades confirmadas</p>
+            
+            {% if confirmed %}
+            <ul class="entity-list">
+                {% for entity in confirmed %}
+                <li class="entity-item">
+                    <span class="entity-type {{ entity[0]|lower }}">{{ entity[0] }}</span>
+                    <span class="entity-value">{{ entity[1] }}</span>
+                    <span class="confirmed-badge">Confirmado</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: #6F6F6F; text-align: center; padding: 2rem;">No se detectaron entidades automáticamente.</p>
+            {% endif %}
+        </div>
+        
+        {% if needs_review %}
+        <div class="card">
+            <h2 class="card-title">Revisar Manualmente</h2>
+            <p class="card-subtitle">Seleccione las entidades que desea anonimizar</p>
+            
+            <form id="reviewForm">
+                <ul class="entity-list">
+                    {% for entity in needs_review %}
+                    <li class="entity-item">
+                        <input type="checkbox" class="entity-checkbox" name="entity_{{ loop.index0 }}" value="{{ loop.index0 }}" checked>
+                        <span class="entity-type {{ entity[0]|lower }}">{{ entity[0] }}</span>
+                        <span class="entity-value">{{ entity[1] }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </form>
+        </div>
+        {% endif %}
+        
+        <div class="card">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Generando documento anonimizado...</p>
+            </div>
+            
+            <div class="btn-group" id="btnGroup">
+                <button type="button" class="btn btn-primary" id="applyBtn">
+                    Aplicar y Descargar
+                </button>
+                <a href="{{ url_for('home') }}" class="btn btn-secondary">
+                    Cancelar
+                </a>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        const applyBtn = document.getElementById('applyBtn');
+        const loading = document.getElementById('loading');
+        const btnGroup = document.getElementById('btnGroup');
+        
+        applyBtn.addEventListener('click', async () => {
+            const checkboxes = document.querySelectorAll('.entity-checkbox:checked');
+            const accepted = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            loading.classList.add('visible');
+            btnGroup.style.display = 'none';
+            
+            try {
+                const response = await fetch('{{ url_for("anonymizer_apply_review", job_id=job_id) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accepted: accepted })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.redirect) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                    loading.classList.remove('visible');
+                    btnGroup.style.display = 'flex';
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+                loading.classList.remove('visible');
+                btnGroup.style.display = 'flex';
+            }
+        });
+    </script>
+</body>
+</html>

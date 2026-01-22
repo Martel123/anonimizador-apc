@@ -1,0 +1,172 @@
+{
+  "fecha_procesamiento": "2026-01-22T23:34:09.436822",
+  "archivo_original": "CONVENIO_APC_-_VOX_POPULI_1.docx",
+  "tipo_archivo": "DOCX",
+  "modo_sustitucion": "tokens",
+  "modo_estricto": true,
+  "resumen": {
+    "total_entidades_detectadas": 33,
+    "entidades_por_tipo": {
+      "DIRECCION": 6,
+      "PERSONA": 18,
+      "ENTIDAD": 6,
+      "DNI": 1,
+      "EMAIL": 1,
+      "TELEFONO": 1
+    },
+    "entidades_pendientes_revision": 3
+  },
+  "reemplazos": {
+    "DIRECCION": [
+      {
+        "placeholder": "{{DIRECCION_1}}",
+        "masked_original": "INT...nal"
+      },
+      {
+        "placeholder": "{{DIRECCION_2}}",
+        "masked_original": "XXX...I N"
+      },
+      {
+        "placeholder": "{{DIRECCION_3}}",
+        "masked_original": "Av....dro"
+      },
+      {
+        "placeholder": "{{DIRECCION_4}}",
+        "masked_original": "N° ...045"
+      },
+      {
+        "placeholder": "{{DIRECCION_5}}",
+        "masked_original": "int...ial"
+      },
+      {
+        "placeholder": "{{DIRECCION_6}}",
+        "masked_original": "POS...ION"
+      }
+    ],
+    "PERSONA": [
+      {
+        "placeholder": "{{PERSONA_1}}",
+        "masked_original": "ES*** PO***"
+      },
+      {
+        "placeholder": "{{PERSONA_2}}",
+        "masked_original": "AC*** JU***"
+      },
+      {
+        "placeholder": "{{PERSONA_3}}",
+        "masked_original": "de*** FI***"
+      },
+      {
+        "placeholder": "{{PERSONA_4}}",
+        "masked_original": "CL*** PR***"
+      },
+      {
+        "placeholder": "{{PERSONA_5}}",
+        "masked_original": "OB*** CO***"
+      },
+      {
+        "placeholder": "{{PERSONA_6}}",
+        "masked_original": "CU*** VI***"
+      },
+      {
+        "placeholder": "{{PERSONA_7}}",
+        "masked_original": "IN*** CU***"
+      },
+      {
+        "placeholder": "{{PERSONA_8}}",
+        "masked_original": "CO*** PA***"
+      },
+      {
+        "placeholder": "{{PERSONA_9}}",
+        "masked_original": "Co***"
+      },
+      {
+        "placeholder": "{{PERSONA_10}}",
+        "masked_original": "CL*** SE***"
+      },
+      {
+        "placeholder": "{{PERSONA_11}}",
+        "masked_original": "Ma*** N***"
+      },
+      {
+        "placeholder": "{{PERSONA_12}}",
+        "masked_original": "Te***"
+      },
+      {
+        "placeholder": "{{PERSONA_13}}",
+        "masked_original": "CL*** SÉ***"
+      },
+      {
+        "placeholder": "{{PERSONA_14}}",
+        "masked_original": "SO*** CO***"
+      },
+      {
+        "placeholder": "{{PERSONA_15}}",
+        "masked_original": "ES*** XX***"
+      },
+      {
+        "placeholder": "{{PERSONA_16}}",
+        "masked_original": "XX*** XX***"
+      },
+      {
+        "placeholder": "{{PERSONA_17}}",
+        "masked_original": "Re*** Le***"
+      },
+      {
+        "placeholder": "{{PERSONA_18}}",
+        "masked_original": "PO***"
+      }
+    ],
+    "ENTIDAD": [
+      {
+        "placeholder": "{{ENTIDAD_1}}",
+        "masked_original": "APC...ICA"
+      },
+      {
+        "placeholder": "{{ENTIDAD_2}}",
+        "masked_original": "ACU...S Y"
+      },
+      {
+        "placeholder": "{{ENTIDAD_3}}",
+        "masked_original": "Vox...uli"
+      },
+      {
+        "placeholder": "{{ENTIDAD_4}}",
+        "masked_original": "Ger... N°"
+      },
+      {
+        "placeholder": "{{ENTIDAD_5}}",
+        "masked_original": "Ger...ral"
+      },
+      {
+        "placeholder": "{{ENTIDAD_6}}",
+        "masked_original": "POS...DAD"
+      }
+    ],
+    "DNI": [
+      {
+        "placeholder": "{{DNI_1}}",
+        "masked_original": "70****27"
+      }
+    ],
+    "EMAIL": [
+      {
+        "placeholder": "{{EMAIL_1}}",
+        "masked_original": "in***@apcjuridica.com"
+      }
+    ],
+    "TELEFONO": [
+      {
+        "placeholder": "{{TELEFONO_1}}",
+        "masked_original": "980***69"
+      }
+    ]
+  },
+  "advertencias": [
+    "Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.",
+    "Los nombres fueron detectados mediante NER y patrones. Pueden existir nombres adicionales no detectados.",
+    "Se detectaron 3 entidades que requieren revisión manual.",
+    "Se anonimizaron 3 entidades adicionales tras la revisión manual."
+  ],
+  "version": "2.0.0"
+}

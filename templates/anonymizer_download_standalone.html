@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descargar Documento - APC Jurídica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; background-color: #F2F2F2; min-height: 100vh; }
+        .header { background-color: #0B0B0B; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+        .header-title { color: #FFFFFF; font-size: 1.25rem; font-weight: 600; }
+        .main-container { max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: #FFFFFF; border-radius: 12px; padding: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #E5E5E5; text-align: center; }
+        .success-icon { width: 64px; height: 64px; color: #10B981; margin: 0 auto 1rem; }
+        .card-title { font-size: 1.5rem; font-weight: 600; color: #0B0B0B; margin-bottom: 0.5rem; }
+        .card-subtitle { color: #6F6F6F; margin-bottom: 2rem; }
+        .stats { display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem; padding: 1rem; background: #F7F7F7; border-radius: 8px; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: #B30000; }
+        .stat-label { font-size: 0.875rem; color: #6F6F6F; }
+        .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 1rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+        .btn-primary { background-color: #B30000; color: #FFFFFF; border: none; }
+        .btn-primary:hover { background-color: #8B0000; }
+        .btn-secondary { background-color: #FFFFFF; color: #0B0B0B; border: 2px solid #E5E5E5; }
+        .btn-secondary:hover { border-color: #B30000; color: #B30000; }
+        .btn-group { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+        .btn-icon { width: 20px; height: 20px; }
+        .back-link { display: inline-flex; align-items: center; gap: 0.5rem; color: #6F6F6F; text-decoration: none; margin-top: 1rem; }
+        .back-link:hover { color: #B30000; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <span class="header-title">APC Jurídica</span>
+        <span class="header-title">Anonimizador Legal</span>
+    </header>
+    
+    <main class="main-container">
+        <div class="card">
+            <svg class="success-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            
+            <h1 class="card-title">Documento Anonimizado</h1>
+            <p class="card-subtitle">{{ original_filename }}</p>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">{{ entities_count }}</div>
+                    <div class="stat-label">Datos reemplazados</div>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='document') }}" class="btn btn-primary">
+                    <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Descargar Documento Anonimizado
+                </a>
+                
+                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='report') }}" class="btn btn-secondary">
+                    <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Descargar Reporte (JSON)
+                </a>
+            </div>
+            
+            <a href="{{ url_for('home') }}" class="back-link">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Procesar otro documento
+            </a>
+        </div>
+    </main>
+</body>
+</html>
