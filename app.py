@@ -24,6 +24,22 @@ except ImportError:
     OpenAI = None
     openai_available = False
     logging.warning("OpenAI module not available")
+
+
+def get_openai_client(timeout=120.0):
+    """Get OpenAI client if available and configured. Returns (client, error_message)."""
+    if not openai_available or OpenAI is None:
+        return None, "El módulo de IA no está disponible."
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None, "La clave de API de OpenAI no está configurada."
+    try:
+        return OpenAI(api_key=api_key, timeout=timeout), None
+    except Exception as e:
+        logging.error(f"Error initializing OpenAI client: {e}")
+        return None, "Error al inicializar el servicio de IA."
+
+
 import anonymizer as anon_module
 import anonymizer_robust as anon_robust
 
