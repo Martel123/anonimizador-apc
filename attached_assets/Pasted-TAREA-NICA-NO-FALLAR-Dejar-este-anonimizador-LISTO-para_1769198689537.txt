@@ -1,0 +1,56 @@
+TAREA ÚNICA (NO FALLAR): Dejar este anonimizador LISTO para producción en Render, con IA (OpenAI) obligatoria y confidencialidad total (cero almacenamiento de documentos).
+
+REGLAS ABSOLUTAS:
+- NO crear proyectos nuevos ni mover archivos a otra estructura.
+- NO tocar el frontend salvo que sea estrictamente para corregir el POST del formulario.
+- NO guardar documentos ni resultados en ninguna carpeta del repo (RESULTADOS, ANONIMIZADOS, uploads, static, etc).
+- SOLO usar /tmp para input y output y BORRAR SIEMPRE en finally.
+- Debe funcionar en Render con gunicorn app:app y PYTHON 3.11.
+- OpenAI ES OBLIGATORIO (la IA se usa para identificar qué anonimizar). Si falta OPENAI_API_KEY, devolver error claro 500/503, pero NO crashear en import.
+
+PASOS EXACTOS A EJECUTAR (en orden):
+1) Dependencias:
+   - Asegura que requirements.txt incluya: openai>=1.0.0, Flask-Login, Flask-SQLAlchemy, Flask-Migrate y todo lo que se importe en app.py.
+   - Ejecuta una verificación automática: recorre app.py y lista imports externos; si falta alguno en requirements, agrégalo.
+
+2) Render config:
+   - Verifica/ajusta render.yaml para usar:
+     buildCommand: pip install -r requirements.txt && python -m spacy download es_core_news_sm
+     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 app:app
+     envVars: PYTHON_VERSION=3.11.0 y SESSION_SECRET autogenerado
+   - Elimina o ajusta Procfile si contradice render.yaml (no debe interferir).
+
+3) Arranque SIN CRASH (DB opcional):
+   - Si app.py inicializa DB/migraciones al importar (db.create_all, migrate, etc.), muévelo a un init seguro:
+     - No debe ejecutarse en import.
+     - Si DATABASE_URL no existe: NO inicializar DB, NO crear tablas, NO migraciones. La app igual debe levantar para el anonimizador público.
+   - Esto es para que Render no se caiga por falta de DATABASE_URL.
+
+4) Endpoint CONFIDENCIAL:
+   - En app.py, ubica:
+     @app.route("/anonymizer/process", methods=["POST"])
+     def anonymizer_process():
+   - Modifica para:
+     a) obtener el archivo desde request.files con tolerancia (documento/file/document/primero disponible)
+     b) guardar SOLO en /tmp (tempfile.gettempdir()) con UUID
+     c) ejecutar el pipeline REAL existente de anonimización con IA:
+        - NO inventar funciones nuevas: reutilizar la función actual que ya hace la IA.
+        - Debe leer temp_in y escribir temp_out
+     d) devolver temp_out con send_file
+     e) finally: borrar temp_in y temp_out siempre
+   - Prohibido escribir en carpetas del repo. Si el pipeline escribe en carpetas persistentes, redirígelo a /tmp.
+
+5) OpenAI:
+   - Mantén: from openai import OpenAI y client = OpenAI()
+   - Lee la clave desde env OPENAI_API_KEY (Render la proveerá).
+   - Si falta OPENAI_API_KEY, responder con error claro al procesar (no crashear el servidor).
+
+6) Pruebas mínimas (sin gastar):
+   - Añade una ruta GET /health que retorne "ok" (para verificar que la app levanta).
+   - Confirma que /anonymizer/process devuelve 405 en GET (normal) y procesa POST con docx.
+
+ENTREGABLES (OBLIGATORIOS):
+- Lista final de archivos modificados (app.py, render.yaml, requirements.txt, etc.)
+- Copia del anonymizer_process final completo.
+- Mensaje de commit EXACTO: "Render production: deps + OpenAI + tmp no-storage"
+- Hacer commit y push.

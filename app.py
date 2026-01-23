@@ -17,7 +17,13 @@ from docx import Document
 from docx.shared import Pt, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.style import WD_STYLE_TYPE
-from openai import OpenAI
+try:
+    from openai import OpenAI
+    openai_available = True
+except ImportError:
+    OpenAI = None
+    openai_available = False
+    logging.warning("OpenAI module not available")
 import anonymizer as anon_module
 import anonymizer_robust as anon_robust
 
@@ -1544,8 +1550,8 @@ def inject_current_year():
     return {'current_year': datetime.now().year}
 
 
-ANONYMIZER_TEMP_DIR = os.path.join(os.getcwd(), 'temp_anonymizer')
-ANONYMIZER_OUTPUT_DIR = os.path.join(os.getcwd(), 'anonymizer_output')
+ANONYMIZER_TEMP_DIR = os.path.join('/tmp', 'temp_anonymizer')
+ANONYMIZER_OUTPUT_DIR = os.path.join('/tmp', 'anonymizer_output')
 os.makedirs(ANONYMIZER_TEMP_DIR, exist_ok=True)
 os.makedirs(ANONYMIZER_OUTPUT_DIR, exist_ok=True)
 
@@ -9045,23 +9051,35 @@ def get_modelo_public_link(modelo_id):
     })
 
 
-@app.before_first_request
 def init_app_once():
+    """Initialize app directories and database (if configured)."""
     try:
-        with app.app_context():
-            db.create_all()
-            os.makedirs(CARPETA_MODELOS, exist_ok=True)
-            os.makedirs(CARPETA_ESTILOS, exist_ok=True)
-            os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
-            os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
-            os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
-            os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
-            os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
-            os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
-            os.makedirs(CARPETA_REVISIONES, exist_ok=True)
-            os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
+        os.makedirs(CARPETA_MODELOS, exist_ok=True)
+        os.makedirs(CARPETA_ESTILOS, exist_ok=True)
+        os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
+        os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
+        os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
+        os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
+        os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
+        os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
+        os.makedirs(CARPETA_REVISIONES, exist_ok=True)
+        os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
+        if os.environ.get("DATABASE_URL"):
+            with app.app_context():
+                db.create_all()
+                logging.info("Database tables created successfully")
+        else:
+            logging.warning("DATABASE_URL not set - skipping database initialization")
     except Exception as e:
-        app.logger.exception("INIT_ERROR: %s", e)
+        logging.exception("INIT_ERROR: %s", e)
+
+init_app_once()
+
+
+@app.route("/health")
+def health_check():
+    """Health check endpoint for Render."""
+    return "ok", 200
 
 
 
