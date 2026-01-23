@@ -1,0 +1,58 @@
+REGLA ABSOLUTA (CONFIDENCIALIDAD):
+- Este anonimizador NO debe guardar información del usuario.
+- NO usar base de datos (SQLAlchemy/SQLite/Postgres), NO guardar documentos en disco persistente.
+- Solo procesamiento efímero: memoria + /tmp.
+- Cualquier archivo subido debe guardarse SOLO en /tmp (si hace falta), procesarse, entregarse al usuario y eliminarse inmediatamente (en un finally).
+- No logs con contenido del documento. Solo logs técnicos (tamaño, extensión, error_id).
+- No habilitar “Disk” persistente en Render.
+- Si hay sesiones/cookies, que no contengan texto ni datos del documento (solo un id técnico si fuera necesario).
+
+OBJETIVO: dejar el proyecto 100% listo para Render, sin romper el diseño.
+
+Tareas (haz TODO en esta misma interacción):
+
+1) Dependencias:
+- Abre `requirements.txt` (Render usa `pip install -r requirements.txt`).
+- Asegura que exista `resend` en una línea propia.
+- Asegura que `gunicorn` esté incluido (si no está, agrégalo).
+- NO elimines dependencias existentes.
+
+2) Fix deploy: `resend`
+- En `app.py`, localiza `import resend`.
+- Cámbialo a:
+  try:
+      import resend
+  except ImportError:
+      resend = None
+- Si resend se usa, agrega guard:
+  - si resend is None: no enviar correo y continuar (sin excepción).
+
+3) Config Render (arranque correcto):
+- Asegura que el start correcto sea esta app Flask: `app:app`.
+- Si existe `render.yaml`, ajusta startCommand a:
+  gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
+- Si NO existe `render.yaml`, crea uno mínimo con:
+  buildCommand: pip install -r requirements.txt
+  startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
+- NO tocar templates/CSS.
+
+4) Subida DOCX/PDF robusta en producción:
+- Asegura que el endpoint POST `/anonymizer/process`:
+  - acepte `.docx` y `.pdf`,
+  - no dependa solo del mimetype del navegador,
+  - valide por extensión y (si ya existe en el proyecto) por magic bytes.
+- Guardar archivos SOLO en `/tmp` con nombre aleatorio seguro.
+- Tras procesar, eliminar archivo temporal en `finally` (aunque haya error).
+- La respuesta de descarga debe enviarse sin guardar el resultado en disco persistente.
+
+5) Sesión / secretos:
+- Si `SESSION_SECRET` no existe en Render, no debe crashear.
+- Usa un fallback seguro en memoria (solo para levantar la app), sin almacenar datos sensibles.
+- NO guardar texto del documento en session.
+
+6) Preparar para commit:
+- Deja todo listo para que yo haga “Stage + Commit + Push”.
+- Mensaje sugerido de commit: `Fix Render deploy + ephemeral processing (no storage)`.
+
+Al final:
+- Dime exactamente qué archivos tocaste y un resumen breve de cada cambio.

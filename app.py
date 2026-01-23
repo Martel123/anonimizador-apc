@@ -3,7 +3,10 @@ import csv
 import json
 import logging
 import requests
-import resend
+try:
+    import resend
+except ImportError:
+    resend = None
 from functools import wraps
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, flash, jsonify, session, g, abort
@@ -32,7 +35,7 @@ log_level = logging.DEBUG if os.environ.get("FLASK_DEBUG", "false").lower() == "
 logging.basicConfig(level=log_level)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
+app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(32).hex()
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
@@ -649,6 +652,9 @@ def get_resend_credentials():
 
 def send_notification_email(to_email, subject, html_content):
     """Send email notification via Resend."""
+    if resend is None:
+        logging.warning("Resend module not available - email not sent")
+        return False
     try:
         logging.info(f"Attempting to send email to {to_email} with subject: {subject}")
         api_key, from_email = get_resend_credentials()
@@ -2581,33 +2587,37 @@ def forgot_password():
                 app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
                 reset_url = f"{app_base_url}/reset_password/{token.token}"
                 
-                import resend
-                resend.api_key = os.environ.get('RESEND_API_KEY')
-                mail_from = os.environ.get('MAIL_FROM', 'noreply@resend.dev')
+                if resend is None:
+                    logging.warning("Resend module not available - password reset email not sent")
+                    flash('El sistema de correo no está disponible. Contacta al administrador.', 'warning')
+                else:
+                    resend.api_key = os.environ.get('RESEND_API_KEY')
+                    mail_from = os.environ.get('MAIL_FROM', 'noreply@resend.dev')
                 
-                html_content = f'''
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #333;">Recuperación de Contraseña</h2>
-                    <p>Hola {user.username},</p>
-                    <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
-                    <p style="margin: 20px 0;">
-                        <a href="{reset_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            Restablecer Contraseña
-                        </a>
-                    </p>
-                    <p>Este enlace expirará en 24 horas.</p>
-                    <p>Si no solicitaste restablecer tu contraseña, puedes ignorar este correo.</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #666; font-size: 12px;">Centro de Conciliación - Sistema de Gestión</p>
-                </div>
-                '''
-                
-                resend.Emails.send({
-                    "from": f"Centro de Conciliación <{mail_from}>",
-                    "to": [user.email],
-                    "subject": "Recuperación de Contraseña",
-                    "html": html_content
-                })
+                if resend is not None:
+                    html_content = f'''
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #333;">Recuperación de Contraseña</h2>
+                        <p>Hola {user.username},</p>
+                        <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
+                        <p style="margin: 20px 0;">
+                            <a href="{reset_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                                Restablecer Contraseña
+                            </a>
+                        </p>
+                        <p>Este enlace expirará en 24 horas.</p>
+                        <p>Si no solicitaste restablecer tu contraseña, puedes ignorar este correo.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                        <p style="color: #666; font-size: 12px;">Centro de Conciliación - Sistema de Gestión</p>
+                    </div>
+                    '''
+                    
+                    resend.Emails.send({
+                        "from": f"Centro de Conciliación <{mail_from}>",
+                        "to": [user.email],
+                        "subject": "Recuperación de Contraseña",
+                        "html": html_content
+                    })
                 
                 log_audit(
                     tenant_id=user.tenant_id,
