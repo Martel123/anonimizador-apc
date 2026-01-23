@@ -526,7 +526,13 @@ def process_argumentation_job(job_id):
                     estilo_instrucciones = estilo_custom.instrucciones
             
             ia_start = time.time()
-            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=120.0)
+            client, error_msg = get_openai_client(timeout=120.0)
+            if not client:
+                job.status = 'error'
+                job.error_message = error_msg
+                job.completed_at = datetime.utcnow()
+                db.session.commit()
+                return
             
             if job.job_type == 'explanation':
                 system_prompt = f"""Eres un asistente juridico experto. El usuario te hace una consulta sobre un documento legal.
@@ -1220,7 +1226,9 @@ INSTRUCCIONES:
 
 def generar_con_ia(prompt):
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client, error_msg = get_openai_client()
+        if not client:
+            return f"Error: {error_msg}"
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -6909,7 +6917,9 @@ def ai_assistant_api():
         return jsonify({'response': 'Por favor escribe tu pregunta.'})
     
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client, error_msg = get_openai_client()
+        if not client:
+            return jsonify({'response': f'Error: {error_msg}'})
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -6985,7 +6995,9 @@ def get_anonimizados_folder(tenant_id, user_id):
 def anonimizar_con_ia(texto):
     """Use OpenAI to identify and anonymize sensitive information in legal documents."""
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client, error_msg = get_openai_client()
+        if not client:
+            return {"error": error_msg, "texto_anonimizado": texto, "entidades": []}
         
         prompt = """Analiza el siguiente documento legal y devuelve un JSON con dos claves:
         
@@ -7201,7 +7213,9 @@ def _buscar_similares_consultar_disabled():
         docs_info.append(info)
     
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client, error_msg = get_openai_client()
+        if not client:
+            return []
         
         system_prompt = """Eres un asistente legal experto que ayuda a encontrar documentos similares. 
 El usuario te hará consultas como "muéstrame casos parecidos a demandas de alimentos" o "busco documentos sobre divorcio".
@@ -7276,7 +7290,9 @@ def get_revisiones_folder(tenant_id):
 def revisar_documento_con_ia(texto_documento, nombre_documento):
     """Analiza un documento legal con IA para detectar errores y problemas."""
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client, error_msg = get_openai_client()
+        if not client:
+            return {"error": error_msg, "issues": [], "resumen": ""}
         
         system_prompt = """Eres un revisor legal experto peruano especializado en documentos jurídicos. Tu tarea es revisar documentos legales y detectar problemas en las siguientes categorías:
 
@@ -7775,7 +7791,9 @@ def _argumentacion_mejorar_disabled(session_id):
             estilo_instrucciones = estilo_custom.instrucciones
     
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=150.0)
+        client, error_msg = get_openai_client(timeout=150.0)
+        if not client:
+            return {"success": False, "error": error_msg}
         
         system_prompt = f"""Actua como un asistente juridico especializado en redaccion y argumentacion.
 
@@ -8304,7 +8322,9 @@ Genera el documento legal completo con la estructura apropiada:
 El documento debe ser formal, técnico-jurídico y listo para presentar."""
 
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=180.0)
+        client, error_msg = get_openai_client(timeout=180.0)
+        if not client:
+            return None, error_msg
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
@@ -8596,7 +8616,14 @@ Siempre sé útil y proactivo, ofreciendo sugerencias cuando sea apropiado."""
             openai_messages.append({"role": msg.role, "content": msg.content})
     
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=120.0)
+        client, error_msg = get_openai_client(timeout=120.0)
+        if not client:
+            AgentMessage.create(
+                session_id=agent_session.id,
+                role="assistant",
+                content=f"Error: {error_msg}"
+            )
+            return jsonify({"success": True, "message": error_msg})
         
         response = client.chat.completions.create(
             model="gpt-4o",
