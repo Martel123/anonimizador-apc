@@ -9045,18 +9045,24 @@ def get_modelo_public_link(modelo_id):
     })
 
 
-with app.app_context():
-    db.create_all()
-    os.makedirs(CARPETA_MODELOS, exist_ok=True)
-    os.makedirs(CARPETA_ESTILOS, exist_ok=True)
-    os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
-    os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
-    os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
-    os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
-    os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
-    os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
-    os.makedirs(CARPETA_REVISIONES, exist_ok=True)
-    os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
+@app.before_first_request
+def init_app_once():
+    try:
+        with app.app_context():
+            db.create_all()
+            os.makedirs(CARPETA_MODELOS, exist_ok=True)
+            os.makedirs(CARPETA_ESTILOS, exist_ok=True)
+            os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
+            os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
+            os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
+            os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
+            os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
+            os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
+            os.makedirs(CARPETA_REVISIONES, exist_ok=True)
+            os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
+    except Exception as e:
+        app.logger.exception("INIT_ERROR: %s", e)
+
 
 
 if __name__ == "__main__":
