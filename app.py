@@ -1572,15 +1572,42 @@ def anonymizer_process():
     file_size = 0
     temp_path = None
     
+    import os, uuid, zipfile
+    from werkzeug.utils import secure_filename
+
     try:
         if 'documento' not in request.files:
             flash("Por favor selecciona un documento.", "error")
             return redirect(url_for('anonymizer_home'))
-        
+
         archivo = request.files['documento']
-        if archivo.filename == '':
+
+        if not archivo or archivo.filename == '':
             flash("No se seleccionó ningún archivo.", "error")
             return redirect(url_for('anonymizer_home'))
+
+        filename = secure_filename(archivo.filename)
+        ext = filename.rsplit('.', 1)[-1].lower()
+
+        if ext not in ('pdf', 'docx'):
+            flash("Formato no permitido. Solo PDF o DOCX.", "error")
+            return redirect(url_for('anonymizer_home'))
+
+        # 🔥 SIEMPRE guardar primero en /tmp (clave para Render)
+        temp_path = f"/tmp/{uuid.uuid4().hex}_{filename}"
+        archivo.save(temp_path)
+
+        file_size = os.path.getsize(temp_path)
+        file_type = ext.upper()
+
+        app.logger.info(
+            f"UPLOAD_OK id={error_id} name={filename} type={file_type} size={file_size}"
+        )
+
+        # 🧪 DOCX = ZIP → validar estructura real
+        if ext == 'docx' and not zipfile.is_zipfile(temp_path):
+            raise Exception("Archivo DOCX inválido (estructura interna incorrecta)")
+
         
         original_filename = secure_filename(archivo.filename)
         ext = os.path.splitext(archivo.filename)[1].lower()
