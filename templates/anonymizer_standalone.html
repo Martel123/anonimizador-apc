@@ -251,15 +251,11 @@
     </header>
     
     <main class="main-container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'error' if category == 'error' else 'success' }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        {% if error %}
+        <div class="alert alert-error" style="background:#FEE2E2;border:1px solid #F87171;color:#B91C1C;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+            {{ error }}
+        </div>
+        {% endif %}
         
         <div class="card">
             <h1 class="card-title">Anonimizar Documento Legal</h1>

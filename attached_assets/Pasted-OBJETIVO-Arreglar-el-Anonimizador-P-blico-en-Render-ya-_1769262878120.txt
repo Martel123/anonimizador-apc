@@ -1,0 +1,83 @@
+OBJETIVO: Arreglar el “Anonimizador Público” en Render (ya corre con public_app:app) para que:
+1) NO use flash() ni sesiones (sin secret_key).
+2) NO dé “Internal Server Error”.
+3) Acepte PDF y DOCX (validación robusta).
+4) Mantenga el DISEÑO ACTUAL del anonimizador (usando tus templates/static existentes).
+5) Use IA obligatoria (OpenAI + spaCy) y CONFIDENCIALIDAD: archivos SOLO en /tmp y borrado SIEMPRE en finally.
+6) NO importe app.py, models.py, db, login, tenants, ni nada del sistema grande.
+
+RESTRICCIONES IMPORTANTES:
+- NO MODIFICAR app.py ni models.py.
+- NO AGREGAR dependencias del sistema grande (NO Flask-Login, NO SQLAlchemy, NO pyotp, NO psycopg2).
+- NO usar flash() en ningún lugar.
+- public_app.py debe ser la única app para Render.
+- No crear carpetas persistentes: NO uploads/, NO RESULTADOS/, NO ANONIMIZADOS/.
+- Leer API key SOLO de OPENAI_API_KEY (no variantes). Si falta, devolver 503 claro.
+- Mantener el pipeline existente del anonimizador (reusar tus funciones actuales si ya existen), pero sin importar app.py ni models.py.
+
+TAREAS (EJECUTA EN ESTE ORDEN Y EN UNA SOLA PASADA):
+
+A) INSPECCIÓN DEL PROYECTO (OBLIGATORIO)
+1) Abre el árbol del proyecto y detecta:
+   - Carpeta templates/ (lista archivos .html)
+   - Carpeta static/ (css/js/img)
+2) Identifica cuál HTML se está usando actualmente en la ruta GET / de public_app.py.
+3) Identifica el nombre exacto del input file del formulario (name="...") en el template real.
+   - Si no existe formulario, créalo en el template que se usa.
+4) Busca si ya existe un módulo/funciones del anonimizador (ej: anonymizer.py, anonymizer_logic.py, utils.py, services/anonymizer*, etc).
+   - Si existe, REUSARLO importándolo (solo ese módulo), siempre que NO importe app.py/models.py.
+   - Si el módulo existente importa app.py/models.py, NO usarlo: copia SOLO la lógica necesaria dentro de public_app.py.
+
+B) ARREGLAR public_app.py (OBLIGATORIO)
+1) En public_app.py:
+   - Elimina flash() y cualquier uso de session.
+   - Asegura rutas:
+     - GET /health -> "ok"
+     - GET / -> render_template del template correcto (el que ya existe con tu diseño).
+     - POST /anonymizer/process -> procesa archivo
+2) En POST /anonymizer/process:
+   - Debe leer el archivo con request.files.get("<NOMBRE_REAL_DEL_INPUT>").
+   - Validar por extensión:
+       .pdf o .docx únicamente
+     Si inválido: devolver 400 y render_template(template, error="...").
+   - Guardar input en /tmp usando tempfile.gettempdir() + uuid4() + extension.
+   - Procesar:
+       - Extraer texto (PDF/DOCX) usando las librerías ya instaladas (pymupdf/pdfplumber/pypdf2/mammoth/docx).
+       - Aplicar spaCy es_core_news_sm y OpenAI para identificar entidades/zonas a anonimizar (IA obligatoria).
+       - Generar archivo resultado en /tmp (PDF o DOCX según el input, o al menos DOCX).
+   - Responder con send_file(output_path, as_attachment=True, download_name="anonimizado_<original>").
+   - finally: borrar SIEMPRE input y output si existen.
+3) NO usar ningún directorio persistente.
+4) Si OPENAI_API_KEY no existe:
+   - En GET /: mostrar error visible en la página (render_template con error).
+   - En POST: devolver 503 JSON o HTML con mensaje claro.
+
+C) ARREGLAR TEMPLATE PARA MOSTRAR ERRORES (OBLIGATORIO)
+1) En el template usado por GET / (el real del diseño actual):
+   - Asegura el form:
+     - method="POST"
+     - action="/anonymizer/process"
+     - enctype="multipart/form-data"
+     - input type=file con name EXACTO que espera el backend.
+2) Agrega un bloque para mostrar errores sin flash:
+   {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+   (si no hay CSS, añade estilo simple inline o en tu css existente).
+
+D) CONFIRMAR Render (NO CAMBIAR render.yaml si ya está bien)
+1) Verifica que render.yaml use:
+   - buildCommand: pip install -r requirements_public.txt && python -m spacy download es_core_news_sm
+   - startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 public_app:app
+   - PYTHON_VERSION=3.11.0
+2) Verifica que requirements_public.txt solo tenga mínimos (ya está ok). NO agregar cosas del sistema grande.
+
+E) COMMIT
+- Commit message: "Fix public anonymizer (no sessions, robust upload, keep design)"
+- Push a main.
+
+ENTREGA:
+1) Pega aquí el contenido final de public_app.py (completo).
+2) Indica qué template estás usando en GET / (ej: templates/index.html).
+3) Indica el name="" del input file y confirma que coincide backend+frontend.
+4) Indica cómo probaste localmente en Replit (curl o abrir / y subir archivo).
+
+NOTA: Si encuentras que el diseño “nuevo” está en otro template, cambia GET / para usar ese template. No inventes uno nuevo si ya existe. Reutiliza static/ existente.

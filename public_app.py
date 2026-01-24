@@ -2,8 +2,8 @@
 Anonimizador Legal Público - App mínima para Render
 ====================================================
 NO importa models, db, flask_login, sqlalchemy, pyotp.
-Solo sirve el anonimizador público con IA (OpenAI + spaCy).
-Confidencialidad total: documentos en /tmp, borrados automáticamente.
+NO usa flash() ni session.
+Confidencialidad total: documentos en /tmp, borrados en finally.
 """
 
 import os
@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -22,13 +22,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "anon_uploads")
 OUTPUT_FOLDER = os.path.join(tempfile.gettempdir(), "anon_outputs")
-ALLOWED_EXTENSIONS = {'docx', 'pdf', 'doc'}
+ALLOWED_EXTENSIONS = {'docx', 'pdf'}
 JOB_EXPIRY_MINUTES = 30
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -39,65 +38,65 @@ jobs_lock = threading.Lock()
 
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    if not filename or '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    return ext in ALLOWED_EXTENSIONS
 
 
 def cleanup_old_files():
-    """Remove files older than JOB_EXPIRY_MINUTES."""
     try:
         now = time.time()
         expiry_seconds = JOB_EXPIRY_MINUTES * 60
-        
         for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
             if os.path.exists(folder):
-                for filename in os.listdir(folder):
-                    filepath = os.path.join(folder, filename)
-                    if os.path.isfile(filepath):
-                        file_age = now - os.path.getmtime(filepath)
-                        if file_age > expiry_seconds:
+                for fn in os.listdir(folder):
+                    fp = os.path.join(folder, fn)
+                    if os.path.isfile(fp):
+                        if now - os.path.getmtime(fp) > expiry_seconds:
                             try:
-                                os.remove(filepath)
-                                logger.info(f"Cleaned up: {filename}")
+                                os.remove(fp)
                             except:
                                 pass
-        
         with jobs_lock:
-            expired = [jid for jid, data in jobs_store.items()
-                      if 'created_at' in data and 
-                      (datetime.now() - data['created_at']).total_seconds() > expiry_seconds]
+            expired = [jid for jid, d in jobs_store.items()
+                      if 'created_at' in d and (datetime.now() - d['created_at']).total_seconds() > expiry_seconds]
             for jid in expired:
                 del jobs_store[jid]
-                
     except Exception as e:
         logger.error(f"Cleanup error: {e}")
 
 
 def start_cleanup_thread():
-    def cleanup_loop():
+    def loop():
         while True:
             time.sleep(300)
             cleanup_old_files()
-    thread = threading.Thread(target=cleanup_loop, daemon=True)
-    thread.start()
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
 
 start_cleanup_thread()
 
 
-def get_uploaded_file():
-    """Get file from request, trying multiple field names."""
-    for field in ['documento', 'file']:
-        if field in request.files and request.files[field].filename:
-            return request.files[field]
-    for f in request.files.values():
-        if f.filename:
-            return f
-    return None
+def safe_remove(path):
+    if path and os.path.exists(path):
+        try:
+            os.remove(path)
+        except:
+            pass
+
+
+def check_openai_available():
+    return bool(os.environ.get("OPENAI_API_KEY"))
 
 
 @app.route("/")
 def home():
     cleanup_old_files()
-    return render_template("anonymizer_standalone.html")
+    error = None
+    if not check_openai_available():
+        error = "Servicio temporalmente no disponible. Intente más tarde."
+    return render_template("anonymizer_standalone.html", error=error)
 
 
 @app.route("/anonymizer")
@@ -112,35 +111,33 @@ def health():
 
 @app.route("/anonymizer/process", methods=["POST"])
 def anonymizer_process():
-    """Process document for anonymization. Requires OPENAI_API_KEY."""
     temp_input = None
+    temp_output = None
     
     try:
-        if not os.environ.get("OPENAI_API_KEY"):
-            return jsonify({"error": "OPENAI_API_KEY missing", "code": "SERVICE_UNAVAILABLE"}), 503
+        if not check_openai_available():
+            return jsonify({"error": "OPENAI_API_KEY missing"}), 503
         
-        file = get_uploaded_file()
-        if not file:
-            flash("Por favor selecciona un documento.", "error")
-            return redirect(url_for('home'))
+        file = request.files.get("file")
+        if not file or not file.filename:
+            return render_template("anonymizer_standalone.html", 
+                                   error="Por favor selecciona un documento.")
         
         if not allowed_file(file.filename):
-            flash("Formato no soportado. Use DOCX o PDF.", "error")
-            return redirect(url_for('home'))
+            return render_template("anonymizer_standalone.html",
+                                   error="Formato no soportado. Solo DOCX o PDF."), 400
         
         job_id = str(uuid.uuid4())
         filename = secure_filename(file.filename)
         ext = filename.rsplit('.', 1)[1].lower()
-        if ext == 'doc':
-            ext = 'docx'
         
         temp_input = os.path.join(UPLOAD_FOLDER, f"{job_id}_in.{ext}")
         file.save(temp_input)
         file_size = os.path.getsize(temp_input)
         
         if file_size > 10 * 1024 * 1024:
-            flash("Archivo muy grande. Máximo 10MB.", "error")
-            return redirect(url_for('home'))
+            return render_template("anonymizer_standalone.html",
+                                   error="Archivo muy grande. Máximo 10MB."), 400
         
         import anonymizer_robust as anon_robust
         result = anon_robust.process_document_robust(
@@ -158,9 +155,8 @@ def anonymizer_process():
             }
         
         if not result.get('success', False):
-            error_msg = result.get('error', 'Error desconocido')
-            flash(f"Error: {error_msg}", "error")
-            return redirect(url_for('home'))
+            error_msg = result.get('error', 'Error procesando documento')
+            return render_template("anonymizer_standalone.html", error=error_msg)
         
         if result.get('needs_review'):
             return redirect(url_for('anonymizer_review', job_id=job_id))
@@ -169,8 +165,8 @@ def anonymizer_process():
         
     except Exception as e:
         logger.error(f"Process error: {e}")
-        flash(f"Error inesperado: {str(e)[:200]}", "error")
-        return redirect(url_for('home'))
+        return render_template("anonymizer_standalone.html",
+                               error=f"Error inesperado: {str(e)[:150]}")
 
 
 @app.route("/anonymizer/review/<job_id>")
@@ -179,8 +175,8 @@ def anonymizer_review(job_id):
         job = jobs_store.get(job_id)
     
     if not job:
-        flash("Sesión expirada. Suba el documento nuevamente.", "error")
-        return redirect(url_for('home'))
+        return render_template("anonymizer_standalone.html",
+                               error="Sesión expirada. Suba el documento nuevamente.")
     
     result = job.get('result', {})
     return render_template("anonymizer_review_standalone.html",
@@ -203,7 +199,7 @@ def anonymizer_apply_review(job_id):
         return jsonify({'success': False, 'error': 'Sesión expirada'}), 400
     
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         accepted_indices = data.get('accepted', [])
         
         result = job.get('result', {})
@@ -252,8 +248,8 @@ def anonymizer_download_page(job_id):
         job = jobs_store.get(job_id)
     
     if not job:
-        flash("Sesión expirada.", "error")
-        return redirect(url_for('home'))
+        return render_template("anonymizer_standalone.html",
+                               error="Sesión expirada. Suba el documento nuevamente.")
     
     result = job.get('result', {})
     return render_template("anonymizer_download_standalone.html",
@@ -270,8 +266,8 @@ def anonymizer_download(job_id, file_type):
         job = jobs_store.get(job_id)
     
     if not job:
-        flash("Sesión expirada", "error")
-        return redirect(url_for('home'))
+        return render_template("anonymizer_standalone.html",
+                               error="Sesión expirada. Suba el documento nuevamente.")
     
     try:
         if file_type == 'document':
@@ -330,13 +326,13 @@ def anonymizer_download(job_id, file_type):
                            download_name=f"{base}_reporte.json")
         
         else:
-            flash("Tipo no válido", "error")
-            return redirect(url_for('home'))
+            return render_template("anonymizer_standalone.html",
+                                   error="Tipo de archivo no válido.")
             
     except Exception as e:
         logger.error(f"Download error: {e}")
-        flash(f"Error: {str(e)[:100]}", "error")
-        return redirect(url_for('home'))
+        return render_template("anonymizer_standalone.html",
+                               error=f"Error en descarga: {str(e)[:100]}")
 
 
 if __name__ == "__main__":
