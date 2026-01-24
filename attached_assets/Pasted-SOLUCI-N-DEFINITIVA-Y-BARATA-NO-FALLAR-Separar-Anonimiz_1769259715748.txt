@@ -1,0 +1,110 @@
+SOLUCIÓN DEFINITIVA Y BARATA (NO FALLAR): Separar “Anonimizador Público” del sistema grande para que Render funcione estable, manteniendo el mismo DISEÑO (templates/static) y las mismas funciones de anonimización con IA (OpenAI + spaCy). Confidencialidad total: no guardar documentos.
+
+CONTEXTO:
+Actualmente Render falla porque app.py importa models.py (DB, pyotp, login, etc.). El anonimizador público NO necesita DB, login, tenants ni nada del sistema grande. Solo necesita:
+- UI pública para subir archivo (YA EXISTE en templates/static)
+- POST /anonymizer/process con IA real
+- Cero almacenamiento de documentos (solo /tmp y borrar)
+
+REGLAS ABSOLUTAS:
+- NO importar models.py ni db ni flask_login ni pyotp ni SQLAlchemy en el anonimizador público.
+- NO guardar documentos ni resultados en carpetas del repo (RESULTADOS/, ANONIMIZADOS/, uploads/, static/, etc.).
+- SOLO usar /tmp (tempfile.gettempdir()) + UUID y borrar SIEMPRE en finally.
+- OpenAI ES OBLIGATORIO para detectar qué anonimizar. Leer OPENAI_API_KEY desde env.
+- Si falta OPENAI_API_KEY: NO crashear al iniciar el server; devolver 503 al procesar.
+- Mantener el DISEÑO: reutilizar exactamente templates/ y static/ del anonimizador.
+
+OBJETIVO FINAL:
+Crear public_app.py (app Flask mínima) y configurar Render para ejecutar:
+gunicorn public_app:app
+con Python 3.11.
+Debe funcionar público para todos.
+
+TAREAS EXACTAS (en orden):
+
+1) Crear archivo nuevo public_app.py
+   - Debe crear Flask app = Flask(__name__)
+   - Debe servir el mismo diseño:
+     * GET / -> render_template usando el template existente del anonimizador (elige el template correcto dentro de templates/).
+     * Asegura que el template referencie CSS/JS por:
+       {{ url_for('static', filename='...') }}
+     * NO inventes un diseño nuevo si el actual funciona sin login/db.
+
+2) Agregar rutas mínimas:
+   - GET /health -> retorna "ok" (200)
+   - GET / -> página pública del anonimizador (mismo template)
+   - POST /anonymizer/process -> endpoint real, funcionando
+
+3) Endpoint POST /anonymizer/process (CONFIDENCIALIDAD TOTAL):
+   - Obtener archivo desde request.files:
+     * primero intenta "documento"
+     * si no existe, intenta "file"
+     * si no existe, toma el primer archivo disponible en request.files
+   - Validar extensión (pdf/docx/doc) y tamaño razonable
+   - Guardar SOLO en /tmp:
+     temp_in = /tmp/in_<uuid>_<filename>
+     temp_out = /tmp/out_<uuid>.docx (o pdf según corresponda)
+   - Ejecutar la FUNCIÓN REAL existente del proyecto que hace la anonimización con IA:
+     * NO inventar funciones nuevas
+     * Encuentra la función/pipe actual (buscar en el repo: anonymize, anonymizer, pipeline, process_docx, process_pdf, run_anon, etc.)
+     * Debe leer temp_in y escribir temp_out
+   - Devolver temp_out con send_file(as_attachment=True)
+   - finally: borrar temp_in y temp_out SIEMPRE (os.remove si existen)
+   - Prohibido guardar en el repo o crear carpetas persistentes.
+
+4) OpenAI (IA obligatoria):
+   - En public_app.py:
+     from openai import OpenAI
+   - NO inicializar el cliente si falta la key:
+     * Lee OPENAI_API_KEY desde os.environ
+     * Si no existe, en /anonymizer/process responde 503 con JSON claro: {"error":"OPENAI_API_KEY missing"}
+   - Si existe, crea client = OpenAI() y úsalo en el pipeline real (como ya lo hace tu sistema).
+
+5) NO IMPORTAR EL SISTEMA GRANDE:
+   - public_app.py no debe importar:
+     models.py
+     db
+     flask_login
+     sqlalchemy
+     pyotp
+     ni nada que arrastre tenants/cases/tasks/etc.
+   - Si la función real del anonimizador hoy está dentro de app.py y arrastra imports pesados, extrae SOLO esa lógica mínima a un nuevo módulo (ej: anonymizer_core.py) sin tocar DB.
+
+6) requirements.txt (MINIMAL y coherente con public_app.py):
+   Debe incluir SOLO lo necesario para que public_app.py y el pipeline funcionen:
+   - flask
+   - gunicorn
+   - openai>=1.0.0
+   - spacy>=3.7.0
+   - python-docx
+   - pdfplumber, pymupdf, pypdf2 (los que realmente se usen)
+   - mammoth si se usa
+   Quitar:
+   - Flask-Login, SQLAlchemy, Flask-Migrate, psycopg2-binary, pyotp y cualquier dependencia exclusiva del sistema grande.
+
+7) render.yaml (apuntar a public_app):
+   - startCommand:
+     gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 public_app:app
+   - buildCommand:
+     pip install -r requirements.txt && python -m spacy download es_core_news_sm
+   - envVars:
+     PYTHON_VERSION=3.11.0
+     SESSION_SECRET autogenerado (generateValue: true)
+   - Asegurar que Procfile NO contradiga esto (si existe, ajustarlo o eliminarlo).
+
+8) Pruebas rápidas (obligatorio antes del commit):
+   - Probar local:
+     * GET /health -> ok
+     * GET / -> carga con el mismo CSS (sin 404 de /static)
+     * POST /anonymizer/process -> con docx real -> devuelve archivo
+   - Si el template usa fetch/axios, confirmar que apunte a /anonymizer/process.
+
+9) Commit y Push:
+   - Commit message EXACTO:
+     "Public anonymizer minimal app for Render (no DB, no models)"
+   - Push a GitHub.
+
+ENTREGABLES OBLIGATORIOS AL FINAL:
+- Pegar el contenido completo final de public_app.py
+- Lista de archivos modificados (public_app.py, requirements.txt, render.yaml, cualquier core extra)
+- Confirmación de qué template de templates/ se usa para GET /
