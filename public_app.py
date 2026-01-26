@@ -671,8 +671,10 @@ def anonymizer_process():
         output_path = None
         mapping = {}
         all_entities = confirmed + needs_review
-        
-        logger.info(f"DIRECT_APPLY | job={job_id} | ext={ext} | entities={len(all_entities)}")
+        sample_ent = all_entities[0] if all_entities else {}
+        sample_keys = list(sample_ent.keys())
+        logger.info(f"DIRECT_APPLY | job={job_id} | ext={ext} | confirmed={len(confirmed)} | needs_review={len(needs_review)} | total={len(all_entities)}")
+        logger.info(f"DIRECT_ENTITY_SAMPLE | keys={sample_keys} | has_value={'value' in sample_ent} | sample={str(sample_ent)[:150]}")
         
         try:
             if ext == 'docx':
@@ -837,7 +839,10 @@ def anonymizer_apply_review(job_id):
                 pass
         
         sample_types = list(set([e.get('type', '?') for e in final_entities[:5]]))
-        logger.info(f"APPLY_START | job={job_id} | entities={len(final_entities)} | manual={len(manual_entities)} | types_sample={sample_types}")
+        sample_entity = final_entities[0] if final_entities else {}
+        sample_keys = list(sample_entity.keys())
+        logger.info(f"APPLY_START | job={job_id} | confirmed={len(confirmed)} | needs_review={len(needs_review)} | final={len(final_entities)} | manual={len(manual_entities)}")
+        logger.info(f"APPLY_ENTITY_SAMPLE | keys={sample_keys} | has_value={'value' in sample_entity} | has_start={'start' in sample_entity} | sample={str(sample_entity)[:150]}")
         
         ext = job.get('ext', 'docx')
         input_path = job.get('input_path')
