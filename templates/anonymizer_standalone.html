@@ -109,7 +109,7 @@
                 <div class="p-8">
                     <form id="upload-form" action="/anonymizer/process" method="POST" enctype="multipart/form-data">
                         <div id="drop-zone" class="drop-zone rounded-xl p-12 text-center cursor-pointer">
-                            <input type="file" name="file" id="file-input" accept=".docx,.pdf" class="hidden" required>
+                            <input type="file" name="file" id="file-input" accept=".doc,.docx,.pdf,.txt" class="hidden" required>
                             
                             <div id="upload-prompt" class="space-y-4">
                                 <div class="w-20 h-20 mx-auto bg-red-50 rounded-full flex items-center justify-center">
@@ -120,8 +120,9 @@
                                     <p class="text-apc-gray-text">o haz clic para seleccionar</p>
                                 </div>
                                 <div class="flex items-center justify-center space-x-4 text-sm text-apc-gray-text">
-                                    <span class="flex items-center"><i class="far fa-file-word text-blue-600 mr-1"></i> DOCX</span>
+                                    <span class="flex items-center"><i class="far fa-file-word text-blue-600 mr-1"></i> DOC/DOCX</span>
                                     <span class="flex items-center"><i class="far fa-file-pdf text-apc-red mr-1"></i> PDF</span>
+                                    <span class="flex items-center"><i class="far fa-file-alt text-gray-500 mr-1"></i> TXT</span>
                                 </div>
                                 <p class="text-xs text-apc-gray-text">Máximo 10 MB | PDF hasta 50 páginas</p>
                             </div>
@@ -309,11 +310,11 @@
 
         function validateFile(file) {
             const maxSize = 10 * 1024 * 1024;
-            const allowedTypes = ['.docx', '.pdf'];
+            const allowedTypes = ['.doc', '.docx', '.pdf', '.txt'];
             const extension = '.' + file.name.split('.').pop().toLowerCase();
             
             if (!allowedTypes.includes(extension)) {
-                alert('Formato no permitido. Solo se aceptan archivos DOCX y PDF.');
+                alert('Formato no permitido. Solo se aceptan archivos DOC, DOCX, PDF y TXT.');
                 return false;
             }
             if (file.size > maxSize) {

@@ -13,6 +13,9 @@ import logging
 import tempfile
 import threading
 import time
+import zipfile
+import subprocess
+import shutil
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 from werkzeug.utils import secure_filename
@@ -29,11 +32,190 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "anon_uploads")
 OUTPUT_FOLDER = os.path.join(tempfile.gettempdir(), "anon_outputs")
-ALLOWED_EXTENSIONS = {'docx', 'pdf'}
+ALLOWED_EXTENSIONS = {'doc', 'docx', 'pdf', 'txt'}
 JOB_EXPIRY_MINUTES = 30
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+
+def validate_file_format(file_path: str, ext: str) -> tuple:
+    """
+    Validates that file content matches expected format.
+    Returns (is_valid: bool, error_message: str or None)
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            head = f.read(8)
+        
+        if ext == 'docx':
+            if not zipfile.is_zipfile(file_path):
+                logger.warning(f"FORMAT_ERROR | ext=docx | not_zip | head={head[:4].hex()}")
+                return False, "El archivo no es un DOCX válido (no es ZIP). Si es .DOC antiguo, conviértelo a .DOCX."
+            return True, None
+        
+        elif ext == 'pdf':
+            if not head.startswith(b'%PDF'):
+                logger.warning(f"FORMAT_ERROR | ext=pdf | head={head[:4].hex()}")
+                return False, "El archivo no es un PDF válido (no empieza con %PDF)."
+            return True, None
+        
+        elif ext == 'txt':
+            return True, None
+        
+        elif ext == 'doc':
+            if head.startswith(b'\xd0\xcf\x11\xe0'):
+                return True, None
+            if head.startswith(b'PK'):
+                return False, "Este archivo parece ser DOCX, no DOC. Cambia la extensión a .docx."
+            logger.warning(f"FORMAT_ERROR | ext=doc | head={head[:4].hex()}")
+            return False, "El archivo no parece ser un documento Word válido."
+        
+        return True, None
+    except Exception as e:
+        logger.error(f"Validation error: {e}")
+        return False, f"Error validando archivo: {str(e)[:100]}"
+
+
+def convert_doc_to_docx(input_path: str, output_dir: str) -> tuple:
+    """
+    Attempts to convert .doc to .docx using LibreOffice.
+    Returns (success: bool, output_path or error_message: str)
+    """
+    soffice_paths = [
+        'soffice',
+        '/usr/bin/soffice',
+        '/usr/bin/libreoffice',
+        'libreoffice'
+    ]
+    
+    soffice_cmd = None
+    for path in soffice_paths:
+        if shutil.which(path):
+            soffice_cmd = path
+            break
+    
+    if not soffice_cmd:
+        logger.info("DOC_CONVERT | LibreOffice not available")
+        return False, "Este servidor no puede convertir archivos .DOC automáticamente. Por favor conviértelo a .DOCX usando Word o Google Docs y vuelve a subirlo."
+    
+    try:
+        result = subprocess.run(
+            [soffice_cmd, '--headless', '--convert-to', 'docx', '--outdir', output_dir, input_path],
+            capture_output=True,
+            timeout=60,
+            text=True
+        )
+        
+        base_name = os.path.splitext(os.path.basename(input_path))[0]
+        expected_output = os.path.join(output_dir, f"{base_name}.docx")
+        
+        if os.path.exists(expected_output):
+            logger.info(f"DOC_CONVERT | success | output={expected_output}")
+            return True, expected_output
+        else:
+            logger.warning(f"DOC_CONVERT | failed | stderr={result.stderr[:200]}")
+            return False, "Error al convertir .DOC a .DOCX. Por favor conviértelo manualmente."
+            
+    except subprocess.TimeoutExpired:
+        return False, "Tiempo agotado convirtiendo .DOC. Por favor conviértelo a .DOCX manualmente."
+    except Exception as e:
+        logger.error(f"DOC conversion error: {e}")
+        return False, f"Error de conversión: {str(e)[:100]}"
+
+
+def process_txt_file(file_path: str, strict_mode: bool = True, generate_mapping: bool = False) -> dict:
+    """
+    Process a plain text file for anonymization.
+    """
+    try:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+        except UnicodeDecodeError:
+            with open(file_path, 'r', encoding='latin-1', errors='ignore') as f:
+                text = f.read()
+        
+        if not text.strip():
+            return {'success': False, 'error': 'El archivo de texto está vacío.'}
+        
+        from detector_capas import DetectorCapas
+        detector = DetectorCapas()
+        entities = detector.detect(text)
+        
+        confirmed = []
+        needs_review = []
+        
+        for ent in entities:
+            if ent.get('confidence', 1.0) >= 0.7:
+                confirmed.append(ent)
+            elif strict_mode:
+                needs_review.append(ent)
+            else:
+                confirmed.append(ent)
+        
+        return {
+            'success': True,
+            'ok': True,
+            'text': text,
+            'confirmed': confirmed,
+            'needs_review': needs_review if strict_mode else [],
+            'detector_used': 'detector_capas',
+            'text_preview': text[:2000],
+            'is_txt': True
+        }
+        
+    except Exception as e:
+        logger.error(f"TXT processing error: {e}")
+        return {'success': False, 'error': f"Error procesando texto: {str(e)[:150]}"}
+
+
+def anonymize_txt_file(input_path: str, output_path: str, entities: list) -> dict:
+    """
+    Anonymize a TXT file by replacing detected entities with tokens.
+    """
+    try:
+        try:
+            with open(input_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+        except UnicodeDecodeError:
+            with open(input_path, 'r', encoding='latin-1', errors='ignore') as f:
+                text = f.read()
+        
+        sorted_entities = sorted(entities, key=lambda e: e.get('start', 0), reverse=True)
+        
+        mapping = {}
+        type_counters = {}
+        
+        for ent in sorted_entities:
+            ent_type = ent.get('type', 'DATO')
+            original = ent.get('text', ent.get('value', ''))
+            start = ent.get('start', 0)
+            end = ent.get('end', start + len(original))
+            
+            if ent_type not in type_counters:
+                type_counters[ent_type] = 1
+            else:
+                type_counters[ent_type] += 1
+            
+            token = f"{{{{{ent_type}_{type_counters[ent_type]}}}}}"
+            mapping[token] = original
+            
+            text = text[:start] + token + text[end:]
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+        
+        return {
+            'ok': True,
+            'output_path': output_path,
+            'mapping': mapping,
+            'entities_replaced': len(entities)
+        }
+        
+    except Exception as e:
+        logger.error(f"TXT anonymization error: {e}")
+        return {'ok': False, 'error': f"Error anonimizando texto: {str(e)[:150]}"}
 
 jobs_store = {}
 jobs_lock = threading.Lock()
@@ -127,7 +309,7 @@ def anonymizer_process():
         
         if not allowed_file(file.filename):
             return render_template("anonymizer_standalone.html",
-                                   error="Formato no soportado. Solo DOCX o PDF."), 400
+                                   error="Formato no soportado. Solo DOC, DOCX, PDF o TXT."), 400
         
         job_id = str(uuid.uuid4())
         filename = secure_filename(file.filename)
@@ -137,18 +319,42 @@ def anonymizer_process():
         file.save(temp_input)
         file_size = os.path.getsize(temp_input)
         
+        logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext} | size={file_size}")
+        
         if file_size > 10 * 1024 * 1024:
             return render_template("anonymizer_standalone.html",
                                    error="Archivo muy grande. Máximo 10MB."), 400
         
+        is_valid, validation_error = validate_file_format(temp_input, ext)
+        if not is_valid:
+            logger.warning(f"FORMAT_ERROR | job={job_id} | ext={ext} | error={validation_error}")
+            safe_remove(temp_input)
+            return render_template("anonymizer_standalone.html", error=validation_error), 400
+        
+        logger.info(f"UPLOAD_OK | job={job_id} | ext={ext} | size={file_size}")
+        
+        if ext == 'doc':
+            success, result_or_error = convert_doc_to_docx(temp_input, UPLOAD_FOLDER)
+            if not success:
+                safe_remove(temp_input)
+                return render_template("anonymizer_standalone.html", error=result_or_error), 400
+            safe_remove(temp_input)
+            temp_input = result_or_error
+            ext = 'docx'
+            file_size = os.path.getsize(temp_input)
+            logger.info(f"DOC_CONVERTED | job={job_id} | new_path={temp_input}")
+        
         strict_mode = request.form.get("strict_mode") is not None
         generate_mapping = request.form.get("generate_mapping") is not None
         
-        import anonymizer_robust as anon_robust
-        result = anon_robust.process_document_robust(
-            temp_input, ext, file_size,
-            strict_mode=strict_mode, generate_mapping=generate_mapping
-        )
+        if ext == 'txt':
+            result = process_txt_file(temp_input, strict_mode=strict_mode, generate_mapping=generate_mapping)
+        else:
+            import anonymizer_robust as anon_robust
+            result = anon_robust.process_document_robust(
+                temp_input, ext, file_size,
+                strict_mode=strict_mode, generate_mapping=generate_mapping
+            )
         
         with jobs_lock:
             jobs_store[job_id] = {
@@ -223,6 +429,9 @@ def anonymizer_apply_review(job_id):
         if ext == 'docx':
             from processor_docx import anonymize_docx_complete
             anon_result = anonymize_docx_complete(input_path, output_path, strict_mode=True)
+            success = anon_result.get('ok', False)
+        elif ext == 'txt':
+            anon_result = anonymize_txt_file(input_path, output_path, final_entities)
             success = anon_result.get('ok', False)
         else:
             from processor_pdf import anonymize_pdf_to_text

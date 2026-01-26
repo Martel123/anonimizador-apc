@@ -1,0 +1,139 @@
+Contexto: Tengo un Flask app público en public_app.py que renderiza templates/anonymizer_standalone.html. En Render me sale este error al subir archivos Word:
+ANONYMIZER_ERROR | code=FORMAT_ERROR | type=DOCX | ... Invalid file format
+Quiero que la plataforma admita: .doc, .docx, .pdf, .txt (y cualquier archivo de texto simple) y que NO reviente.
+
+OBJETIVO
+
+Que la subida funcione en Render sin error.
+
+Que el sistema acepte DOCX/PDF/TXT, y DOC con conversión automática si hay conversor disponible, y si no, devuelva un error claro sin romper.
+
+REGLAS
+
+NO crear endpoints nuevos.
+
+NO cambiar render.yaml.
+
+NO cambiar rutas existentes.
+
+Cambiar solo: public_app.py y templates/anonymizer_standalone.html si fuera necesario por accept= y textos.
+
+Mantener request.files.get("file") (el input del HTML debe seguir siendo name="file").
+
+TAREA 1 — Soporte de extensiones
+
+En public_app.py:
+
+Cambiar ALLOWED_EXTENSIONS para incluir:
+
+doc, docx, pdf, txt
+
+Ajustar accept= en el HTML si aplica.
+
+TAREA 2 — Validación real de archivo (para que no reviente)
+
+En public_app.py, dentro del handler POST /anonymizer/process:
+
+Después de guardar el archivo en temp_input, agregar validaciones:
+
+Si ext == "docx": verificar que sea ZIP válido (zipfile.is_zipfile(temp_input)), si no, error claro:
+“El archivo no es un DOCX válido. Si es .DOC, conviértelo a .DOCX.”
+
+Si ext == "pdf": verificar que empiece con %PDF
+
+Si ext == "txt": permitir siempre (solo leer texto)
+
+Si ext == "doc": intentar conversión (ver TAREA 3)
+
+Además, loggear UPLOAD_OK o FORMAT_ERROR con:
+
+filename, ext, size, head bytes.
+
+TAREA 3 — DOC: conversión automática si es posible
+
+Implementar una función en public_app.py:
+
+convert_doc_to_docx(input_path, output_path)
+
+Estrategia:
+
+Intentar usar LibreOffice si existe en el sistema:
+
+comando: soffice --headless --convert-to docx --outdir <dir> <input_path>
+
+Si soffice no existe o falla:
+
+NO procesar el archivo
+
+devolver error HTML:
+“Este servidor no puede convertir .DOC automáticamente. Por favor conviértelo a .DOCX y vuelve a subirlo.”
+
+Si la conversión funciona:
+
+Cambiar el flujo para que el archivo procesado sea el .docx convertido:
+
+actualizar temp_input, ext="docx", file_size
+
+TAREA 4 — TXT: procesamiento por texto
+
+Para txt:
+
+Leer el contenido como UTF-8 (manejar errores con errors="ignore").
+
+Pasar el texto a anonymizer_robust (si esa función solo acepta archivos, crear un archivo temporal .txt y pasarlo como input).
+
+Si anonymizer_robust no soporta .txt, entonces:
+
+crear un modo simple: anonimizar texto con reglas básicas y/o el mismo detector, pero que devuelva algo usable:
+
+generar output_path como .txt
+
+permitir descargar el resultado.
+
+TAREA 5 — Evitar “Invalid file format” silencioso
+
+En caso de excepción en procesamiento:
+
+Mostrar el error en la página con un mensaje corto + útil (no genérico).
+
+Ejemplo:
+
+“DOCX inválido (no es un ZIP).”
+
+“PDF inválido (no empieza con %PDF).”
+
+“DOC requiere conversión a DOCX.”
+
+TAREA 6 — Mantener el diseño y el input correcto
+
+En templates/anonymizer_standalone.html:
+
+Confirmar que el input es EXACTO:
+
+<input type="file" name="file" id="file-input" accept=".doc,.docx,.pdf,.txt" class="hidden" required>
+
+
+No cambiar logo: /static/images/logo_apc_juridica.png
+
+ENTREGA
+
+Al final:
+
+Confirmar qué archivos se modificaron.
+
+Mostrar el diff/resumen exacto de cambios.
+
+Indicar cómo probar en Render con:
+
+un DOCX real
+
+un PDF real
+
+un TXT
+
+un DOC (y qué pasa si no hay LibreOffice)
+
+NOTA IMPORTANTE
+
+Quiero que priorices funcionar en Render Starter.
+Si .doc no es posible convertir en Render, prefiero que lo rechace con un mensaje claro antes que romper.
