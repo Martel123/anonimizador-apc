@@ -677,7 +677,10 @@ def anonymizer_process():
             confirmed = []
             needs_review = []
             for ent in all_entities:
-                if ent.get('confidence', 1.0) >= 0.8:
+                if strict_mode:
+                    # En strict_mode, todas las entidades van a revisión
+                    needs_review.append(ent)
+                elif ent.get('confidence', 1.0) >= 0.8:
                     confirmed.append(ent)
                 else:
                     needs_review.append(ent)
