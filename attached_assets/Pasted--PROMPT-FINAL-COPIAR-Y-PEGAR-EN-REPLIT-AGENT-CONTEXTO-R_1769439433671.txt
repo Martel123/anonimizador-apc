@@ -1,0 +1,183 @@
+✅ PROMPT FINAL (COPIAR Y PEGAR EN REPLIT AGENT)
+
+CONTEXTO REAL (NO INVENTAR NADA NUEVO):
+En Render ya funciona subir y anonimizar (DOCX/PDF/TXT/DOC con fallback). Pero perdí mi flujo original de revisión interactiva (el que sale en el video):
+
+Header + estilo original
+
+“Revisión interactiva”
+
+Buscador “Buscar en documento”
+
+Vista previa del documento seleccionable (“selecciona texto para tokenizar”)
+
+Lista de entidades detectadas + confirmaciones
+
+Botón para aplicar cambios y luego pantalla final (descargar documento + reporte)
+
+OBJETIVO:
+Dejar el sistema EXACTAMENTE como el que ya construí antes (UI + flujo completo), pero usando el backend actual que ya corre en Render, sin romper nada.
+
+REGLAS DURAS (OBLIGATORIAS)
+
+NO rehacer diseño. NO crear “otra” UI. NO simplificar.
+
+NO crear endpoints nuevos. Usa los endpoints existentes:
+
+POST /anonymizer/process
+
+GET /anonymizer/review/<job_id>
+
+POST /anonymizer/review/<job_id>/apply
+
+(y los endpoints de descarga/resultados que ya existen)
+
+NO tocar render.yaml.
+
+NO romper lo que ya funciona en Render (subida + generación de output + descargas).
+
+REUTILIZA el HTML/CSS/JS de mi flujo antiguo (el que está en app.py y/o templates) y muévelo/conéctalo al flujo actual (que está en public_app.py).
+
+TAREA A — ENCONTRAR MI UI/FLUJO ORIGINAL (NO INVENTAR)
+
+En Replit, en Files, ubica el código y templates originales buscando EXACTAMENTE estas frases:
+
+"Revisión interactiva"
+
+"Modo estricto activado"
+
+"Buscar en documento"
+
+"Vista previa del documento"
+
+"selecciona texto para tokenizar"
+
+👉 Eso te llevará al template/ruta real (probablemente en app.py y uno o más templates en /templates).
+
+IMPORTANTE: NO recrees HTML. COPIA/PEGA el template original tal cual.
+
+TAREA B — HACER QUE RENDER USE ESA MISMA UI DE REVISIÓN
+
+Ahora mismo, en Render, cuando strict_mode=True, me manda a una pantalla “plana” (lista infinita con “Confirmado”) que NO es la que quiero.
+
+En public_app.py:
+
+Mantén el backend actual (validaciones + procesadores por extensión) porque ya funciona.
+
+Cuando strict_mode=True, el flujo debe ser:
+
+Subida OK → detectar entidades → guardar job en jobs_store → redirect a GET /anonymizer/review/<job_id>
+
+Esa ruta debe renderizar TU TEMPLATE ORIGINAL (el del video), no uno nuevo.
+
+En la ruta GET /anonymizer/review/<job_id>:
+
+Renderiza el mismo template que usa tu versión antigua.
+
+Pásale EXACTAMENTE las variables que ese template espera (según tu código viejo).
+
+Si tu template viejo espera algo como confirmed, needs_review, text_preview, job_id, filename, has_warning, etc., entonces adapta el jobs_store para que tenga esos campos con ese mismo nombre.
+
+TAREA C — NORMALIZAR ENTIDADES (SIN ROMPER LA UI ORIGINAL)
+
+Tu detector/robust puede devolver entidades como dict u objetos. Para que tu UI original no falle:
+
+Crea/usa una función entity_to_dict() y normalize_entities() (si ya existen, CONSÉRVALAS) para asegurar que cada entidad tenga SIEMPRE estas keys:
+
+{
+  "type": "...",
+  "value": "...",
+  "text": "...",
+  "start": int,
+  "end": int,
+  "confidence": float,
+  "source": "..."
+}
+
+
+Pero ojo: esto es SOLO para compatibilidad. No cambies el comportamiento del detector, solo su forma final.
+
+TAREA D — “SELECCIONAR TEXTO PARA TOKENIZAR” DEBE VOLVER A FUNCIONAR
+
+Tu UI original permitía seleccionar texto en la vista previa y tokenizarlo.
+
+Eso depende de 2 cosas:
+
+El template original debe incluir el JS que:
+
+captura selección de texto
+
+crea entidades manuales (custom)
+
+las agrega a la lista
+
+actualiza preview en vivo (si así estaba)
+
+POST /anonymizer/review/<job_id>/apply debe:
+
+recibir las entidades finales (confirmed + manuales + lo que el usuario marcó)
+
+generar el output final usando el procesador correspondiente
+
+devolver JSON con redirect (o la respuesta exacta que tu template original espera)
+
+✅ Si tu apply viejo devolvía:
+
+{"ok": true, "redirect": "/anonymizer/process?..."}
+
+
+entonces conserva ese formato.
+
+REGLA: No inventes estructura nueva. Respeta la que ya tenías.
+
+TAREA E — PANTALLA FINAL EXACTA (LA QUE YA TENÍAS)
+
+Cuando terminas (sin estricto o después de aplicar revisión) debe mostrar la pantalla final con:
+
+“Documento anonimizado”
+
+contador de reemplazos
+
+botón descargar documento
+
+botón descargar reporte (JSON)
+
+resumen por tipo (DNI, PERSONA, DIRECCION, etc.)
+
+tabla de reemplazos
+
+👉 Esa pantalla ya existe en tu proyecto (se ve en tus capturas).
+Si en Render se ve distinta, entonces debes hacer que use el template viejo, no uno nuevo.
+
+TAREA F — NO CAMBIAR EL FORM DE SUBIDA
+
+Asegura que el input siga siendo (ya está bien):
+
+<input type="file" name="file" id="file-input" accept=".doc,.docx,.pdf,.txt" class="hidden" required>
+
+
+Y que el logo no cambie:
+/static/images/logo_apc_juridica.png
+
+ENTREGA OBLIGATORIA (AL FINAL)
+
+Dime EXACTAMENTE qué archivos modificaste.
+
+Muéstrame un resumen tipo diff (qué cambió en cada archivo).
+
+Confirma con checklist:
+
+ strict_mode ON → va a /anonymizer/review/<job_id> con mi UI original (video)
+
+ seleccionar texto → crea entidad manual → se refleja en lista
+
+ apply → genera output → manda a pantalla final original
+
+ strict_mode OFF → va directo a pantalla final original
+
+ Render funciona igual que Replit
+
+NOTA FINAL (CRÍTICA)
+
+NO quiero una UI nueva ni “mejorada”.
+Quiero que encuentres mi sistema original (app.py/templates) y lo conectes al flujo actual (public_app.py/jobs_store/detección/procesamiento) para que Render muestre EXACTAMENTE lo mismo que yo ya tenía.

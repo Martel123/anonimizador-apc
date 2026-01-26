@@ -576,14 +576,37 @@ def anonymizer_review(job_id):
                                error="Sesión expirada. Suba el documento nuevamente.")
     
     result = job.get('result', {})
-    return render_template("anonymizer_review_standalone.html",
+    confirmed = result.get('confirmed', [])
+    needs_review = result.get('needs_review', [])
+    text_preview = result.get('text_preview', '')
+    
+    pending_entities = []
+    for i, ent in enumerate(needs_review):
+        context_start = max(0, ent.get('start', 0) - 30)
+        context_end = min(len(text_preview), ent.get('end', 0) + 30)
+        context = text_preview[context_start:context_end] if text_preview else ""
+        
+        pending_entities.append({
+            'id': f"pending_{i}",
+            'type': ent.get('type', 'UNKNOWN'),
+            'value': ent.get('value') or ent.get('text', ''),
+            'confidence': ent.get('confidence', 1.0),
+            'context': context
+        })
+    
+    entities_summary = {}
+    for ent in confirmed:
+        ent_type = ent.get('type', 'UNKNOWN')
+        entities_summary[ent_type] = entities_summary.get(ent_type, 0) + 1
+    
+    return render_template("anonymizer_review.html",
         job_id=job_id,
-        original_filename=job.get('original_filename', 'documento'),
-        confirmed=result.get('confirmed', []),
-        needs_review=result.get('needs_review', []),
-        text_preview=result.get('text_preview', '')[:2000],
-        detector_used=result.get('detector_used', 'unknown'),
-        post_scan_warning=result.get('post_scan_warning')
+        pending_count=len(pending_entities),
+        document_text=text_preview,
+        pending_entities=pending_entities,
+        confirmed_count=len(confirmed),
+        entities_summary=entities_summary,
+        original_filename=job.get('original_filename', 'documento')
     )
 
 
@@ -593,24 +616,54 @@ def anonymizer_apply_review(job_id):
         job = jobs_store.get(job_id)
     
     if not job:
-        return jsonify({'success': False, 'error': 'Sesión expirada'}), 400
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Sesión expirada'}), 400
+        return render_template("anonymizer_standalone.html", error="Sesión expirada. Suba el documento nuevamente.")
     
     try:
-        data = request.get_json() or {}
-        accepted_indices = data.get('accepted', [])
-        
         result = job.get('result', {})
         confirmed = result.get('confirmed', [])
         needs_review = result.get('needs_review', [])
         
         final_entities = list(confirmed)
-        for idx in accepted_indices:
-            if 0 <= idx < len(needs_review):
-                final_entities.append(needs_review[idx])
+        manual_entities = []
+        
+        if request.is_json:
+            data = request.get_json() or {}
+            accepted_indices = data.get('accepted', [])
+            for idx in accepted_indices:
+                if 0 <= idx < len(needs_review):
+                    final_entities.append(needs_review[idx])
+        else:
+            for i, ent in enumerate(needs_review):
+                decision_key = f"decisions[pending_{i}]"
+                if request.form.get(decision_key) == 'true':
+                    final_entities.append(ent)
+            
+            manual_json = request.form.get('manual_entities', '[]')
+            try:
+                manual_entities = json.loads(manual_json)
+                for m in manual_entities:
+                    final_entities.append({
+                        'type': m.get('type', 'CUSTOM'),
+                        'value': m.get('value', ''),
+                        'text': m.get('value', ''),
+                        'start': 0,
+                        'end': 0,
+                        'confidence': 1.0,
+                        'source': 'manual',
+                        'token': m.get('token', ''),
+                        'replaceAll': m.get('replaceAll', True)
+                    })
+            except json.JSONDecodeError:
+                pass
+        
+        logger.info(f"APPLY_REVIEW | job={job_id} | final_entities={len(final_entities)} | manual={len(manual_entities)}")
         
         ext = job.get('ext', 'docx')
         input_path = job.get('input_path')
-        output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.{ext}")
+        output_ext = 'txt' if ext == 'pdf' else ext
+        output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.{output_ext}")
         
         if ext == 'docx':
             from processor_docx import anonymize_docx_complete
@@ -624,22 +677,34 @@ def anonymizer_apply_review(job_id):
             anon_result = anonymize_pdf_to_text(input_path, strict_mode=True)
             success = anon_result.get('ok', False)
             if success and 'anonymized_text' in anon_result:
-                txt_path = output_path.replace('.pdf', '.txt')
-                with open(txt_path, 'w', encoding='utf-8') as f:
+                with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(anon_result['anonymized_text'])
-                output_path = txt_path
         
         if success:
+            mapping = anon_result.get('mapping', {})
             with jobs_lock:
                 jobs_store[job_id]['output_path'] = output_path
-                jobs_store[job_id]['mapping'] = anon_result.get('mapping', {})
-            return jsonify({'success': True, 'redirect': url_for('anonymizer_download_page', job_id=job_id)})
+                jobs_store[job_id]['mapping'] = mapping
+                jobs_store[job_id]['result']['confirmed'] = final_entities
+            
+            redirect_url = url_for('anonymizer_download_page', job_id=job_id)
+            
+            if request.is_json:
+                return jsonify({'success': True, 'redirect': redirect_url})
+            else:
+                return redirect(redirect_url)
         else:
-            return jsonify({'success': False, 'error': anon_result.get('error', 'Error')}), 500
+            error_msg = anon_result.get('error', 'Error procesando documento')
+            if request.is_json:
+                return jsonify({'success': False, 'error': error_msg}), 500
+            return render_template("anonymizer_standalone.html", error=error_msg)
             
     except Exception as e:
         logger.error(f"Apply review error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"APPLY_TRACE | {traceback.format_exc()}")
+        if request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        return render_template("anonymizer_standalone.html", error=f"Error: {str(e)[:100]}")
 
 
 @app.route("/anonymizer/download-page/<job_id>")
