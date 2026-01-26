@@ -140,6 +140,196 @@ def normalize_entities(items):
     return result
 
 
+def dicts_to_entity_objects(entity_dicts):
+    """Convierte lista de dicts a objetos Entity para el motor."""
+    from detector_capas import Entity
+    entities = []
+    for d in entity_dicts:
+        value = d.get('value') or d.get('text', '')
+        if not value:
+            continue
+        entities.append(Entity(
+            type=d.get('type', 'UNKNOWN'),
+            value=value,
+            start=d.get('start', 0),
+            end=d.get('end', 0),
+            source=d.get('source', 'manual'),
+            confidence=d.get('confidence', 1.0)
+        ))
+    return entities
+
+
+def apply_entities_to_docx(input_path, output_path, entity_dicts):
+    """
+    Aplica reemplazos usando entidades específicas (NO re-detecta).
+    Motor: processor_docx.process_docx_run_aware + EntityMapping
+    """
+    from docx import Document
+    from processor_docx import EntityMapping, process_docx_run_aware
+    
+    result = {
+        'ok': True,
+        'mapping': {},
+        'replacement_stats': {},
+        'replaced_count': 0,
+        'error': None
+    }
+    
+    try:
+        doc = Document(input_path)
+        entities = dicts_to_entity_objects(entity_dicts)
+        
+        if not entities:
+            doc.save(output_path)
+            result['replaced_count'] = 0
+            logger.warning(f"APPLY_NO_ENTITIES | No entities to apply")
+            return result
+        
+        mapping = EntityMapping()
+        stats = process_docx_run_aware(doc, entities, mapping)
+        
+        doc.save(output_path)
+        
+        result['mapping'] = mapping.reverse_mappings
+        result['replacement_stats'] = dict(stats)
+        result['replacement_stats']['entities_replaced'] = dict(stats.get('entities_replaced', {}))
+        result['replaced_count'] = stats.get('replacements', 0)
+        
+        logger.info(f"APPLY_DOCX_OK | replaced={result['replaced_count']} | types={mapping.get_summary()}")
+        
+    except Exception as e:
+        logger.error(f"APPLY_DOCX_FAIL | error={e}")
+        result['ok'] = False
+        result['error'] = str(e)
+    
+    return result
+
+
+def apply_entities_to_text(input_path, output_path, entity_dicts):
+    """
+    Aplica reemplazos a texto plano usando entidades específicas.
+    """
+    from collections import defaultdict
+    
+    result = {
+        'ok': True,
+        'mapping': {},
+        'replaced_count': 0,
+        'error': None
+    }
+    
+    try:
+        with open(input_path, 'r', encoding='utf-8', errors='ignore') as f:
+            text = f.read()
+        
+        counters = defaultdict(int)
+        mapping = {}
+        replaced_count = 0
+        
+        sorted_entities = sorted(entity_dicts, key=lambda e: len(e.get('value', '')), reverse=True)
+        
+        for ent in sorted_entities:
+            value = ent.get('value') or ent.get('text', '')
+            ent_type = ent.get('type', 'UNKNOWN')
+            
+            if not value or value not in text:
+                continue
+            
+            counters[ent_type] += 1
+            token = f"{{{{{ent_type}_{counters[ent_type]}}}}}"
+            
+            if ent.get('replaceAll', True):
+                count = text.count(value)
+                text = text.replace(value, token)
+                replaced_count += count
+            else:
+                text = text.replace(value, token, 1)
+                replaced_count += 1
+            
+            mapping[token] = value[:3] + '***'
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+        
+        result['mapping'] = mapping
+        result['replaced_count'] = replaced_count
+        
+        logger.info(f"APPLY_TXT_OK | replaced={replaced_count}")
+        
+    except Exception as e:
+        logger.error(f"APPLY_TXT_FAIL | error={e}")
+        result['ok'] = False
+        result['error'] = str(e)
+    
+    return result
+
+
+def apply_entities_to_pdf(input_path, output_path, entity_dicts):
+    """
+    Extrae texto del PDF, aplica entidades, guarda como .txt
+    """
+    from collections import defaultdict
+    
+    result = {
+        'ok': True,
+        'mapping': {},
+        'replaced_count': 0,
+        'error': None
+    }
+    
+    try:
+        from processor_pdf import extract_text_pdf
+        extract_result = extract_text_pdf(input_path)
+        
+        if not extract_result.get('success'):
+            result['ok'] = False
+            result['error'] = extract_result.get('error', 'No se pudo extraer texto del PDF')
+            return result
+        
+        text = extract_result.get('text', '')
+        
+        counters = defaultdict(int)
+        mapping = {}
+        replaced_count = 0
+        
+        sorted_entities = sorted(entity_dicts, key=lambda e: len(e.get('value', '')), reverse=True)
+        
+        for ent in sorted_entities:
+            value = ent.get('value') or ent.get('text', '')
+            ent_type = ent.get('type', 'UNKNOWN')
+            
+            if not value or value not in text:
+                continue
+            
+            counters[ent_type] += 1
+            token = f"{{{{{ent_type}_{counters[ent_type]}}}}}"
+            
+            if ent.get('replaceAll', True):
+                count = text.count(value)
+                text = text.replace(value, token)
+                replaced_count += count
+            else:
+                text = text.replace(value, token, 1)
+                replaced_count += 1
+            
+            mapping[token] = value[:3] + '***'
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+        
+        result['mapping'] = mapping
+        result['replaced_count'] = replaced_count
+        
+        logger.info(f"APPLY_PDF_OK | replaced={replaced_count}")
+        
+    except Exception as e:
+        logger.error(f"APPLY_PDF_FAIL | error={e}")
+        result['ok'] = False
+        result['error'] = str(e)
+    
+    return result
+
+
 def convert_doc_to_docx(input_path: str, output_dir: str) -> tuple:
     """
     Attempts to convert .doc to .docx using LibreOffice.
@@ -482,69 +672,57 @@ def anonymizer_process():
         mapping = {}
         all_entities = confirmed + needs_review
         
-        if ext == 'docx':
-            try:
-                from processor_docx import anonymize_docx_complete
+        logger.info(f"DIRECT_APPLY | job={job_id} | ext={ext} | entities={len(all_entities)}")
+        
+        try:
+            if ext == 'docx':
                 output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.docx")
-                anon_result = anonymize_docx_complete(temp_input, output_path, strict_mode=False)
+                anon_result = apply_entities_to_docx(temp_input, output_path, all_entities)
                 
                 if anon_result.get('ok'):
                     mapping = anon_result.get('mapping', {})
-                    logger.info(f"DOCX_ANON_OK | job={job_id} | entities={len(mapping)}")
+                    replaced = anon_result.get('replaced_count', 0)
+                    logger.info(f"DOCX_ANON_OK | job={job_id} | replaced={replaced} | types={len(mapping)}")
                 else:
                     error_msg = anon_result.get('error', 'Error anonimizando DOCX')
                     logger.error(f"ANON_FAIL | job={job_id} | ext=docx | error={error_msg}")
                     safe_remove(temp_input)
                     return render_template("anonymizer_standalone.html", error=error_msg), 400
-            except Exception as e:
-                logger.error(f"ANON_FAIL | job={job_id} | ext=docx | error={str(e)[:200]}")
-                logger.error(f"ANON_TRACE | {traceback.format_exc()}")
-                safe_remove(temp_input)
-                return render_template("anonymizer_standalone.html",
-                    error=f"Error procesando DOCX: {str(e)[:100]}"), 500
-        
-        elif ext == 'pdf':
-            try:
-                from processor_pdf import anonymize_pdf_to_text
-                anon_result = anonymize_pdf_to_text(temp_input, strict_mode=False)
+            
+            elif ext == 'pdf':
+                output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
+                anon_result = apply_entities_to_pdf(temp_input, output_path, all_entities)
                 
                 if anon_result.get('ok'):
-                    output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(anon_result.get('anonymized_text', ''))
                     mapping = anon_result.get('mapping', {})
-                    logger.info(f"PDF_ANON_OK | job={job_id} | entities={len(mapping)}")
+                    replaced = anon_result.get('replaced_count', 0)
+                    logger.info(f"PDF_ANON_OK | job={job_id} | replaced={replaced}")
                 else:
                     error_msg = anon_result.get('error', 'Error anonimizando PDF')
                     logger.error(f"ANON_FAIL | job={job_id} | ext=pdf | error={error_msg}")
                     safe_remove(temp_input)
                     return render_template("anonymizer_standalone.html", error=error_msg), 400
-            except Exception as e:
-                logger.error(f"ANON_FAIL | job={job_id} | ext=pdf | error={str(e)[:200]}")
-                logger.error(f"ANON_TRACE | {traceback.format_exc()}")
-                safe_remove(temp_input)
-                return render_template("anonymizer_standalone.html",
-                    error=f"Error procesando PDF: {str(e)[:100]}"), 500
-        
-        elif ext == 'txt':
-            try:
+            
+            elif ext == 'txt':
                 output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
-                if all_entities:
-                    anon_result = anonymize_txt_file(temp_input, output_path, all_entities)
-                    mapping = anon_result.get('mapping', {})
-                else:
-                    with open(temp_input, 'r', encoding='utf-8', errors='ignore') as f:
-                        text = f.read()
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(text)
+                anon_result = apply_entities_to_text(temp_input, output_path, all_entities)
                 
-                logger.info(f"TXT_ANON_OK | job={job_id} | entities={len(all_entities)}")
-            except Exception as e:
-                logger.error(f"ANON_FAIL | job={job_id} | ext=txt | error={str(e)[:200]}")
-                logger.error(f"ANON_TRACE | {traceback.format_exc()}")
-                safe_remove(temp_input)
-                return render_template("anonymizer_standalone.html",
-                    error=f"Error procesando TXT: {str(e)[:100]}"), 500
+                if anon_result.get('ok'):
+                    mapping = anon_result.get('mapping', {})
+                    replaced = anon_result.get('replaced_count', 0)
+                    logger.info(f"TXT_ANON_OK | job={job_id} | replaced={replaced}")
+                else:
+                    error_msg = anon_result.get('error', 'Error anonimizando TXT')
+                    logger.error(f"ANON_FAIL | job={job_id} | ext=txt | error={error_msg}")
+                    safe_remove(temp_input)
+                    return render_template("anonymizer_standalone.html", error=error_msg), 400
+                    
+        except Exception as e:
+            logger.error(f"ANON_FAIL | job={job_id} | ext={ext} | error={str(e)[:200]}")
+            logger.error(f"ANON_TRACE | {traceback.format_exc()}")
+            safe_remove(temp_input)
+            return render_template("anonymizer_standalone.html",
+                error=f"Error procesando documento: {str(e)[:100]}"), 500
         
         with jobs_lock:
             jobs_store[job_id] = {
@@ -658,7 +836,8 @@ def anonymizer_apply_review(job_id):
             except json.JSONDecodeError:
                 pass
         
-        logger.info(f"APPLY_REVIEW | job={job_id} | final_entities={len(final_entities)} | manual={len(manual_entities)}")
+        sample_types = list(set([e.get('type', '?') for e in final_entities[:5]]))
+        logger.info(f"APPLY_START | job={job_id} | entities={len(final_entities)} | manual={len(manual_entities)} | types_sample={sample_types}")
         
         ext = job.get('ext', 'docx')
         input_path = job.get('input_path')
@@ -666,19 +845,20 @@ def anonymizer_apply_review(job_id):
         output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.{output_ext}")
         
         if ext == 'docx':
-            from processor_docx import anonymize_docx_complete
-            anon_result = anonymize_docx_complete(input_path, output_path, strict_mode=True)
+            anon_result = apply_entities_to_docx(input_path, output_path, final_entities)
             success = anon_result.get('ok', False)
+            replaced = anon_result.get('replaced_count', 0)
+            logger.info(f"APPLY_OK | job={job_id} | ext=docx | replaced={replaced} | output={output_path}")
         elif ext == 'txt':
-            anon_result = anonymize_txt_file(input_path, output_path, final_entities)
+            anon_result = apply_entities_to_text(input_path, output_path, final_entities)
             success = anon_result.get('ok', False)
+            replaced = anon_result.get('replaced_count', 0)
+            logger.info(f"APPLY_OK | job={job_id} | ext=txt | replaced={replaced}")
         else:
-            from processor_pdf import anonymize_pdf_to_text
-            anon_result = anonymize_pdf_to_text(input_path, strict_mode=True)
+            anon_result = apply_entities_to_pdf(input_path, output_path, final_entities)
             success = anon_result.get('ok', False)
-            if success and 'anonymized_text' in anon_result:
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(anon_result['anonymized_text'])
+            replaced = anon_result.get('replaced_count', 0)
+            logger.info(f"APPLY_OK | job={job_id} | ext=pdf | replaced={replaced}")
         
         if success:
             mapping = anon_result.get('mapping', {})

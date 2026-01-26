@@ -1,0 +1,187 @@
+CONTEXTO:
+Ya restauré el flujo UI de revisión interactiva (buscar, preview seleccionable, marcar manualmente, etc.), pero ahora NO anonimiza (0 reemplazos / no tokeniza realmente).
+ANTES yo ya había logrado una anonimización casi al 100% con un motor avanzado (capas de detección, reglas, etc.). Quiero exactamente ese motor, NO una versión simplificada.
+
+OBJETIVO
+
+Mantener mi diseño y flujo completo (review interactivo + apply + pantalla final con conteos y reportes).
+
+Enchufar mi motor avanzado real de anonimización (detección por capas + reemplazo real en DOCX/PDF/TXT) para que:
+
+detecte bien (alto recall)
+
+reemplace bien (alto replace)
+
+y el modo estricto permita añadir manuales y aplicar.
+
+REGLAS DURAS
+
+NO crear endpoints nuevos
+
+NO tocar render.yaml
+
+NO rehacer UI / NO cambiar templates (solo si es estrictamente necesario para variables)
+
+NO inventar detectores nuevos
+
+NO degradar el motor: hay que usar el que YA EXISTE en el repo (lo que yo ya toqué y mejoré).
+
+TAREA 1 — IDENTIFICAR “MI MOTOR AVANZADO” EN EL REPO (OBLIGATORIO)
+
+Busca en el código del repo (Files) por estas palabras clave y ubica los módulos reales del motor:
+
+DetectorCapas
+
+capas
+
+rules
+
+regex
+
+process_document_robust
+
+anonymizer_robust
+
+detect_all_pii
+
+anonymize_docx_complete
+
+anonymize_pdf
+
+entities_replaced
+
+mapping
+
+strict_mode
+
+Resultado esperado: identificar cuál era el “pipeline” original:
+
+función principal que detecta (devuelve entidades)
+
+función principal que aplica/reemplaza (genera output + reporte)
+
+y cómo calculaba “reemplazos realizados”.
+
+IMPORTANTE: si hay dos pipelines (uno simple y uno robust), usa el robust/avanzado.
+
+TAREA 2 — CORREGIR EL FLUJO ACTUAL PARA QUE USE EL MOTOR AVANZADO (SIN CAMBIAR UI)
+
+En public_app.py, revisa los handlers:
+
+A) POST /anonymizer/process
+
+Debe hacer esto (sin romper lo que ya funciona):
+
+Guardar archivo
+
+Validar formato (ya está ok)
+
+DETECTAR usando el motor avanzado real (NO detector simplificado)
+
+Normalizar entidades a dict estándar (si ya existe normalize_entities, úsalo)
+
+Guardar en jobs_store[job_id] TODO lo que el template necesita:
+
+confirmed, needs_review, text_preview (o como se llame en tu UI)
+
+filename, ext, file_size, input_path
+
+strict_mode, generate_mapping
+
+Si strict_mode=True → redirect a /anonymizer/review/<job_id>
+
+Si strict_mode=False → APLICAR reemplazo REAL usando el motor avanzado y redirigir a pantalla final.
+
+🔴 PROHIBIDO: que strict_mode=False use un “anonymize_docx_simple” o algo básico si tu motor robust existe.
+
+B) GET /anonymizer/review/<job_id>
+
+No cambies UI. Solo asegúrate de pasar las variables correctas.
+
+C) POST /anonymizer/review/<job_id>/apply
+
+Este es el punto crítico: aquí debe aplicar el reemplazo REAL usando:
+
+entidades confirmadas + manuales seleccionadas por el usuario
+
+y debe producir:
+
+output final (docx/pdf/txt)
+
+reporte (json)
+
+conteo de reemplazos
+
+OBLIGATORIO: este apply debe llamar a la MISMA función robusta que antes te daba casi 100%.
+Si antes el reemplazo lo hacía anonymizer_robust o processor_docx.anonymize_docx_complete con un set de entidades específico, respeta ese formato.
+
+TAREA 3 — ARREGLAR LA CAUSA MÁS COMÚN DE “0 REEMPLAZOS”
+
+La UI muestra entidades, pero el motor no reemplaza por 1 de estas razones (tienes que diagnosticar cuál aplica):
+
+Las entidades no están en el formato exacto que espera el reemplazo (ej: espera value pero le pasas text, o espera start/end pero llegan vacíos).
+
+El motor DOCX reemplaza por coincidencia de texto (value) pero estás mandando tokens con llaves o texto distinto.
+
+El review UI está mandando entidades, pero apply las está leyendo con otra key y termina con final_entities=[].
+
+Se detecta sobre text_preview (texto plano), pero el reemplazo espera otro tipo de representación.
+
+✅ Solución obligatoria:
+
+Antes de reemplazar, crea una función entities_for_apply(final_entities) que convierta SIEMPRE a lo que el motor espera (sin cambiar motor).
+
+Y loggea:
+
+APPLY_ENTITIES_COUNT
+
+APPLY_ENTITY_SAMPLE (solo keys, sin datos sensibles)
+
+REPLACED_COUNT real
+
+TAREA 4 — MANTENER COMPATIBILIDAD CON RENDER
+
+Tu motor robust debe correr igual en Render. Si el robust depende de algo que Render no tiene, haz fallback SOLO en ese caso, pero sin romper:
+
+Si falta dependencia: mensaje claro + logs
+
+No cambies endpoints
+
+No cambies UI
+
+LOGS OBLIGATORIOS (para confirmar que ya reemplaza)
+
+Agrega logs en public_app.py:
+
+DETECT_OK | confirmed=X | needs_review=Y
+
+STRICT_MODE | redirect=/anonymizer/review/<job_id>
+
+APPLY_START | entities=N | ext=...
+
+APPLY_OK | replaced=K | output=...
+
+APPLY_FAIL | traceback=...
+
+ENTREGA OBLIGATORIA
+
+Al final dime:
+
+Qué archivos tocaste (idealmente solo public_app.py, y si tocaste algo más, justifica).
+
+Qué función exacta del motor avanzado quedó conectada para:
+
+detectar
+
+reemplazar
+
+Cómo probar:
+
+strict ON: subo docx → review → marco manual → apply → output con reemplazos > 0
+
+strict OFF: subo docx → output directo con reemplazos > 0
+
+RESTRICCIÓN FINAL
+
+NO quiero una “implementación nueva”.
+Quiero que uses y conectes lo que YA existe en el repo: todas mis capas, reglas, mejoras, prompts, etc.
