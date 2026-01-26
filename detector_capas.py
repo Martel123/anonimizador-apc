@@ -484,11 +484,13 @@ def get_nlp():
     if NLP_MODEL is None:
         try:
             import spacy
+            # Intentar sm primero (disponible en Render), luego md
             try:
-                NLP_MODEL = spacy.load("es_core_news_md")
-            except:
                 NLP_MODEL = spacy.load("es_core_news_sm")
-            logging.info("spaCy model loaded successfully")
+                logging.info("spaCy model es_core_news_sm loaded")
+            except:
+                NLP_MODEL = spacy.load("es_core_news_md")
+                logging.info("spaCy model es_core_news_md loaded")
         except Exception as e:
             logging.warning(f"spaCy not available: {e}")
             NLP_FAILED = True
