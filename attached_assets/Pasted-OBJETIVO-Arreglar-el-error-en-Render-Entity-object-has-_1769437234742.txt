@@ -1,0 +1,138 @@
+OBJETIVO: Arreglar el error en Render:
+'Entity' object has no attribute 'text'
+y asegurar que el flujo completo funcione:
+
+Si strict_mode = ON → detectar entidades → guardar en jobs_store → redirigir a /anonymizer/review/<job_id> (pantalla de revisión completa).
+
+Si strict_mode = OFF → anonimizar directo → ir a la pantalla final (resumen + reemplazos + descargas) como ya funciona.
+
+REGLAS:
+
+NO crear endpoints nuevos.
+
+NO tocar render.yaml.
+
+Cambiar solo public_app.py (y templates/* SOLO si es estrictamente necesario; idealmente no).
+
+Mantener input name="file".
+
+TAREA 1 — Encontrar el punto exacto del fallo
+
+En public_app.py, ubica el bloque donde se llama a detección (ejemplos posibles):
+
+confirmed, needs_review, text_preview = detect_all_pii(...)
+
+o entities = detector.detect(...)
+
+o algo que luego hace .text sobre entidades.
+
+Ahí mismo, antes de usar las entidades, agrega una función de normalización.
+
+TAREA 2 — Normalizar entidades a dicts (compatibilidad total)
+
+En public_app.py, cerca de otras utilidades, agrega:
+
+Una función entity_to_dict(e) que soporte TODOS estos casos:
+
+Si e es dict: devolverlo pero asegurando llaves mínimas:
+
+type, value, start, end, confidence
+
+y además text = value si no existe.
+
+Si e es objeto tipo Entity:
+
+intentar leer atributos en este orden:
+
+text o value o original o span_text
+
+label o type o ent_type
+
+start / end (o start_char / end_char)
+
+confidence (si no existe, poner 1.0)
+
+devolver dict final con:
+
+{
+  "type": ...,
+  "value": ...,
+  "text": ...,
+  "start": ...,
+  "end": ...,
+  "confidence": ...
+}
+
+
+Si no se puede sacar nada, lanzar error claro que incluya type(e) y dir(e) reducido.
+
+Una función normalize_entities(items):
+
+recibe una lista de entidades
+
+devuelve [entity_to_dict(x) for x in items]
+
+filtra entidades vacías (value vacío o sin start/end si es necesario).
+
+TAREA 3 — Aplicar normalización en el flujo strict_mode
+
+En el handler POST /anonymizer/process, en el flujo donde haces detección:
+
+Apenas obtienes confirmed y needs_review (o entities), aplica:
+
+confirmed = normalize_entities(confirmed)
+
+needs_review = normalize_entities(needs_review)
+
+si solo tienes entities, sepáralas pero siempre con dicts.
+
+IMPORTANTE:
+En ningún lugar del flujo vuelvas a usar .text sobre la entidad.
+Siempre usar dict: ent.get("text") o ent.get("value").
+
+TAREA 4 — Fix para TXT (si aplica)
+
+Si existe código que hace:
+
+original = ent.text o ent['text']
+Reemplazar por:
+
+original = ent.get("text") or ent.get("value") or ""
+
+Especialmente en anonymize_txt_file() o donde se construyan tokens.
+
+TAREA 5 — Logs para confirmar en Render en 1 intento
+
+Agrega logs mínimos (SIN spam) en el éxito de detección:
+
+DETECT_OK | job=... | confirmed=<n> | needs_review=<n> | sample_keys=<keys del primer dict>
+
+y si llega objeto raro:
+
+DETECT_ENTITY_TYPE | type=<type(e)>
+
+En error:
+
+DETECT_FAIL | job=... | error=...
+
+DETECT_TRACE con traceback completo.
+
+TAREA 6 — NO rompas lo que ya funciona
+
+Si strict_mode=False, mantener flujo actual que ya te muestra la pantalla final correcta.
+
+Si strict_mode=True, que SIEMPRE redirija a /anonymizer/review/<job_id> con los dicts ya normalizados guardados en jobs_store.
+
+ENTREGA OBLIGATORIA
+
+Al finalizar:
+
+Confirmar qué archivo se modificó (debería ser solo public_app.py).
+
+Mostrar diff/resumen exacto.
+
+Indicar cómo probar:
+
+Render: subir DOCX con strict_mode ON → debe ir a /review/... y mostrar entidades sin error.
+
+strict_mode OFF → debe ir a pantalla final.

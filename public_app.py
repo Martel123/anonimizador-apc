@@ -78,6 +78,68 @@ def validate_file_format(file_path: str, ext: str) -> tuple:
         return False, f"Error validando archivo: {str(e)[:100]}"
 
 
+def entity_to_dict(e):
+    """
+    Normaliza cualquier entidad (objeto Entity o dict) a un dict estándar.
+    Soporta múltiples formatos de entrada.
+    """
+    if isinstance(e, dict):
+        return {
+            'type': e.get('type') or e.get('entity_type') or e.get('label') or 'UNKNOWN',
+            'value': e.get('value') or e.get('text') or e.get('original') or '',
+            'text': e.get('text') or e.get('value') or e.get('original') or '',
+            'start': e.get('start', 0),
+            'end': e.get('end', 0),
+            'confidence': e.get('confidence', 1.0),
+            'source': e.get('source', 'unknown')
+        }
+    
+    try:
+        text_val = (getattr(e, 'value', None) or 
+                    getattr(e, 'text', None) or 
+                    getattr(e, 'original', None) or 
+                    getattr(e, 'span_text', None) or '')
+        
+        type_val = (getattr(e, 'entity_type', None) or 
+                    getattr(e, 'type', None) or 
+                    getattr(e, 'label', None) or 
+                    getattr(e, 'ent_type', None) or 'UNKNOWN')
+        
+        start_val = getattr(e, 'start', None) or getattr(e, 'start_char', 0)
+        end_val = getattr(e, 'end', None) or getattr(e, 'end_char', 0)
+        confidence_val = getattr(e, 'confidence', 1.0)
+        source_val = getattr(e, 'source', 'unknown')
+        
+        return {
+            'type': type_val,
+            'value': text_val,
+            'text': text_val,
+            'start': start_val,
+            'end': end_val,
+            'confidence': confidence_val,
+            'source': source_val
+        }
+    except Exception as ex:
+        attrs = [a for a in dir(e) if not a.startswith('_')][:10]
+        logger.error(f"ENTITY_CONVERT_FAIL | type={type(e).__name__} | attrs={attrs} | error={ex}")
+        raise ValueError(f"Cannot convert entity of type {type(e).__name__}: {attrs}")
+
+
+def normalize_entities(items):
+    """Normaliza una lista de entidades a dicts estándar."""
+    if not items:
+        return []
+    result = []
+    for e in items:
+        try:
+            d = entity_to_dict(e)
+            if d.get('value') or d.get('text'):
+                result.append(d)
+        except Exception as ex:
+            logger.warning(f"ENTITY_SKIP | error={ex}")
+    return result
+
+
 def convert_doc_to_docx(input_path: str, output_dir: str) -> tuple:
     """
     Attempts to convert .doc to .docx using LibreOffice.
@@ -373,26 +435,21 @@ def anonymizer_process():
             from detector_capas import detect_all_pii, post_scan_final
             entities, detect_meta = detect_all_pii(text_content)
             
+            all_entities = normalize_entities(entities)
+            
             confirmed = []
             needs_review = []
-            for ent in entities:
-                ent_dict = {
-                    'text': ent.text,
-                    'type': ent.entity_type,
-                    'start': ent.start,
-                    'end': ent.end,
-                    'confidence': getattr(ent, 'confidence', 1.0),
-                    'source': getattr(ent, 'source', 'unknown')
-                }
-                if getattr(ent, 'confidence', 1.0) >= 0.8:
-                    confirmed.append(ent_dict)
+            for ent in all_entities:
+                if ent.get('confidence', 1.0) >= 0.8:
+                    confirmed.append(ent)
                 else:
-                    needs_review.append(ent_dict)
+                    needs_review.append(ent)
             
             has_warning, warnings = post_scan_final(text_content)
             text_preview = text_content[:2000] if text_content else ""
             
-            logger.info(f"DETECT_OK | job={job_id} | confirmed={len(confirmed)} | needs_review={len(needs_review)} | has_warning={has_warning}")
+            sample_keys = list(all_entities[0].keys()) if all_entities else []
+            logger.info(f"DETECT_OK | job={job_id} | confirmed={len(confirmed)} | needs_review={len(needs_review)} | has_warning={has_warning} | sample_keys={sample_keys}")
             
         except Exception as detect_err:
             logger.error(f"DETECT_FAIL | job={job_id} | error={str(detect_err)[:200]}")
