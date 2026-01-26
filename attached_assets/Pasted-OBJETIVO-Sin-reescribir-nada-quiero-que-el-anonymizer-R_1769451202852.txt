@@ -1,0 +1,49 @@
+OBJETIVO:
+Sin reescribir nada, quiero que el anonymizer REAL (el que ya funciona y está en public_app.py con detector_capas, processor_docx/pdf y el review UI) se ejecute EN PRODUCCIÓN bajo el app principal (app.py), porque Render/Replit ejecuta main:app → app.py y public_app.py hoy no se usa.
+
+REGLAS ESTRICTAS:
+- NO reescribir el anonymizer.
+- NO crear endpoints nuevos (solo conectar los existentes del anonymizer).
+- NO cambiar render.yaml.
+- NO cambiar main.py / comando de arranque.
+- Cambios mínimos: SOLO “montaje/pegado” del anonymizer existente dentro del app que corre.
+- Mantener exactamente las rutas /anonymizer, /anonymizer/process, /anonymizer/review/<job_id>, /anonymizer/review/<job_id>/apply, /anonymizer/download-page/<job_id>, /anonymizer/download/<job_id>/<file_type>.
+- Mantener templates y static tal como ya están.
+
+TAREA A (CRÍTICA): Convertir public_app.py en Blueprint exportable SIN reescribir lógica
+1) En public_app.py:
+   - Crear un Blueprint llamado anonymizer_bp = Blueprint("anonymizer", __name__)
+   - Mover/registrar TODAS las rutas del anonymizer (las listadas arriba) dentro del blueprint (decoradores @anonymizer_bp.route(...))
+   - NO toques la lógica interna (detector_capas, processor_docx/pdf, jobs_store, strict_mode, review UI).
+   - Asegurar que los render_template apunten a los mismos templates actuales.
+   - Asegurar que send_file/download siga funcionando igual.
+
+2) En public_app.py:
+   - Dejar “app = Flask(__name__)” SOLO si se ejecuta standalone (if __name__ == "__main__"), pero el flujo principal debe ser blueprint-first.
+   - Exportar anonymizer_bp (para importarlo desde app.py).
+
+TAREA B (CRÍTICA): Montar el Blueprint en app.py (sin tocar el resto del sistema)
+1) En app.py (archivo que corre main:app):
+   - Importar el blueprint: from public_app import anonymizer_bp
+   - Registrar: app.register_blueprint(anonymizer_bp)
+   - NO modificar nada más del multi-tenant.
+   - Confirmar que no haya colisiones de rutas.
+
+TAREA C: Plantillas y static
+- Confirmar que los templates del anonymizer siguen en /templates:
+  anonymizer_standalone.html, anonymizer_review.html, anonymizer_download_standalone.html, base_anonymizer.html
+- Confirmar que el logo y assets siguen funcionando con:
+  /static/images/logo_apc_juridica.png
+
+TAREA D: Verificación final OBLIGATORIA (sin inventar)
+- Ejecutar una prueba real desde el servidor corriendo (no test client):
+  1) Entrar a /anonymizer en el navegador y verificar que carga.
+  2) Subir un DOCX con strict_mode OFF → debe ir a download-page y replacements > 0.
+  3) Subir un DOCX con strict_mode ON → debe ir a /anonymizer/review/<job_id> con la UI completa (buscar, seleccionar texto, preview live) y al aplicar debe ir a download-page y replacements > 0.
+- Agregar logs mínimos (solo si no existen) para mostrar:
+  DETECT_OK (confirmed/needs_review/total) y APPLY_OK (replaced)
+
+ENTREGA:
+- Lista EXACTA de archivos modificados (deberían ser solo public_app.py y app.py).
+- Resumen conciso de cambios (qué se importó/registró).
+- Confirmación de que main:app sigue igual pero ahora /anonymizer usa el pipeline real probado.

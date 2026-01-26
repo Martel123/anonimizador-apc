@@ -19,7 +19,7 @@
 
         <div class="p-8">
             <div class="grid md:grid-cols-2 gap-6 mb-8">
-                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='document') }}" 
+                <a href="{{ url_for('anonymizer.anonymizer_download', job_id=job_id, file_type='document') }}" 
                    class="flex items-center p-6 bg-red-50 rounded-xl border-2 border-red-200 hover:border-apc-red hover:bg-red-100 transition-all group">
                     <div class="w-14 h-14 bg-apc-red rounded-xl flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
                         <i class="fas fa-file-download text-white text-2xl"></i>
@@ -30,7 +30,7 @@
                     </div>
                 </a>
 
-                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='report') }}" 
+                <a href="{{ url_for('anonymizer.anonymizer_download', job_id=job_id, file_type='report') }}" 
                    class="flex items-center p-6 bg-apc-gray-bg rounded-xl border-2 border-apc-gray-border hover:border-apc-black-secondary hover:bg-gray-100 transition-all group">
                     <div class="w-14 h-14 bg-apc-black-secondary rounded-xl flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
                         <i class="fas fa-file-alt text-white text-2xl"></i>
@@ -44,7 +44,7 @@
 
             {% if has_mapping %}
             <div class="mb-6">
-                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='mapping') }}" 
+                <a href="{{ url_for('anonymizer.anonymizer_download', job_id=job_id, file_type='mapping') }}" 
                    class="flex items-center p-4 bg-apc-gray-bg rounded-xl border-2 border-apc-gray-border hover:border-apc-black-secondary hover:bg-gray-100 transition-all group">
                     <div class="w-12 h-12 bg-apc-black-secondary rounded-xl flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
                         <i class="fas fa-table text-white text-xl"></i>
@@ -116,12 +116,12 @@
             {% endif %}
 
             <div class="mt-8 pt-6 border-t border-apc-gray-border flex flex-col sm:flex-row gap-4">
-                <a href="{{ url_for('anonymizer_home') }}" 
+                <a href="{{ url_for('anonymizer.anonymizer_home') }}" 
                    class="flex-1 py-3 px-6 btn-primary font-medium rounded-xl transition-all flex items-center justify-center">
                     <i class="fas fa-plus mr-2"></i>
                     Procesar otro documento
                 </a>
-                <a href="{{ url_for('anonymizer_download', job_id=job_id, file_type='report_json') }}" 
+                <a href="{{ url_for('anonymizer.anonymizer_download', job_id=job_id, file_type='report_json') }}" 
                    class="py-3 px-6 btn-secondary font-medium rounded-xl transition-all flex items-center justify-center">
                     <i class="fas fa-code mr-2"></i>
                     Reporte JSON

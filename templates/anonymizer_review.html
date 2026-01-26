@@ -108,7 +108,7 @@
                 </div>
             </div>
 
-            <form action="{{ url_for('anonymizer_apply_review', job_id=job_id) }}" method="POST" id="review-form">
+            <form action="{{ url_for('anonymizer.anonymizer_apply_review', job_id=job_id) }}" method="POST" id="review-form">
                 <input type="hidden" name="job_id" value="{{ job_id }}">
                 <input type="hidden" name="manual_entities" id="manual-entities" value="[]">
                 
@@ -177,7 +177,7 @@
                         <i class="fas fa-check-circle mr-2"></i>
                         Aplicar cambios y continuar
                     </button>
-                    <a href="{{ url_for('anonymizer_home') }}" 
+                    <a href="{{ url_for('anonymizer.anonymizer_home') }}" 
                        class="py-4 px-6 btn-secondary font-medium rounded-xl transition-all flex items-center justify-center">
                         <i class="fas fa-times mr-2"></i>
                         Cancelar

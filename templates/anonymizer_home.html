@@ -14,7 +14,7 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
         <div class="p-8">
-            <form id="upload-form" action="{{ url_for('anonymizer_process') }}" method="POST" enctype="multipart/form-data">
+            <form id="upload-form" action="{{ url_for('anonymizer.anonymizer_process') }}" method="POST" enctype="multipart/form-data">
                 <div id="drop-zone" class="drop-zone rounded-xl p-12 text-center cursor-pointer">
                     <input type="file" name="documento" id="file-input" accept=".docx,.pdf" class="hidden" required>
                     

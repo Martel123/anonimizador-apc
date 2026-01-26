@@ -42,6 +42,7 @@ def get_openai_client(timeout=120.0):
 
 import anonymizer as anon_module
 import anonymizer_robust as anon_robust
+from public_app import anonymizer_bp
 
 from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse
 import qrcode
@@ -66,6 +67,8 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+app.register_blueprint(anonymizer_bp)
 
 db.init_app(app)
 
@@ -1580,16 +1583,19 @@ os.makedirs(ANONYMIZER_TEMP_DIR, exist_ok=True)
 os.makedirs(ANONYMIZER_OUTPUT_DIR, exist_ok=True)
 
 
-@app.route("/")
-def index():
-    return redirect(url_for('anonymizer_home'))
+# ============================================================================
+# ANONYMIZER ROUTES - DISABLED (now using anonymizer_bp from public_app.py)
+# ============================================================================
+# @app.route("/")
+# def index():
+#     return redirect(url_for('anonymizer_home'))
 
 
-@app.route("/anonymizer")
-def anonymizer_home():
-    anon_module.cleanup_old_files(ANONYMIZER_TEMP_DIR, max_age_minutes=30)
-    anon_module.cleanup_old_files(ANONYMIZER_OUTPUT_DIR, max_age_minutes=30)
-    return render_template("anonymizer_home.html")
+# @app.route("/anonymizer")
+# def anonymizer_home():
+#     anon_module.cleanup_old_files(ANONYMIZER_TEMP_DIR, max_age_minutes=30)
+#     anon_module.cleanup_old_files(ANONYMIZER_OUTPUT_DIR, max_age_minutes=30)
+#     return render_template("anonymizer_home.html")
 
 
 def generate_error_id():
@@ -1597,8 +1603,9 @@ def generate_error_id():
     return uuid.uuid4().hex[:8].upper()
 
 
-@app.route("/anonymizer/process", methods=["POST"])
-def anonymizer_process():
+# DISABLED - using blueprint from public_app.py
+@app.route("/_old_anonymizer/process", methods=["POST"])
+def _old_anonymizer_process():
     """
     ROBUST ANONYMIZATION PIPELINE
     Processes documents through stages with fallbacks. Never returns 500.
@@ -1785,8 +1792,9 @@ def anonymizer_process():
                 pass
 
 
-@app.route("/anonymizer/review/<job_id>/apply", methods=["POST"])
-def anonymizer_apply_review(job_id):
+# DISABLED - using blueprint from public_app.py
+@app.route("/_old_anonymizer/review/<job_id>/apply", methods=["POST"])
+def _old_anonymizer_apply_review(job_id):
     if not re.match(r'^[a-f0-9]{32}$', job_id):
         flash("ID de trabajo inválido.", "error")
         return redirect(url_for('anonymizer_home'))
@@ -1901,8 +1909,9 @@ def anonymizer_apply_review(job_id):
                          has_mapping=job_state.get('generate_mapping', False))
 
 
-@app.route("/anonymizer/review/<job_id>/skip")
-def anonymizer_skip_review(job_id):
+# DISABLED - using blueprint from public_app.py
+@app.route("/_old_anonymizer/review/<job_id>/skip")
+def _old_anonymizer_skip_review(job_id):
     if not re.match(r'^[a-f0-9]{32}$', job_id):
         flash("ID de trabajo inválido.", "error")
         return redirect(url_for('anonymizer_home'))
@@ -1933,8 +1942,9 @@ def anonymizer_skip_review(job_id):
                          has_mapping=job_state.get('generate_mapping', False))
 
 
-@app.route("/anonymizer/download/<job_id>/<file_type>")
-def anonymizer_download(job_id, file_type):
+# DISABLED - using blueprint from public_app.py  
+@app.route("/_old_anonymizer/download/<job_id>/<file_type>")
+def _old_anonymizer_download(job_id, file_type):
     if not re.match(r'^[a-f0-9]{32}$', job_id):
         flash("ID de trabajo inválido.", "error")
         return redirect(url_for('anonymizer_home'))

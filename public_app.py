@@ -18,15 +18,16 @@ import subprocess
 import shutil
 import traceback
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
+from flask import Flask, Blueprint, render_template, request, redirect, url_for, send_file, jsonify
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+anonymizer_bp = Blueprint("anonymizer", __name__)
+
 app = Flask(__name__)
-import os
 app.secret_key = os.environ.get("SESSION_SECRET", "dev-fallback-secret")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
@@ -473,6 +474,38 @@ def anonymize_txt_file(input_path: str, output_path: str, entities: list) -> dic
 jobs_store = {}
 jobs_lock = threading.Lock()
 
+JOBS_DIR = os.path.join(tempfile.gettempdir(), "anon_jobs")
+os.makedirs(JOBS_DIR, exist_ok=True)
+
+def save_job(job_id, job_data):
+    """Save job to file for cross-worker persistence"""
+    job_path = os.path.join(JOBS_DIR, f"{job_id}.json")
+    try:
+        with open(job_path, 'w', encoding='utf-8') as f:
+            serializable = {}
+            for k, v in job_data.items():
+                if isinstance(v, datetime):
+                    serializable[k] = v.isoformat()
+                else:
+                    serializable[k] = v
+            json.dump(serializable, f, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"save_job error: {e}")
+
+def load_job(job_id):
+    """Load job from file"""
+    job_path = os.path.join(JOBS_DIR, f"{job_id}.json")
+    if os.path.exists(job_path):
+        try:
+            with open(job_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if 'created_at' in data and isinstance(data['created_at'], str):
+                    data['created_at'] = datetime.fromisoformat(data['created_at'])
+                return data
+        except Exception as e:
+            logger.error(f"load_job error: {e}")
+    return None
+
 
 def allowed_file(filename):
     if not filename or '.' not in filename:
@@ -527,7 +560,7 @@ def check_openai_available():
     return bool(os.environ.get("OPENAI_API_KEY"))
 
 
-@app.route("/")
+@anonymizer_bp.route("/")
 def home():
     cleanup_old_files()
     error = None
@@ -536,17 +569,17 @@ def home():
     return render_template("anonymizer_standalone.html", error=error)
 
 
-@app.route("/anonymizer")
+@anonymizer_bp.route("/anonymizer")
 def anonymizer_home():
     return render_template("anonymizer_standalone.html")
 
 
-@app.route("/health")
+@anonymizer_bp.route("/health")
 def health():
     return "ok"
 
 
-@app.route("/anonymizer/process", methods=["POST"])
+@anonymizer_bp.route("/anonymizer/process", methods=["POST"])
 def anonymizer_process():
     temp_input = None
     temp_output = None
@@ -649,24 +682,26 @@ def anonymizer_process():
                 error=f"Error detectando entidades: {str(detect_err)[:100]}"), 500
         
         if strict_mode:
-            with jobs_lock:
-                jobs_store[job_id] = {
-                    'created_at': datetime.now(),
-                    'original_filename': filename,
-                    'ext': ext,
-                    'input_path': temp_input,
-                    'strict_mode': True,
-                    'result': {
-                        'success': True,
-                        'confirmed': confirmed,
-                        'needs_review': needs_review,
-                        'text_preview': text_preview,
-                        'detector_used': detect_meta.get('detector', 'hybrid'),
-                        'post_scan_warning': has_warning
-                    }
+            job_data = {
+                'created_at': datetime.now(),
+                'original_filename': filename,
+                'ext': ext,
+                'input_path': temp_input,
+                'strict_mode': True,
+                'result': {
+                    'success': True,
+                    'confirmed': confirmed,
+                    'needs_review': needs_review,
+                    'text_preview': text_preview,
+                    'detector_used': detect_meta.get('detector', 'hybrid'),
+                    'post_scan_warning': has_warning
                 }
+            }
+            with jobs_lock:
+                jobs_store[job_id] = job_data
+            save_job(job_id, job_data)
             logger.info(f"STRICT_MODE | job={job_id} | redirecting to review")
-            return redirect(url_for('anonymizer_review', job_id=job_id))
+            return redirect(url_for('.anonymizer_review', job_id=job_id))
         
         output_path = None
         mapping = {}
@@ -726,19 +761,21 @@ def anonymizer_process():
             return render_template("anonymizer_standalone.html",
                 error=f"Error procesando documento: {str(e)[:100]}"), 500
         
+        job_data = {
+            'created_at': datetime.now(),
+            'original_filename': filename,
+            'ext': ext,
+            'input_path': temp_input,
+            'output_path': output_path,
+            'mapping': mapping,
+            'strict_mode': False,
+            'result': {'success': True, 'confirmed': all_entities, 'needs_review': [], 'mapping': mapping}
+        }
         with jobs_lock:
-            jobs_store[job_id] = {
-                'created_at': datetime.now(),
-                'original_filename': filename,
-                'ext': ext,
-                'input_path': temp_input,
-                'output_path': output_path,
-                'mapping': mapping,
-                'strict_mode': False,
-                'result': {'success': True, 'confirmed': all_entities, 'needs_review': [], 'mapping': mapping}
-            }
+            jobs_store[job_id] = job_data
+        save_job(job_id, job_data)
         
-        return redirect(url_for('anonymizer_download_page', job_id=job_id))
+        return redirect(url_for('.anonymizer_download_page', job_id=job_id))
         
     except Exception as e:
         logger.error(f"Process error: {e}")
@@ -746,10 +783,12 @@ def anonymizer_process():
                                error=f"Error inesperado: {str(e)[:150]}")
 
 
-@app.route("/anonymizer/review/<job_id>")
+@anonymizer_bp.route("/anonymizer/review/<job_id>")
 def anonymizer_review(job_id):
     with jobs_lock:
         job = jobs_store.get(job_id)
+    if not job:
+        job = load_job(job_id)
     
     if not job:
         return render_template("anonymizer_standalone.html",
@@ -790,10 +829,12 @@ def anonymizer_review(job_id):
     )
 
 
-@app.route("/anonymizer/review/<job_id>/apply", methods=["POST"])
+@anonymizer_bp.route("/anonymizer/review/<job_id>/apply", methods=["POST"])
 def anonymizer_apply_review(job_id):
     with jobs_lock:
         job = jobs_store.get(job_id)
+    if not job:
+        job = load_job(job_id)
     
     if not job:
         if request.is_json:
@@ -867,12 +908,14 @@ def anonymizer_apply_review(job_id):
         
         if success:
             mapping = anon_result.get('mapping', {})
+            job['output_path'] = output_path
+            job['mapping'] = mapping
+            job['result']['confirmed'] = final_entities
             with jobs_lock:
-                jobs_store[job_id]['output_path'] = output_path
-                jobs_store[job_id]['mapping'] = mapping
-                jobs_store[job_id]['result']['confirmed'] = final_entities
+                jobs_store[job_id] = job
+            save_job(job_id, job)
             
-            redirect_url = url_for('anonymizer_download_page', job_id=job_id)
+            redirect_url = url_for('.anonymizer_download_page', job_id=job_id)
             
             if request.is_json:
                 return jsonify({'success': True, 'redirect': redirect_url})
@@ -892,10 +935,12 @@ def anonymizer_apply_review(job_id):
         return render_template("anonymizer_standalone.html", error=f"Error: {str(e)[:100]}")
 
 
-@app.route("/anonymizer/download-page/<job_id>")
+@anonymizer_bp.route("/anonymizer/download-page/<job_id>")
 def anonymizer_download_page(job_id):
     with jobs_lock:
         job = jobs_store.get(job_id)
+    if not job:
+        job = load_job(job_id)
     
     if not job:
         return render_template("anonymizer_standalone.html",
@@ -910,10 +955,12 @@ def anonymizer_download_page(job_id):
     )
 
 
-@app.route("/anonymizer/download/<job_id>/<file_type>")
+@anonymizer_bp.route("/anonymizer/download/<job_id>/<file_type>")
 def anonymizer_download(job_id, file_type):
     with jobs_lock:
         job = jobs_store.get(job_id)
+    if not job:
+        job = load_job(job_id)
     
     if not job:
         return render_template("anonymizer_standalone.html",
@@ -943,9 +990,11 @@ def anonymizer_download(job_id, file_type):
                             f.write(anon_result['anonymized_text'])
                         output_path = txt_path
                 
+                job['output_path'] = output_path
+                job['mapping'] = anon_result.get('mapping', {})
                 with jobs_lock:
-                    jobs_store[job_id]['output_path'] = output_path
-                    jobs_store[job_id]['mapping'] = anon_result.get('mapping', {})
+                    jobs_store[job_id] = job
+                save_job(job_id, job)
             
             original = job.get('original_filename', 'documento')
             base = original.rsplit('.', 1)[0] if '.' in original else original
@@ -984,6 +1033,8 @@ def anonymizer_download(job_id, file_type):
         return render_template("anonymizer_standalone.html",
                                error=f"Error en descarga: {str(e)[:100]}")
 
+
+app.register_blueprint(anonymizer_bp)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
