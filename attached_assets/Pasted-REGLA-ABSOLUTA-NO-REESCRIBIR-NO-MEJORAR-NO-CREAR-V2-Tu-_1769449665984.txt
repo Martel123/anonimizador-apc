@@ -1,0 +1,178 @@
+REGLA ABSOLUTA: NO REESCRIBIR, NO “MEJORAR”, NO CREAR V2.
+Tu trabajo es MIGRAR/COPIAR el anonymizer tal como ya existe y funciona en Replit, para que en Render funcione igual. Además, en app.py hay OTRO sistema que NO se debe tocar ni alterar.
+
+OBJETIVO
+
+Render debe ejecutar el proyecto y el anonymizer debe quedar EXACTAMENTE como estaba:
+
+UI completa (subida + strict mode + revisión con preview + seleccionar texto para tokenizar + apply + resultado final con descargas y reporte).
+
+Pipeline real de detección por capas (el que yo afiné, con alta efectividad).
+
+Sin tocar el resto del sistema (admin u otro módulo).
+
+RESTRICCIONES
+
+NO crear endpoints nuevos.
+
+NO cambiar rutas existentes del anonymizer.
+
+NO cambiar render.yaml.
+
+NO cambiar rutas de static/logo.
+
+NO inventar HTML/JS: usar lo existente.
+
+Si hay código duplicado (versiones viejas), prioriza lo que está siendo usado por el flujo actual funcional en Replit.
+
+Cambios permitidos SOLO donde sea necesario para “conectar” en Render sin reescribir:
+
+public_app.py (wrapper/entrypoint)
+
+y, si se requiere, mínimos cambios quirúrgicos de import/registro en app.py SIN tocar el otro sistema.
+
+TAREA A — INVENTARIO AUTOMÁTICO DEL ANONYMIZER (OBLIGATORIO)
+
+Antes de cambiar nada, haz un “mapa” de todo lo que pertenece al anonymizer:
+
+Buscar en el repo por estas rutas/endpoints (grep global):
+
+/anonymizer
+
+anonymizer_process
+
+anonymizer_review
+
+review/<job_id>
+
+/apply
+
+download
+
+strict_mode
+
+generate_mapping
+
+jobs_store
+
+detect_all_pii o detectores/capas
+
+processor_docx, processor_pdf, detector_capas, anonymizer_robust, etc.
+
+Identificar:
+
+Lista exacta de @app.route(...) que pertenecen al anonymizer
+
+Qué templates renderiza el anonymizer (nombres exactos)
+
+Qué archivos JS/CSS y handlers del front hacen:
+
+seleccionar texto en preview
+
+marcar entidades manualmente
+
+enviar apply y recibir redirect
+
+Qué módulos Python usa el anonymizer para:
+
+extracción de texto
+
+detección por capas
+
+reemplazo/tokenización
+
+generación de output final
+
+reporte JSON/csv si existe
+
+Resultado esperado del inventario (en tu respuesta final):
+
+“RUTAS ANONYMIZER” (lista)
+
+“TEMPLATES ANONYMIZER” (lista)
+
+“MÓDULOS PYTHON DEL PIPELINE” (lista)
+
+“STATIC/JS DEL REVIEW UI” (lista)
+
+TAREA B — AISLAR EL ANONYMIZER SIN ROMPER EL OTRO SISTEMA
+
+NO se puede “mover todo el app”.
+
+Debes hacer que Render ejecute el app completo, pero que el anonymizer sea el mismo, sin alterar el resto.
+
+Estrategia permitida (elige la mínima que no rompe):
+
+Opción 1 (preferida): Wrapper en public_app.py
+
+public_app.py debe importar el Flask app real del proyecto (el que ya tiene tu otro sistema) SIN duplicarlo.
+
+No debe reimplementar rutas.
+
+Solo debe “exponer” el mismo app para Render.
+
+Opción 2 (si app.py es muy grande): Blueprint solo si YA EXISTE
+
+SOLO usar blueprint si ya existe uno en tu repo para anonymizer.
+
+PROHIBIDO crear un blueprint nuevo si no existía.
+
+TAREA C — RESTAURAR EL FLUJO COMPLETO ORIGINAL DEL REVIEW (CRÍTICO)
+
+Ahora mismo se ve un review “simplificado” o distinto. Debes restaurar EXACTAMENTE lo que ya existía:
+
+Pantalla review debe tener:
+
+búsqueda en documento
+
+preview completo
+
+instrucción “selecciona texto para tokenizar”
+
+listado de entidades detectadas
+
+sección de entidades marcadas manualmente
+
+selección/deselección masiva
+
+apply que genera documento final
+
+redirect a pantalla final con conteos y botones de descarga
+
+Regla: NO crear UI nueva, solo conectar los templates/JS originales del repo que ya lo hacían.
+
+TAREA D — RESTAURAR LA ANONIMIZACIÓN REAL (ALTA EFECTIVIDAD)
+
+Ahora te está “anonimizando poco o nada” en Render. Eso significa que se está usando el pipeline equivocado.
+
+Debes asegurar que el anonymizer use EXACTAMENTE el pipeline original que te daba ~100% en Replit:
+
+Identifica en el inventario cuál función/módulo era el “núcleo” real (por ejemplo detector_capas + reglas + heurísticas + regex + etc.)
+
+Asegura que las rutas del anonymizer llamen a esas funciones originales, no a stubs ni versiones reducidas.
+
+NO cambies lógica interna del detector. Solo asegúrate que se esté llamando al módulo correcto.
+
+TAREA E — NO TOCAR LO DEMÁS
+
+Cualquier ruta/template/módulo que NO sea anonymizer, NO se modifica.
+
+Si hay conflictos por imports, resuélvelos sin alterar el comportamiento del otro sistema.
+
+PRUEBAS OBLIGATORIAS (ANTES DE TERMINAR)
+
+En Replit Preview:
+
+Subir DOCX strict_mode=ON → debe ir a review completo → seleccionar texto → apply → documento final con reemplazos > 0.
+
+Subir DOCX strict_mode=OFF → va directo a final → reemplazos > 0.
+
+Verificar que el OTRO sistema sigue funcionando igual (home/admin/etc).
+
+ENTREGA (OBLIGATORIO)
+
+Indicar EXACTAMENTE qué archivos fueron modificados (idealmente solo public_app.py y lo mínimo).
+
+Confirmar qué partes del anonymizer fueron “reconectadas” (rutas → funciones → templates → JS).
+
+Confirmar que NO se reescribió el pipeline, solo se volvió a apuntar al pipeline original.
