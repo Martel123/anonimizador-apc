@@ -393,14 +393,27 @@ def process_txt_file(file_path: str, strict_mode: bool = True, generate_mapping:
         if not text.strip():
             return {'success': False, 'error': 'El archivo de texto está vacío.'}
         
-        from detector_capas import DetectorCapas
-        detector = DetectorCapas()
-        entities = detector.detect(text)
+        from detector_capas import detect_all_pii, post_scan_final
+        entities, detect_meta = detect_all_pii(text)
+        
+        all_entities = []
+        for ent in entities:
+            if hasattr(ent, '__dict__'):
+                all_entities.append({
+                    'type': ent.type,
+                    'value': ent.value,
+                    'start': ent.start,
+                    'end': ent.end,
+                    'confidence': ent.confidence,
+                    'source': ent.source
+                })
+            else:
+                all_entities.append(ent)
         
         confirmed = []
         needs_review = []
         
-        for ent in entities:
+        for ent in all_entities:
             if ent.get('confidence', 1.0) >= 0.7:
                 confirmed.append(ent)
             elif strict_mode:
@@ -416,7 +429,8 @@ def process_txt_file(file_path: str, strict_mode: bool = True, generate_mapping:
             'needs_review': needs_review if strict_mode else [],
             'detector_used': 'detector_capas',
             'text_preview': text[:2000],
-            'is_txt': True
+            'is_txt': True,
+            'detect_meta': detect_meta
         }
         
     except Exception as e:
