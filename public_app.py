@@ -16,6 +16,7 @@ import time
 import zipfile
 import subprocess
 import shutil
+import traceback
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 from werkzeug.utils import secure_filename
@@ -350,11 +351,31 @@ def anonymizer_process():
         if ext == 'txt':
             result = process_txt_file(temp_input, strict_mode=strict_mode, generate_mapping=generate_mapping)
         else:
+            if ext == 'docx':
+                try:
+                    from docx import Document
+                    Document(temp_input)
+                    logger.info(f"DOCX_OPEN_OK | job={job_id}")
+                except Exception as docx_err:
+                    logger.error(f"DOCX_OPEN_FAIL | job={job_id} | error={str(docx_err)[:200]}")
+                    safe_remove(temp_input)
+                    return render_template("anonymizer_standalone.html",
+                        error=f"El archivo parece DOCX pero no se pudo abrir: {str(docx_err)[:100]}"), 400
+            
             import anonymizer_robust as anon_robust
-            result = anon_robust.process_document_robust(
-                temp_input, ext, file_size,
-                strict_mode=strict_mode, generate_mapping=generate_mapping
-            )
+            logger.info(f"ROBUST_PATH | {anon_robust.__file__}")
+            
+            try:
+                result = anon_robust.process_document_robust(
+                    temp_input, ext, file_size,
+                    strict_mode=strict_mode, generate_mapping=generate_mapping
+                )
+            except Exception as robust_err:
+                logger.error(f"ROBUST_FAIL | job={job_id} | ext={ext} | error={str(robust_err)[:200]}")
+                logger.error(f"ROBUST_TRACE | {traceback.format_exc()}")
+                safe_remove(temp_input)
+                return render_template("anonymizer_standalone.html",
+                    error=f"Error procesando {ext.upper()}: {str(robust_err)[:150]}"), 500
         
         with jobs_lock:
             jobs_store[job_id] = {
