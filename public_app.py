@@ -320,7 +320,9 @@ def anonymizer_process():
         file.save(temp_input)
         file_size = os.path.getsize(temp_input)
         
-        logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext} | size={file_size}")
+        with open(temp_input, 'rb') as f:
+            head16 = f.read(16).hex()
+        logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext} | size={file_size} | HEAD16={head16}")
         
         if file_size > 10 * 1024 * 1024:
             return render_template("anonymizer_standalone.html",

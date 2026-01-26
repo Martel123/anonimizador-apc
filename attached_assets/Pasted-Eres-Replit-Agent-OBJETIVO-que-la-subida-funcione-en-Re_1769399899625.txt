@@ -1,0 +1,61 @@
+Eres Replit Agent. OBJETIVO: que la subida funcione en Render SIN errores y SIN líneas pegadas/duplicadas.
+
+REGLAS ABSOLUTAS:
+- No inventes archivos. No crees endpoints nuevos. No cambies render.yaml.
+- Solo puedes editar: public_app.py y templates/anonymizer_standalone.html (si hiciera falta).
+- Debes dejar el input del HTML con name="file" y el backend con request.files.get("file").
+- NO puedes dejar duplicada ninguna llamada a process_document_robust.
+- Después de editar, DEBES ejecutar pruebas (python -m py_compile) y (flask run) o equivalente local.
+
+TAREA A — Arreglar el bug real (línea pegada / duplicada)
+1) Abre public_app.py.
+2) Ve al handler: @app.route("/anonymizer/process", methods=["POST"])
+3) Dentro de anonymizer_process(), localiza el bloque donde se llama a anon_robust.process_document_robust.
+4) Elimina COMPLETAMENTE cualquier duplicado o línea pegada como:
+   generate_mapping=generate_mappingresult = ...
+   o dos bloques seguidos repetidos.
+5) Deja EXACTAMENTE UN SOLO BLOQUE de llamada, con este formato (idéntico):
+
+   strict_mode = request.form.get("strict_mode") is not None
+   generate_mapping = request.form.get("generate_mapping") is not None
+
+   if ext == "txt":
+       result = process_txt_file(temp_input, strict_mode=strict_mode, generate_mapping=generate_mapping)
+   else:
+       import anonymizer_robust as anon_robust
+       result = anon_robust.process_document_robust(
+           temp_input, ext, file_size,
+           strict_mode=strict_mode, generate_mapping=generate_mapping
+       )
+
+IMPORTANTE: ese bloque debe estar bien indentado y con saltos de línea correctos.
+
+TAREA B — Validación para NO reventar
+En public_app.py, inmediatamente DESPUÉS de guardar el archivo y calcular file_size, agrega logging y validaciones mínimas:
+- Log: HEAD16 = primeros 16 bytes (hex) del archivo
+- Si ext == "docx": debe ser zipfile.is_zipfile(temp_input); si no, devuelve error HTML claro 400.
+- Si ext == "pdf": debe iniciar con %PDF; si no, error 400.
+- Si ext == "txt": permitir.
+- Si ext == "doc": intenta convert_doc_to_docx; si no hay LibreOffice, error 400 claro.
+
+TAREA C — HTML consistente
+En templates/anonymizer_standalone.html:
+- Confirmar que el input sea EXACTO:
+  <input type="file" name="file" id="file-input" accept=".doc,.docx,.pdf,.txt" class="hidden" required>
+- No cambiar el logo: /static/images/logo_apc_juridica.png
+
+TAREA D — Pruebas obligatorias antes de finalizar
+1) Ejecuta: python -m py_compile public_app.py
+   - Si falla, corrige y vuelve a ejecutar hasta que pase.
+2) Ejecuta un test rápido de servidor local:
+   - Levanta la app (por ejemplo: python public_app.py o flask run si ya está configurado)
+   - Verifica GET / responde 200
+   - Verifica que el formulario POST /anonymizer/process recibe el archivo sin error 500 (si no hay OPENAI_API_KEY debe dar 503, pero NO debe romper por sintaxis).
+3) Confirma en tu respuesta:
+   - Que ya NO existe ninguna cadena “generate_mapping=generate_mappingresult”
+   - Que solo hay 1 llamada a process_document_robust en anonymizer_process()
+
+ENTREGA FINAL (OBLIGATORIA):
+- Dime exactamente qué archivos editaste.
+- Pega el bloque final COMPLETO de anonymizer_process() (solo esa función).
+- Indica cómo lo subo a Render: commit + push + manual deploy.
