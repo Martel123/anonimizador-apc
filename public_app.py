@@ -141,10 +141,13 @@ def anonymizer_process():
             return render_template("anonymizer_standalone.html",
                                    error="Archivo muy grande. Máximo 10MB."), 400
         
+        strict_mode = request.form.get("strict_mode") is not None
+        generate_mapping = request.form.get("generate_mapping") is not None
+        
         import anonymizer_robust as anon_robust
         result = anon_robust.process_document_robust(
             temp_input, ext, file_size,
-            strict_mode=True, generate_mapping=True
+            strict_mode=strict_mode, generate_mapping=generate_mapping
         )
         
         with jobs_lock:

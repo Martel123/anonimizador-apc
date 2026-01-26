@@ -1,534 +1,394 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Anonimizador Legal - APC Jurídica</title>
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-
-            body {
-                font-family:
-                    "Inter",
-                    system-ui,
-                    -apple-system,
-                    sans-serif;
-                background-color: #f2f2f2;
-                min-height: 100vh;
-            }
-
-            .header {
-                background-color: #0b0b0b;
-                padding: 1rem 2rem;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-            }
-
-            .logo {
-                height: 48px;
-            }
-
-            .header-title {
-                color: #ffffff;
-                font-size: 1.25rem;
-                font-weight: 600;
-            }
-
-            .main-container {
-                max-width: 800px;
-                margin: 2rem auto;
-                padding: 0 1rem;
-            }
-
-            .card {
-                background: #ffffff;
-                border-radius: 12px;
-                padding: 2rem;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-                border: 1px solid #e5e5e5;
-            }
-
-            .card-title {
-                font-size: 1.5rem;
-                font-weight: 600;
-                color: #0b0b0b;
-                margin-bottom: 0.5rem;
-            }
-
-            .card-subtitle {
-                color: #6f6f6f;
-                margin-bottom: 2rem;
-            }
-
-            .upload-zone {
-                border: 2px dashed #e5e5e5;
-                border-radius: 12px;
-                padding: 3rem 2rem;
-                text-align: center;
-                transition: all 0.2s ease;
-                cursor: pointer;
-            }
-
-            .upload-zone:hover,
-            .upload-zone.dragover {
-                border-color: #b30000;
-                background-color: #fff5f5;
-            }
-
-            .upload-icon {
-                width: 64px;
-                height: 64px;
-                margin: 0 auto 1rem;
-                color: #6f6f6f;
-            }
-
-            .upload-text {
-                font-size: 1rem;
-                color: #0b0b0b;
-                margin-bottom: 0.5rem;
-            }
-
-            .upload-hint {
-                font-size: 0.875rem;
-                color: #6f6f6f;
-            }
-
-            .file-input {
-                display: none;
-            }
-
-            .selected-file {
-                display: none;
-                margin-top: 1rem;
-                padding: 1rem;
-                background: #f7f7f7;
-                border-radius: 8px;
-                align-items: center;
-                gap: 1rem;
-            }
-
-            .selected-file.visible {
-                display: flex;
-            }
-
-            .file-icon {
-                width: 40px;
-                height: 40px;
-                color: #b30000;
-            }
-
-            .file-info {
-                flex: 1;
-            }
-
-            .file-name {
-                font-weight: 500;
-                color: #0b0b0b;
-            }
-
-            .file-size {
-                font-size: 0.875rem;
-                color: #6f6f6f;
-            }
-
-            .btn-remove {
-                background: none;
-                border: none;
-                color: #6f6f6f;
-                cursor: pointer;
-                padding: 0.5rem;
-            }
-
-            .btn-remove:hover {
-                color: #b30000;
-            }
-
-            .btn-primary {
-                display: block;
-                width: 100%;
-                padding: 1rem 2rem;
-                background-color: #b30000;
-                color: #ffffff;
-                border: none;
-                border-radius: 8px;
-                font-size: 1rem;
-                font-weight: 600;
-                cursor: pointer;
-                margin-top: 1.5rem;
-                transition: background-color 0.2s ease;
-            }
-
-            .btn-primary:hover {
-                background-color: #8b0000;
-            }
-
-            .btn-primary:disabled {
-                background-color: #cccccc;
-                cursor: not-allowed;
-            }
-
-            .features {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 1rem;
-                margin-top: 2rem;
-            }
-
-            .feature {
-                display: flex;
-                align-items: flex-start;
-                gap: 0.75rem;
-            }
-
-            .feature-icon {
-                width: 24px;
-                height: 24px;
-                color: #b30000;
-                flex-shrink: 0;
-            }
-
-            .feature-text {
-                font-size: 0.875rem;
-                color: #6f6f6f;
-            }
-
-            .alert {
-                padding: 1rem;
-                border-radius: 8px;
-                margin-bottom: 1rem;
-            }
-
-            .alert-error {
-                background-color: #fee2e2;
-                color: #991b1b;
-                border: 1px solid #fecaca;
-            }
-
-            .alert-success {
-                background-color: #d1fae5;
-                color: #065f46;
-                border: 1px solid #a7f3d0;
-            }
-
-            .loading {
-                display: none;
-                text-align: center;
-                padding: 2rem;
-            }
-
-            .loading.visible {
-                display: block;
-            }
-
-            .spinner {
-                width: 48px;
-                height: 48px;
-                border: 4px solid #e5e5e5;
-                border-top-color: #b30000;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin: 0 auto 1rem;
-            }
-
-            @keyframes spin {
-                to {
-                    transform: rotate(360deg);
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonimizador Legal - APC Jurídica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        'apc': {
+                            'red': '#B30000',
+                            'red-dark': '#8B0000',
+                            'red-soft': '#D63A3A',
+                            'black': '#0B0B0B',
+                            'black-secondary': '#141414',
+                            'gray-bg': '#F2F2F2',
+                            'gray-text': '#6F6F6F',
+                            'gray-border': '#E5E5E5',
+                        }
+                    }
                 }
             }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .drop-zone {
+            border: 2px dashed #E5E5E5;
+            transition: all 0.3s ease;
+        }
+        .drop-zone:hover {
+            border-color: #B30000;
+        }
+        .drop-zone.dragover {
+            border-color: #B30000;
+            background-color: #FEF2F2;
+        }
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        .fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            background-color: #B30000;
+            color: white;
+            transition: background-color 0.2s ease;
+        }
+        .btn-primary:hover {
+            background-color: #8B0000;
+        }
+        .btn-primary:disabled {
+            background-color: #E5E5E5;
+            color: #6F6F6F;
+        }
+    </style>
+</head>
+<body class="bg-apc-gray-bg min-h-screen flex flex-col">
+    <header class="bg-apc-black shadow-sm">
+        <div class="max-w-5xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-5 -ml-4">
+                    <img src="/static/images/logo_apc_juridica.png" alt="APC Jurídica" class="h-16 w-auto">
+                    <div>
+                        <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
+                        <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información ni reescribir documentos</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 text-sm text-gray-400">
+                    <i class="fas fa-lock text-apc-red"></i>
+                    <span class="hidden sm:inline">Procesamiento seguro</span>
+                </div>
+            </div>
+        </div>
+    </header>
 
-            .footer {
-                text-align: center;
-                padding: 2rem;
-                color: #6f6f6f;
-                font-size: 0.875rem;
-            }
-        </style>
-    </head>
-    <body>
-        <header class="header">
-            <span class="header-title">APC Jurídica</span>
-            <span class="header-title">Anonimizador Legal</span>
-        </header>
-
-        <main class="main-container">
-            {% if error %}
-            <div
-                class="alert alert-error"
-                style="
-                    background: #fee2e2;
-                    border: 1px solid #f87171;
-                    color: #b91c1c;
-                    padding: 1rem;
-                    border-radius: 8px;
-                    margin-bottom: 1rem;
-                "
-            >
+    <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
+        {% if error %}
+        <div class="mb-4 p-4 rounded-xl fade-in bg-red-50 text-apc-red border border-red-200">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-circle mr-2"></i>
                 {{ error }}
             </div>
-            {% endif %}
-
-            <div class="card">
-                <h1 class="card-title">Anonimizar Documento Legal</h1>
-                <p class="card-subtitle">
-                    Suba un documento DOCX o PDF para detectar y reemplazar
-                    datos personales automáticamente.
+        </div>
+        {% endif %}
+        
+        <div class="space-y-6 fade-in">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-semibold text-apc-black mb-2">Anonimiza tus documentos legales</h2>
+                <p class="text-apc-gray-text max-w-2xl mx-auto">
+                    Sube un documento DOCX o PDF y nuestro sistema identificará automáticamente 
+                    datos personales usando IA y reglas especializadas para documentos legales peruanos.
                 </p>
+            </div>
 
-                <form
-                    id="uploadForm"
-                    action="{{ url_for('anonymizer_process') }}"
-                    method="POST"
-                    enctype="multipart/form-data"
-                >
-                    <div class="upload-zone" id="uploadZone">
-                        <svg
-                            class="upload-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                            />
-                        </svg>
-                        <p class="upload-text">
-                            Arrastre un archivo aquí o haga clic para
-                            seleccionar
-                        </p>
-                        <p class="upload-hint">
-                            Formatos soportados: DOCX, PDF (máx. 16 MB)
-                        </p>
-                    </div>
+            <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
+                <div class="p-8">
+                    <form id="upload-form" action="/anonymizer/process" method="POST" enctype="multipart/form-data">
+                        <div id="drop-zone" class="drop-zone rounded-xl p-12 text-center cursor-pointer">
+                            <input type="file" name="file" id="file-input" accept=".docx,.pdf" class="hidden" required>
+                            
+                            <div id="upload-prompt" class="space-y-4">
+                                <div class="w-20 h-20 mx-auto bg-red-50 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-cloud-upload-alt text-4xl text-apc-red"></i>
+                                </div>
+                                <div>
+                                    <p class="text-lg font-medium text-apc-black-secondary">Arrastra tu archivo aquí</p>
+                                    <p class="text-apc-gray-text">o haz clic para seleccionar</p>
+                                </div>
+                                <div class="flex items-center justify-center space-x-4 text-sm text-apc-gray-text">
+                                    <span class="flex items-center"><i class="far fa-file-word text-blue-600 mr-1"></i> DOCX</span>
+                                    <span class="flex items-center"><i class="far fa-file-pdf text-apc-red mr-1"></i> PDF</span>
+                                </div>
+                                <p class="text-xs text-apc-gray-text">Máximo 10 MB | PDF hasta 50 páginas</p>
+                            </div>
 
-                    <input
-                        type="file"
-                        name="file"
-                        id="fileInput"
-                        class="file-input"
-                        accept=".docx,.pdf"
-                    />
-
-                    <div class="selected-file" id="selectedFile">
-                        <svg
-                            class="file-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
-                        <div class="file-info">
-                            <div class="file-name" id="fileName"></div>
-                            <div class="file-size" id="fileSize"></div>
+                            <div id="file-selected" class="hidden space-y-4">
+                                <div class="w-16 h-16 mx-auto bg-green-50 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-file-check text-3xl text-green-600"></i>
+                                </div>
+                                <div>
+                                    <p id="selected-filename" class="text-lg font-medium text-apc-black-secondary"></p>
+                                    <p id="selected-filesize" class="text-sm text-apc-gray-text"></p>
+                                </div>
+                                <button type="button" id="change-file" class="text-apc-red hover:text-apc-red-dark text-sm font-medium">
+                                    <i class="fas fa-exchange-alt mr-1"></i> Cambiar archivo
+                                </button>
+                            </div>
                         </div>
-                        <button
-                            type="button"
-                            class="btn-remove"
-                            id="removeFile"
-                        >
-                            <svg
-                                width="24"
-                                height="24"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
-                            </svg>
+
+                        <div class="mt-6 p-6 bg-apc-gray-bg rounded-xl space-y-6">
+                            <h3 class="font-medium text-apc-black-secondary flex items-center">
+                                <i class="fas fa-cog text-apc-gray-text mr-2"></i>
+                                Opciones de anonimización
+                            </h3>
+
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div class="flex items-center justify-between sm:justify-start sm:space-x-4">
+                                    <div>
+                                        <label for="strict_mode" class="text-sm font-medium text-apc-black-secondary">Modo estricto</label>
+                                        <p class="text-xs text-apc-gray-text">Revisión manual de nombres dudosos</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" name="strict_mode" id="strict_mode" class="sr-only peer" checked>
+                                        <div class="w-11 h-6 bg-apc-gray-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-apc-red"></div>
+                                    </label>
+                                </div>
+                                
+                                <div class="flex items-center justify-between sm:justify-start sm:space-x-4">
+                                    <div>
+                                        <label for="generate_mapping" class="text-sm font-medium text-apc-black-secondary">Diccionario CSV</label>
+                                        <p class="text-xs text-apc-gray-text">Exportar tabla de mapeo</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" name="generate_mapping" id="generate_mapping" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-apc-gray-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-apc-red"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="processing-section" class="hidden mt-6">
+                            <div class="bg-red-50 rounded-xl p-6 text-center border border-red-100">
+                                <div class="flex items-center justify-center space-x-3 mb-4">
+                                    <div class="w-6 h-6 border-2 border-apc-red border-t-transparent rounded-full animate-spin"></div>
+                                    <span class="text-apc-red font-medium">Procesando documento...</span>
+                                </div>
+                                <div class="w-full bg-red-100 rounded-full h-2">
+                                    <div id="progress-bar" class="progress-bar bg-apc-red h-2 rounded-full" style="width: 0%"></div>
+                                </div>
+                                <p class="text-sm text-apc-red-soft mt-2">Detectando datos personales con IA y reglas</p>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="submit-btn" class="mt-6 w-full py-4 btn-primary font-medium rounded-xl transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <i class="fas fa-shield-alt mr-2"></i>
+                            Anonimizar documento
                         </button>
-                    </div>
+                    </form>
+                </div>
+            </div>
 
-                    <div class="loading" id="loading">
-                        <div class="spinner"></div>
-                        <p>Procesando documento...</p>
-                        <p class="upload-hint">
-                            Detectando y anonimizando datos personales
-                        </p>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+                    <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                        <i class="fas fa-brain text-apc-red text-xl"></i>
                     </div>
+                    <h3 class="font-medium text-apc-black-secondary mb-2">Detección híbrida</h3>
+                    <p class="text-sm text-apc-gray-text">Combina IA (spaCy NER) con reglas especializadas para documentos legales peruanos.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+                    <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                        <i class="fas fa-user-check text-apc-red text-xl"></i>
+                    </div>
+                    <h3 class="font-medium text-apc-black-secondary mb-2">Modo estricto</h3>
+                    <p class="text-sm text-apc-gray-text">Revisa manualmente entidades dudosas antes de finalizar la anonimización.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+                    <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+                        <i class="fas fa-code text-apc-red text-xl"></i>
+                    </div>
+                    <h3 class="font-medium text-apc-black-secondary mb-2">Tokens determinísticos</h3>
+                    <p class="text-sm text-apc-gray-text">Reemplazo preciso con tokens como {{PERSONA_1}}, {{DNI_1}} para trazabilidad.</p>
+                </div>
+            </div>
 
-                    <button
-                        type="submit"
-                        class="btn-primary"
-                        id="submitBtn"
-                        disabled
-                    >
-                        Procesar Documento
-                    </button>
-                </form>
-
-                <div class="features">
-                    <div class="feature">
-                        <svg
-                            class="feature-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                            />
-                        </svg>
-                        <span class="feature-text"
-                            >DNI, RUC, emails, teléfonos, direcciones</span
-                        >
+            <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
+                <h3 class="font-medium text-apc-black-secondary mb-4 flex items-center">
+                    <i class="fas fa-tags text-apc-gray-text mr-2"></i>
+                    Tipos de datos detectados
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-red-100 text-apc-red rounded font-mono text-xs">DNI</span>
+                        <span class="text-apc-gray-text">8 dígitos</span>
                     </div>
-                    <div class="feature">
-                        <svg
-                            class="feature-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                            />
-                        </svg>
-                        <span class="feature-text"
-                            >Nombres de personas y partes procesales</span
-                        >
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-orange-100 text-orange-600 rounded font-mono text-xs">RUC</span>
+                        <span class="text-apc-gray-text">11 dígitos</span>
                     </div>
-                    <div class="feature">
-                        <svg
-                            class="feature-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                            />
-                        </svg>
-                        <span class="feature-text"
-                            >Procesamiento 100% local y privado</span
-                        >
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-600 rounded font-mono text-xs">EMAIL</span>
+                        <span class="text-apc-gray-text">Correos</span>
                     </div>
-                    <div class="feature">
-                        <svg
-                            class="feature-icon"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                            />
-                        </svg>
-                        <span class="feature-text"
-                            >Descarga inmediata del documento anonimizado</span
-                        >
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-green-100 text-green-600 rounded font-mono text-xs">TEL</span>
+                        <span class="text-apc-gray-text">Teléfonos</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-purple-100 text-purple-600 rounded font-mono text-xs">PERSONA</span>
+                        <span class="text-apc-gray-text">Nombres</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-amber-100 text-amber-600 rounded font-mono text-xs">DIR</span>
+                        <span class="text-apc-gray-text">Direcciones</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-pink-100 text-pink-600 rounded font-mono text-xs">EXP</span>
+                        <span class="text-apc-gray-text">Expedientes</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-cyan-100 text-cyan-600 rounded font-mono text-xs">CAS</span>
+                        <span class="text-apc-gray-text">Casillas</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded font-mono text-xs">JUZ</span>
+                        <span class="text-apc-gray-text">Juzgados</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
+                        <span class="px-2 py-0.5 bg-teal-100 text-teal-600 rounded font-mono text-xs">NER</span>
+                        <span class="text-apc-gray-text">IA spaCy</span>
                     </div>
                 </div>
             </div>
-        </main>
 
-        <footer class="footer">
-            <p>APC Jurídica - Anonimizador Legal</p>
-            <p>
-                Los archivos se eliminan automáticamente después de 30 minutos.
-            </p>
-        </footer>
+            <div class="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                <div class="flex items-start">
+                    <i class="fas fa-lightbulb text-amber-600 mt-1 mr-3"></i>
+                    <div class="text-sm text-amber-700">
+                        <p class="font-medium mb-1">Placeholders preservados</p>
+                        <p>Los marcadores existentes como <code class="bg-amber-100 px-1 rounded">{<!-- -->{FALTA_DATO}}</code> se mantienen sin modificar.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 
-        <script>
-            const uploadZone = document.getElementById("uploadZone");
-            const fileInput = document.getElementById("fileInput");
-            const selectedFile = document.getElementById("selectedFile");
-            const fileName = document.getElementById("fileName");
-            const fileSize = document.getElementById("fileSize");
-            const removeFile = document.getElementById("removeFile");
-            const submitBtn = document.getElementById("submitBtn");
-            const uploadForm = document.getElementById("uploadForm");
-            const loading = document.getElementById("loading");
+    <footer class="py-6 text-center text-sm text-apc-gray-text border-t border-apc-gray-border bg-white">
+        <div class="max-w-4xl mx-auto px-4">
+            <div class="flex items-center justify-center space-x-2 mb-2">
+                <i class="fas fa-shield-alt text-apc-red"></i>
+                <span>Los documentos se procesan en memoria y se eliminan automáticamente</span>
+            </div>
+            <p class="text-apc-gray-text">APC Jurídica</p>
+        </div>
+    </footer>
 
-            function formatFileSize(bytes) {
-                if (bytes < 1024) return bytes + " B";
-                if (bytes < 1024 * 1024)
-                    return (bytes / 1024).toFixed(1) + " KB";
-                return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const fileSelected = document.getElementById('file-selected');
+        const selectedFilename = document.getElementById('selected-filename');
+        const selectedFilesize = document.getElementById('selected-filesize');
+        const changeFileBtn = document.getElementById('change-file');
+        const submitBtn = document.getElementById('submit-btn');
+        const uploadForm = document.getElementById('upload-form');
+        const processingSection = document.getElementById('processing-section');
+        const progressBar = document.getElementById('progress-bar');
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        function validateFile(file) {
+            const maxSize = 10 * 1024 * 1024;
+            const allowedTypes = ['.docx', '.pdf'];
+            const extension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowedTypes.includes(extension)) {
+                alert('Formato no permitido. Solo se aceptan archivos DOCX y PDF.');
+                return false;
             }
-
-            function updateFileDisplay(file) {
-                if (file) {
-                    fileName.textContent = file.name;
-                    fileSize.textContent = formatFileSize(file.size);
-                    selectedFile.classList.add("visible");
-                    uploadZone.style.display = "none";
-                    submitBtn.disabled = false;
-                } else {
-                    selectedFile.classList.remove("visible");
-                    uploadZone.style.display = "block";
-                    submitBtn.disabled = true;
-                }
+            if (file.size > maxSize) {
+                alert('El archivo excede el tamaño máximo de 10 MB.');
+                return false;
             }
+            return true;
+        }
 
-            uploadZone.addEventListener("click", () => fileInput.click());
+        function showFileSelected(file) {
+            if (!validateFile(file)) {
+                fileInput.value = '';
+                return;
+            }
+            uploadPrompt.classList.add('hidden');
+            fileSelected.classList.remove('hidden');
+            selectedFilename.textContent = file.name;
+            selectedFilesize.textContent = formatFileSize(file.size);
+            submitBtn.disabled = false;
+        }
 
-            uploadZone.addEventListener("dragover", (e) => {
-                e.preventDefault();
-                uploadZone.classList.add("dragover");
-            });
+        function resetForm() {
+            fileInput.value = '';
+            uploadPrompt.classList.remove('hidden');
+            fileSelected.classList.add('hidden');
+            submitBtn.disabled = true;
+        }
 
-            uploadZone.addEventListener("dragleave", () => {
-                uploadZone.classList.remove("dragover");
-            });
+        dropZone.addEventListener('click', () => fileInput.click());
 
-            uploadZone.addEventListener("drop", (e) => {
-                e.preventDefault();
-                uploadZone.classList.remove("dragover");
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    fileInput.files = files;
-                    updateFileDisplay(files[0]);
-                }
-            });
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
 
-            fileInput.addEventListener("change", () => {
-                updateFileDisplay(fileInput.files[0]);
-            });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
 
-            removeFile.addEventListener("click", () => {
-                fileInput.value = "";
-                updateFileDisplay(null);
-            });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                showFileSelected(files[0]);
+            }
+        });
 
-            uploadForm.addEventListener("submit", () => {
-                loading.classList.add("visible");
-                submitBtn.disabled = true;
-            });
-        </script>
-        <!-- VERSION: v2026-01-25-01 -->
-    </body>
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                showFileSelected(e.target.files[0]);
+            }
+        });
+
+        changeFileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetForm();
+        });
+
+        uploadForm.addEventListener('submit', function(e) {
+            submitBtn.disabled = true;
+            dropZone.style.display = 'none';
+            processingSection.classList.remove('hidden');
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressBar.style.width = progress + '%';
+            }, 300);
+            
+            setTimeout(() => clearInterval(interval), 30000);
+        });
+    });
+    </script>
+</body>
 </html>

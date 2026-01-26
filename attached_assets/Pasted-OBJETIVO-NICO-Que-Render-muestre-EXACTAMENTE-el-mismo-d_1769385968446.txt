@@ -1,0 +1,86 @@
+OBJETIVO ÚNICO:
+Que Render muestre EXACTAMENTE el mismo diseño moderno (Tailwind) que veo en Replit Preview y que la subida de archivos funcione correctamente.
+
+REGLAS ABSOLUTAS:
+- NO crear archivos nuevos.
+- NO borrar archivos.
+- NO mover archivos.
+- NO cambiar rutas ni endpoints.
+- NO tocar render.yaml.
+- NO tocar anonymizer_robust.py ni processors.
+- SOLO se pueden modificar estos 2 archivos:
+  - templates/anonymizer_standalone.html
+  - public_app.py
+
+========================
+TAREA 1 — FRONTEND
+========================
+
+Archivo: templates/anonymizer_standalone.html
+
+1) Reemplazar TODO su contenido por el HTML COMPLETO del diseño moderno que actualmente se ve en Replit Preview (el que tiene Tailwind, header negro con logo, sección “Opciones de anonimización”, tarjetas, etc).
+
+2) Dentro de ese HTML, verificar y FORZAR que el input del archivo sea EXACTAMENTE:
+
+   <input type="file" name="file" id="file-input" accept=".docx,.pdf" class="hidden" required>
+
+   ⚠️ Si el HTML tiene name="documento" u otro nombre, CAMBIARLO a name="file".
+
+3) Verificar que el logo apunte EXACTAMENTE a:
+
+   /static/images/logo_apc_juridica.png
+
+   ⚠️ NO cambiar esa ruta.
+
+4) No cambiar el action del form:
+   Debe seguir siendo:
+   action="/anonymizer/process"
+
+========================
+TAREA 2 — BACKEND
+========================
+
+Archivo: public_app.py
+
+En la función:
+
+POST /anonymizer/process
+
+1) Asegurar que se lea el archivo así:
+
+   file = request.files.get("file")
+
+2) Asegurar que los toggles se lean correctamente así (NO usar bool()):
+
+   strict_mode = request.form.get("strict_mode") is not None
+   generate_mapping = request.form.get("generate_mapping") is not None
+
+3) Asegurar que se llame al processor así:
+
+   process_document_robust(
+       ..., 
+       strict_mode=strict_mode, 
+       generate_mapping=generate_mapping
+   )
+
+4) NO cambiar ninguna otra parte del flujo.
+
+========================
+PROHIBICIONES
+========================
+- NO usar flash()
+- NO usar session
+- NO crear nuevas rutas
+- NO cambiar nombres de endpoints
+- NO crear archivos nuevos
+
+========================
+AL FINAL
+========================
+
+1) Mostrar exactamente qué 2 archivos fueron modificados.
+2) Mostrar un resumen/diff corto de los cambios.
+3) Confirmar explícitamente:
+   - El input file ahora se llama name="file"
+   - El backend lee request.files.get("file")
+   - El template moderno es el que ahora está en templates/anonymizer_standalone.html
