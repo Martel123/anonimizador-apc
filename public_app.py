@@ -350,34 +350,81 @@ def anonymizer_process():
         strict_mode = request.form.get("strict_mode") is not None
         generate_mapping = request.form.get("generate_mapping") is not None
         
-        if ext == 'txt':
-            result = process_txt_file(temp_input, strict_mode=strict_mode, generate_mapping=generate_mapping)
-        else:
-            if ext == 'docx':
-                try:
-                    from docx import Document
-                    Document(temp_input)
-                    logger.info(f"DOCX_OPEN_OK | job={job_id}")
-                except Exception as docx_err:
-                    logger.error(f"DOCX_OPEN_FAIL | job={job_id} | error={str(docx_err)[:200]}")
-                    safe_remove(temp_input)
-                    return render_template("anonymizer_standalone.html",
-                        error=f"El archivo parece DOCX pero no se pudo abrir: {str(docx_err)[:100]}"), 400
-            
-            import anonymizer_robust as anon_robust
-            logger.info(f"ROBUST_PATH | {anon_robust.__file__}")
-            
+        output_path = None
+        mapping = {}
+        
+        if ext == 'docx':
             try:
-                result = anon_robust.process_document_robust(
-                    temp_input, ext, file_size,
-                    strict_mode=strict_mode, generate_mapping=generate_mapping
-                )
-            except Exception as robust_err:
-                logger.error(f"ROBUST_FAIL | job={job_id} | ext={ext} | error={str(robust_err)[:200]}")
-                logger.error(f"ROBUST_TRACE | {traceback.format_exc()}")
+                from processor_docx import anonymize_docx_complete
+                output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.docx")
+                anon_result = anonymize_docx_complete(temp_input, output_path, strict_mode=strict_mode)
+                
+                if anon_result.get('ok'):
+                    mapping = anon_result.get('mapping', {})
+                    logger.info(f"DOCX_ANON_OK | job={job_id} | entities={len(mapping)}")
+                else:
+                    error_msg = anon_result.get('error', 'Error anonimizando DOCX')
+                    logger.error(f"ANON_FAIL | job={job_id} | ext=docx | error={error_msg}")
+                    safe_remove(temp_input)
+                    return render_template("anonymizer_standalone.html", error=error_msg), 400
+            except Exception as e:
+                logger.error(f"ANON_FAIL | job={job_id} | ext=docx | error={str(e)[:200]}")
+                logger.error(f"ANON_TRACE | {traceback.format_exc()}")
                 safe_remove(temp_input)
                 return render_template("anonymizer_standalone.html",
-                    error=f"Error procesando {ext.upper()}: {str(robust_err)[:150]}"), 500
+                    error=f"Error procesando DOCX: {str(e)[:100]}"), 500
+        
+        elif ext == 'pdf':
+            try:
+                from processor_pdf import anonymize_pdf_to_text
+                anon_result = anonymize_pdf_to_text(temp_input, strict_mode=strict_mode)
+                
+                if anon_result.get('ok'):
+                    output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(anon_result.get('anonymized_text', ''))
+                    mapping = anon_result.get('mapping', {})
+                    logger.info(f"PDF_ANON_OK | job={job_id} | entities={len(mapping)}")
+                else:
+                    error_msg = anon_result.get('error', 'Error anonimizando PDF')
+                    logger.error(f"ANON_FAIL | job={job_id} | ext=pdf | error={error_msg}")
+                    safe_remove(temp_input)
+                    return render_template("anonymizer_standalone.html", error=error_msg), 400
+            except Exception as e:
+                logger.error(f"ANON_FAIL | job={job_id} | ext=pdf | error={str(e)[:200]}")
+                logger.error(f"ANON_TRACE | {traceback.format_exc()}")
+                safe_remove(temp_input)
+                return render_template("anonymizer_standalone.html",
+                    error=f"Error procesando PDF: {str(e)[:100]}"), 500
+        
+        elif ext == 'txt':
+            try:
+                txt_result = process_txt_file(temp_input, strict_mode=strict_mode, generate_mapping=generate_mapping)
+                if not txt_result.get('success'):
+                    error_msg = txt_result.get('error', 'Error procesando TXT')
+                    logger.error(f"ANON_FAIL | job={job_id} | ext=txt | error={error_msg}")
+                    safe_remove(temp_input)
+                    return render_template("anonymizer_standalone.html", error=error_msg), 400
+                
+                entities = txt_result.get('confirmed', [])
+                output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
+                
+                if entities:
+                    anon_result = anonymize_txt_file(temp_input, output_path, entities)
+                    mapping = anon_result.get('mapping', {})
+                else:
+                    with open(temp_input, 'r', encoding='utf-8', errors='ignore') as f:
+                        text = f.read()
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(text)
+                
+                logger.info(f"TXT_ANON_OK | job={job_id} | entities={len(entities)}")
+            except Exception as e:
+                logger.error(f"ANON_FAIL | job={job_id} | ext=txt | error={str(e)[:200]}")
+                logger.error(f"ANON_TRACE | {traceback.format_exc()}")
+                safe_remove(temp_input)
+                return render_template("anonymizer_standalone.html",
+                    error=f"Error procesando TXT: {str(e)[:100]}"), 500
         
         with jobs_lock:
             jobs_store[job_id] = {
@@ -385,15 +432,10 @@ def anonymizer_process():
                 'original_filename': filename,
                 'ext': ext,
                 'input_path': temp_input,
-                'result': result
+                'output_path': output_path,
+                'mapping': mapping,
+                'result': {'success': True, 'confirmed': [], 'needs_review': False, 'mapping': mapping}
             }
-        
-        if not result.get('success', False):
-            error_msg = result.get('error', 'Error procesando documento')
-            return render_template("anonymizer_standalone.html", error=error_msg)
-        
-        if result.get('needs_review'):
-            return redirect(url_for('anonymizer_review', job_id=job_id))
         
         return redirect(url_for('anonymizer_download_page', job_id=job_id))
         

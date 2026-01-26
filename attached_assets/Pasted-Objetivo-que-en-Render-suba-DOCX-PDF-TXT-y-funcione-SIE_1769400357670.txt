@@ -1,0 +1,91 @@
+Objetivo: que en Render suba DOCX/PDF/TXT y funcione SIEMPRE, aunque anonymizer_robust falle.
+Reglas: NO crear endpoints nuevos, NO tocar render.yaml, NO tocar rutas. Solo public_app.py y (si es necesario) el HTML para accept.
+
+PROMPT
+
+Editar public_app.py para que el endpoint POST /anonymizer/process YA NO use anonymizer_robust.process_document_robust().
+
+En /anonymizer/process:
+
+Mantener file = request.files.get("file") (name="file")
+
+Mantener ALLOWED_EXTENSIONS = {'doc','docx','pdf','txt'}
+
+Mantener la validación por extensión y tamaño (10MB)
+
+Mantener conversión .doc → .docx solo si hay LibreOffice, si no, devolver error claro en HTML.
+
+Después de guardar el archivo en /tmp, procesar así:
+
+A. Si ext == 'docx'
+
+Importar: from processor_docx import anonymize_docx_complete
+
+Crear output:
+output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.docx")
+
+Ejecutar:
+anon_result = anonymize_docx_complete(temp_input, output_path, strict_mode=strict_mode)
+
+Si anon_result.get("ok") es True:
+
+Guardar en jobs_store[job_id]:
+
+output_path
+
+mapping (si existe, anon_result.get("mapping", {}))
+
+result = {"success": True, "confirmed": [], "needs_review": False, "mapping": mapping}
+
+Redirigir directo a:
+return redirect(url_for('anonymizer_download_page', job_id=job_id))
+
+Si falla: mostrar error en HTML con status 400.
+
+B. Si ext == 'pdf'
+
+Importar: from processor_pdf import anonymize_pdf_to_text
+
+Ejecutar:
+anon_result = anonymize_pdf_to_text(temp_input, strict_mode=strict_mode)
+
+Si ok:
+
+Guardar salida como TXT:
+output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
+escribir anon_result["anonymized_text"]
+
+Guardar mapping si existe
+
+Guardar job y redirigir a download_page
+
+Si falla: error claro.
+
+C. Si ext == 'txt'
+
+Usar tu función process_txt_file() para detectar y anonymize_txt_file() para generar output:
+output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
+(si no hay entidades, igual escribir el texto tal cual)
+
+Guardar job y redirigir a download_page
+
+Mantener el diseño actual. Solo confirmar que en templates/anonymizer_standalone.html el input sea:
+<input type="file" name="file" id="file-input" accept=".doc,.docx,.pdf,.txt" class="hidden" required>
+
+Logs obligatorios en Render (usar logger.info):
+
+UPLOAD_OK job=... ext=... size=...
+
+DOCX_ANON_OK job=...
+
+PDF_ANON_OK job=...
+
+TXT_ANON_OK job=...
+
+y si falla, ANON_FAIL job=... error=...
+
+Al final, mostrar:
+
+Archivos modificados
+
+Resumen de cambios (diff textual)
