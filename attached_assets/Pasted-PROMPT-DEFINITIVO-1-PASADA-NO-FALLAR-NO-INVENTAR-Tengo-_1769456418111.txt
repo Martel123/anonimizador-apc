@@ -1,0 +1,77 @@
+PROMPT DEFINITIVO (1 PASADA, NO FALLAR, NO INVENTAR):
+
+Tengo un repo grande (app.py + models.py + DB + login + pyotp + mil modelos) pero YO SOLO QUIERO desplegar el ANONIMIZADOR PÚBLICO en Render, con el MISMO diseño (templates/static) y con IA (OpenAI) obligatoria. Confidencialidad total: NO se guarda ningún documento, solo /tmp y se borra en finally.
+
+OBJETIVO: Render debe arrancar SIEMPRE con:
+gunicorn public_app:app
+y NO debe importar app.py ni models.py ni nada del sistema grande.
+
+TAREAS OBLIGATORIAS (en este orden):
+
+A) VERIFICACIÓN AUTOMÁTICA (sin preguntar):
+1) Confirma qué archivo está arrancando Render:
+   - Debe existir render.yaml en el root.
+   - render.yaml debe tener startCommand apuntando a public_app:app.
+   - Si existe Procfile o cualquier config que pueda sobreescribir, corrígelo o elimínalo para que NO interfiera.
+2) Confirma que public_app.py NO importa models.py ni db ni flask_login ni sqlalchemy ni pyotp. Si lo hace, corrígelo.
+
+B) PUBLIC_APP CORRECTO (mantener diseño):
+3) En public_app.py:
+   - Flask app mínima con rutas:
+     GET /health -> "ok"
+     GET / -> renderizar EL MISMO template que ya usa el anonimizador (buscar en templates/ cuál es el template real; NO inventar UI si el template no depende de login/db).
+     POST /anonymizer/process -> endpoint real.
+   - Asegura static: el template debe usar url_for('static', filename='...') y no rutas rotas.
+   - Si el template actual depende de login/db, crea SOLO un template mínimo "public_index.html" pero copiado del actual (mismos CSS y estructura) sin login.
+
+C) ENDPOINT CONFIDENCIAL /tmp (OBLIGATORIO):
+4) Implementa /anonymizer/process así:
+   - Obtén archivo desde request.files (intenta 'documento', luego 'file', luego el primero disponible).
+   - Valida extensión permitida: .docx y .pdf (y .doc solo si ya hay soporte real).
+   - Guarda SOLO en /tmp con UUID:
+       temp_in = /tmp/in_<uuid>_<filename>
+       temp_out = /tmp/out_<uuid>.docx (o el formato real de salida)
+   - Ejecuta la FUNCIÓN REAL del proyecto que ya anonimiza (NO crear otra lógica):
+       - Encuentra el pipeline existente (buscar funciones/archivos con nombres anonymize, pipeline, process_docx, process_pdf, run_anon, etc.).
+       - Si actualmente esa función vive dentro de app.py y arrastra imports pesados, extrae SOLO esa lógica a un módulo nuevo "anonymizer_core.py" sin dependencias de DB/login y úsalo desde public_app.py.
+   - Devuelve el resultado con send_file
+   - finally: borra temp_in y temp_out SIEMPRE.
+   - Prohibido escribir en carpetas del repo o persistentes.
+
+D) OPENAI OBLIGATORIO (sin crashear):
+5) En public_app.py:
+   - from openai import OpenAI
+   - NO debe crashear al iniciar si falta OPENAI_API_KEY.
+   - En /anonymizer/process: si falta OPENAI_API_KEY -> retorna 503 JSON {"error":"OPENAI_API_KEY missing"}.
+   - Si existe -> client = OpenAI() y se usa en el pipeline real.
+
+E) DEPENDENCIAS (mínimas, sin “whack-a-mole”):
+6) requirements_public.txt debe contener SOLO lo necesario para public_app + pipeline:
+   - flask, gunicorn, openai, spacy, python-docx, pdfplumber/pymupdf/pypdf2, mammoth, werkzeug (si se usa)
+   - NO incluir Flask-Login, SQLAlchemy, Flask-Migrate, psycopg2, pyotp, etc.
+7) render.yaml debe usar:
+   buildCommand: pip install -r requirements_public.txt && python -m spacy download es_core_news_sm
+   startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 public_app:app
+   envVars: PYTHON_VERSION=3.11.0 y SESSION_SECRET
+
+F) PRUEBA LOCAL (OBLIGATORIA) antes de commit:
+8) Ejecuta pruebas rápidas:
+   - GET /health -> ok
+   - GET / -> carga con CSS (sin 404 de /static)
+   - POST /anonymizer/process -> procesa un DOCX de prueba y devuelve archivo
+   - Si falla, arregla hasta que pase.
+
+G) ENTREGA FINAL:
+9) Muéstrame:
+   - contenido completo de public_app.py
+   - (si creaste) anonymizer_core.py
+   - render.yaml final
+   - requirements_public.txt final
+10) Commit & Push con mensaje EXACTO:
+   "Public anonymizer minimal app for Render (no DB, no models)"
+
+IMPORTANTE:
+- NO me preguntes decisiones, ejecuta todo.
+- NO cambies el comportamiento del anonimizador (solo aislar y desplegar).
+- NO guardes nada (confidencialidad).
+- La app final en Render debe ser estable y pública.
