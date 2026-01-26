@@ -350,14 +350,86 @@ def anonymizer_process():
         strict_mode = request.form.get("strict_mode") is not None
         generate_mapping = request.form.get("generate_mapping") is not None
         
+        logger.info(f"PROCESS | job={job_id} | strict_mode={strict_mode} | generate_mapping={generate_mapping}")
+        
+        try:
+            text_content = ""
+            if ext == 'docx':
+                from docx import Document
+                from processor_docx import extract_full_text_docx
+                doc = Document(temp_input)
+                text_content = extract_full_text_docx(doc)
+            elif ext == 'pdf':
+                from processor_pdf import extract_text_pdf
+                extract_result = extract_text_pdf(temp_input)
+                if extract_result.get('success'):
+                    text_content = extract_result.get('text', '')
+                else:
+                    raise ValueError(extract_result.get('error', 'No se pudo extraer texto del PDF'))
+            elif ext == 'txt':
+                with open(temp_input, 'r', encoding='utf-8', errors='ignore') as f:
+                    text_content = f.read()
+            
+            from detector_capas import detect_all_pii, post_scan_final
+            entities, detect_meta = detect_all_pii(text_content)
+            
+            confirmed = []
+            needs_review = []
+            for ent in entities:
+                ent_dict = {
+                    'text': ent.text,
+                    'type': ent.entity_type,
+                    'start': ent.start,
+                    'end': ent.end,
+                    'confidence': getattr(ent, 'confidence', 1.0),
+                    'source': getattr(ent, 'source', 'unknown')
+                }
+                if getattr(ent, 'confidence', 1.0) >= 0.8:
+                    confirmed.append(ent_dict)
+                else:
+                    needs_review.append(ent_dict)
+            
+            has_warning, warnings = post_scan_final(text_content)
+            text_preview = text_content[:2000] if text_content else ""
+            
+            logger.info(f"DETECT_OK | job={job_id} | confirmed={len(confirmed)} | needs_review={len(needs_review)} | has_warning={has_warning}")
+            
+        except Exception as detect_err:
+            logger.error(f"DETECT_FAIL | job={job_id} | error={str(detect_err)[:200]}")
+            logger.error(f"DETECT_TRACE | {traceback.format_exc()}")
+            safe_remove(temp_input)
+            return render_template("anonymizer_standalone.html",
+                error=f"Error detectando entidades: {str(detect_err)[:100]}"), 500
+        
+        if strict_mode:
+            with jobs_lock:
+                jobs_store[job_id] = {
+                    'created_at': datetime.now(),
+                    'original_filename': filename,
+                    'ext': ext,
+                    'input_path': temp_input,
+                    'strict_mode': True,
+                    'result': {
+                        'success': True,
+                        'confirmed': confirmed,
+                        'needs_review': needs_review,
+                        'text_preview': text_preview,
+                        'detector_used': detect_meta.get('detector', 'hybrid'),
+                        'post_scan_warning': has_warning
+                    }
+                }
+            logger.info(f"STRICT_MODE | job={job_id} | redirecting to review")
+            return redirect(url_for('anonymizer_review', job_id=job_id))
+        
         output_path = None
         mapping = {}
+        all_entities = confirmed + needs_review
         
         if ext == 'docx':
             try:
                 from processor_docx import anonymize_docx_complete
                 output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.docx")
-                anon_result = anonymize_docx_complete(temp_input, output_path, strict_mode=strict_mode)
+                anon_result = anonymize_docx_complete(temp_input, output_path, strict_mode=False)
                 
                 if anon_result.get('ok'):
                     mapping = anon_result.get('mapping', {})
@@ -377,7 +449,7 @@ def anonymizer_process():
         elif ext == 'pdf':
             try:
                 from processor_pdf import anonymize_pdf_to_text
-                anon_result = anonymize_pdf_to_text(temp_input, strict_mode=strict_mode)
+                anon_result = anonymize_pdf_to_text(temp_input, strict_mode=False)
                 
                 if anon_result.get('ok'):
                     output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
@@ -399,18 +471,9 @@ def anonymizer_process():
         
         elif ext == 'txt':
             try:
-                txt_result = process_txt_file(temp_input, strict_mode=strict_mode, generate_mapping=generate_mapping)
-                if not txt_result.get('success'):
-                    error_msg = txt_result.get('error', 'Error procesando TXT')
-                    logger.error(f"ANON_FAIL | job={job_id} | ext=txt | error={error_msg}")
-                    safe_remove(temp_input)
-                    return render_template("anonymizer_standalone.html", error=error_msg), 400
-                
-                entities = txt_result.get('confirmed', [])
                 output_path = os.path.join(OUTPUT_FOLDER, f"{job_id}_out.txt")
-                
-                if entities:
-                    anon_result = anonymize_txt_file(temp_input, output_path, entities)
+                if all_entities:
+                    anon_result = anonymize_txt_file(temp_input, output_path, all_entities)
                     mapping = anon_result.get('mapping', {})
                 else:
                     with open(temp_input, 'r', encoding='utf-8', errors='ignore') as f:
@@ -418,7 +481,7 @@ def anonymizer_process():
                     with open(output_path, 'w', encoding='utf-8') as f:
                         f.write(text)
                 
-                logger.info(f"TXT_ANON_OK | job={job_id} | entities={len(entities)}")
+                logger.info(f"TXT_ANON_OK | job={job_id} | entities={len(all_entities)}")
             except Exception as e:
                 logger.error(f"ANON_FAIL | job={job_id} | ext=txt | error={str(e)[:200]}")
                 logger.error(f"ANON_TRACE | {traceback.format_exc()}")
@@ -434,7 +497,8 @@ def anonymizer_process():
                 'input_path': temp_input,
                 'output_path': output_path,
                 'mapping': mapping,
-                'result': {'success': True, 'confirmed': [], 'needs_review': False, 'mapping': mapping}
+                'strict_mode': False,
+                'result': {'success': True, 'confirmed': all_entities, 'needs_review': [], 'mapping': mapping}
             }
         
         return redirect(url_for('anonymizer_download_page', job_id=job_id))

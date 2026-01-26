@@ -1,0 +1,182 @@
+Tengo un Flask app en public_app.py con estas rutas ya existentes:
+
+POST /anonymizer/process (subida)
+
+GET /anonymizer/process (pantalla final actual que se ve en mi imagen: “Documento anonimizado”, botones descargar documento/reporte, resumen de entidades, reemplazos)
+
+GET /anonymizer/review/<job_id> (pantalla de revisión que SÍ existe en Replit preview, con buscador, preview, y lista de entidades + aplicar)
+
+POST /anonymizer/review/<job_id>/apply (aplica revisión)
+
+PROBLEMA ACTUAL:
+Cuando el usuario sube un archivo con “Modo estricto” desactivado, lo manda a la pantalla final (OK).
+Pero cuando el usuario sube con “Modo estricto” ACTIVADO, en Render/producción igual termina yéndose a la pantalla final, y no muestra la pantalla de revisión (la que está en la imagen de Replit).
+
+OBJETIVO (NO NEGOCIABLE):
+Activar el flujo completo:
+
+Si strict_mode está ACTIVADO:
+
+Después de POST /anonymizer/process NO debe generar el output final inmediatamente.
+
+Debe guardar en jobs_store[job_id] todo lo necesario para revisar:
+
+input_path
+
+ext
+
+original_filename
+
+confirmed y needs_review (entidades detectadas)
+
+text_preview (preview de texto)
+
+mapping inicial si existe
+
+Y debe hacer redirect a:
+
+/anonymizer/review/<job_id> (NO a la pantalla final)
+
+En la pantalla de revisión (GET /anonymizer/review/<job_id>):
+
+Debe renderizarse usando el template que ya existe (NO lo rehagas).
+
+Debe mostrar preview + entidades detectadas (como en mi Replit).
+
+Al presionar “Aplicar” en revisión (POST /anonymizer/review/<job_id>/apply):
+
+Tomar final_entities (confirmed + seleccionadas)
+
+Recién ahí generar el archivo final y el reporte.
+
+Guardar en jobs_store[job_id]:
+
+output_path
+
+mapping
+
+entities_count
+
+report_path si aplica
+
+Y devolver JSON con:
+
+{ success: true, redirect: "/anonymizer/process?job_id=<job_id>" }
+(o la ruta exacta que ya usa tu front, pero debe terminar en la pantalla final que ya tengo)
+
+Si strict_mode está DESACTIVADO:
+
+Mantener el comportamiento actual: generar output directo y enviar a pantalla final.
+
+REGLAS ESTRICTAS (NO OMITIR)
+
+NO crear endpoints nuevos.
+
+NO cambiar render.yaml.
+
+NO cambiar rutas existentes.
+
+NO rehacer UI ni CSS.
+
+Mantener el <input type="file" name="file" ...> (name="file" obligatorio).
+
+Mantener logo /static/images/logo_apc_juridica.png
+
+NO volver a implementar procesadores (docx/pdf/txt) desde cero: ya funcionan. Solo cablear el flujo.
+
+TAREAS EXACTAS (PASO A PASO, EN ORDEN)
+
+Buscar en public_app.py el handler POST /anonymizer/process.
+
+Identificar dónde decide el flujo según strict_mode.
+
+Si strict_mode está True, actualmente está procesando y mandando al final: eso está mal.
+
+Modificar POST /anonymizer/process para que haga esto:
+
+Guardar archivo en temp_input
+
+Validar formato (doc/docx/pdf/txt) como ya está
+
+Detectar entidades (reutiliza la misma detección que ya usas para construir la pantalla de review en Replit).
+
+El objetivo es llenar confirmed, needs_review y text_preview
+
+Guardar todo eso en jobs_store[job_id]
+
+Luego retornar:
+
+return redirect(url_for("anonymizer_review", job_id=job_id))
+
+IMPORTANTE: si strict_mode True, NO debe generar output_path todavía.
+
+Verificar GET /anonymizer/review/<job_id>
+
+Debe leer jobs_store[job_id]
+
+Renderizar template existente con:
+
+job_id
+
+confirmed
+
+needs_review
+
+text_preview
+
+original_filename
+
+Si falta algún campo, rellenarlo desde el store.
+
+Modificar POST /anonymizer/review/<job_id>/apply
+
+Debe construir final_entities
+
+Debe llamar al procesador correcto según extensión (el que ya está funcionando):
+
+DOCX → processor_docx.anonymize_docx_complete (o el que ya estés usando)
+
+PDF → processor_pdf.anonymize_pdf_to_text (o el que ya estés usando)
+
+TXT → flujo actual de txt
+
+Generar output_path y mapping
+
+Guardar en jobs_store[job_id] los campos finales
+
+Devolver JSON con redirect a la pantalla final existente:
+
+{"success": true, "redirect": "/anonymizer/process?job_id=<job_id>"}
+(usa exactamente el endpoint que ya sirve hoy para mostrar la pantalla final)
+
+Asegurar la pantalla final
+
+En GET /anonymizer/process, si viene job_id por querystring:
+
+Leer jobs_store[job_id]
+
+Mostrar la pantalla final como hoy (la de mi imagen) con:
+
+entidades_count
+
+reemplazos (mapping)
+
+links de descarga de documento y reporte
+
+NO cambies el diseño, solo asegurar que use job_id.
+
+VALIDACIÓN FINAL (OBLIGATORIO)
+
+Al terminar, muéstrame:
+
+Lista de archivos modificados (idealmente solo public_app.py)
+
+Un resumen de diff por secciones (no conceptual, sino “qué cambió en cada handler”)
+
+Confirmación de pruebas manuales:
+
+strict_mode OFF → sube DOCX → pantalla final
+
+strict_mode ON → sube DOCX → pantalla review → aplicar → pantalla final
+
+strict_mode ON → si job_id no existe → mensaje “sesión expirada” sin 500
