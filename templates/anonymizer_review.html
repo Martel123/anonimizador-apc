@@ -75,13 +75,22 @@
       position: fixed;
       background: white;
       border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      border: 1px solid #E5E5E5;
       padding: 16px;
-      z-index: 1000;
+      z-index: 9999;
       max-width: 420px;
+      min-width: 320px;
       display: none;
     }
-    .selection-popup.visible { display: block; }
+    .selection-popup.visible { 
+      display: block !important;
+      animation: popupFadeIn 0.15s ease-out;
+    }
+    @keyframes popupFadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
     
     .custom-checkbox {
       width: 24px;
@@ -462,18 +471,27 @@
     });
 
     documentPreview.addEventListener('mouseup', function(e) {
-      const selection = window.getSelection();
-      const text = selection.toString().trim();
-      
-      if (text.length > 1 && text.length < 300) {
-        selectedText = text;
-        selectedTextDisplay.textContent = text.length > 40 ? text.substring(0, 40) + '...' : text;
+      setTimeout(function() {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
         
-        const rect = selection.getRangeAt(0).getBoundingClientRect();
-        selectionPopup.style.left = Math.min(rect.left, window.innerWidth - 440) + 'px';
-        selectionPopup.style.top = (rect.bottom + window.scrollY + 10) + 'px';
-        selectionPopup.classList.add('visible');
-      }
+        console.log('Selection detected:', text.length, 'chars');
+        
+        if (text.length > 1 && text.length < 300) {
+          selectedText = text;
+          selectedTextDisplay.textContent = text.length > 40 ? text.substring(0, 40) + '...' : text;
+          
+          const rect = selection.getRangeAt(0).getBoundingClientRect();
+          const left = Math.max(10, Math.min(rect.left, window.innerWidth - 350));
+          const top = rect.bottom + window.scrollY + 10;
+          
+          selectionPopup.style.left = left + 'px';
+          selectionPopup.style.top = top + 'px';
+          selectionPopup.classList.add('visible');
+          
+          console.log('Popup shown at:', left, top);
+        }
+      }, 10);
     });
 
     document.addEventListener('click', function(e) {
