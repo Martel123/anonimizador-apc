@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documento Anonimizado - APC Jurídica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'inter': ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            'apc': {
+              'red': '#B30000',
+              'red-dark': '#8B0000',
+              'red-light': '#FEF2F2',
+              'black': '#0B0B0B',
+              'gray-bg': '#F5F5F5',
+              'gray-text': '#6F6F6F',
+              'gray-border': '#E5E5E5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    
+    .stat-card {
+      background: #F9FAFB;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 28px;
+      font-weight: 600;
+      color: #B30000;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #6F6F6F;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    
+    .replacement-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      border: 1px solid #E5E5E5;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .replacement-token {
+      font-family: monospace;
+      color: #B30000;
+      font-weight: 500;
+    }
+    .replacement-arrow {
+      color: #9CA3AF;
+    }
+    .replacement-original {
+      color: #6B7280;
+    }
+  </style>
+</head>
+<body class="bg-apc-gray-bg min-h-screen">
+  
+  <!-- Header -->
+  <header class="bg-apc-black">
+    <div class="max-w-5xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-14 w-auto">
+          <div>
+            <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
+            <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información ni reescribir documentos</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2 text-sm text-gray-400">
+          <i class="fas fa-lock text-apc-red"></i>
+          <span class="hidden sm:inline">Procesamiento seguro</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="py-6 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Success Header Card -->
+      <div class="bg-apc-black rounded-2xl p-6 mb-6 flex items-center gap-4">
+        <div class="w-14 h-14 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-check text-white text-2xl"></i>
+        </div>
+        <div>
+          <h2 class="text-xl font-semibold text-white">Documento anonimizado</h2>
+          <p class="text-gray-400">Se detectaron y reemplazaron {{ total_replaced }} datos personales (modo: tokens)</p>
+        </div>
+      </div>
+
+      <!-- Download Buttons -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <a href="{{ download_url }}" class="bg-apc-red-light border border-red-200 rounded-xl p-5 flex items-center gap-4 hover:bg-red-100 transition">
+          <div class="w-12 h-12 bg-apc-red rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-file-download text-white text-xl"></i>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-900">Descargar documento</p>
+            <p class="text-sm text-apc-gray-text">Archivo anonimizado ({{ output_ext|upper }})</p>
+          </div>
+        </a>
+        
+        <a href="{{ report_url }}" class="bg-white border border-apc-gray-border rounded-xl p-5 flex items-center gap-4 hover:bg-gray-50 transition">
+          <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-file-alt text-gray-500 text-xl"></i>
+          </div>
+          <div>
+            <p class="font-semibold text-gray-900">Descargar reporte</p>
+            <p class="text-sm text-apc-gray-text">Detalle de cambios realizados</p>
+          </div>
+        </a>
+      </div>
+
+      <!-- Entity Summary -->
+      <div class="mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-list-alt text-apc-gray-text"></i>
+          <h3 class="font-semibold text-gray-900">Resumen de entidades detectadas</h3>
+        </div>
+        
+        <div class="grid grid-cols-4 gap-3">
+          {% for type, count in type_counts.items() %}
+          <div class="stat-card">
+            <div class="stat-number">{{ count }}</div>
+            <div class="stat-label">{{ type }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Replacements Detail -->
+      <div class="mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-exchange-alt text-apc-gray-text"></i>
+          <h3 class="font-semibold text-gray-900">Reemplazos realizados</h3>
+        </div>
+        
+        <div class="bg-white rounded-xl border border-apc-gray-border p-5">
+          {% for type, replacements in replacements_by_type.items() %}
+          <div class="mb-4 last:mb-0">
+            <p class="text-sm font-medium text-gray-700 mb-2">{{ type }}</p>
+            <div class="flex flex-wrap gap-2">
+              {% for r in replacements %}
+              <div class="replacement-chip">
+                <span class="replacement-token">{% raw %}{{{% endraw %}{{ r.token }}{% raw %}}}{% endraw %}</span>
+                <span class="replacement-arrow">←</span>
+                <span class="replacement-original">{{ r.original_truncated }}</span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Warnings -->
+      {% if warnings %}
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fas fa-exclamation-triangle text-amber-600"></i>
+          <h3 class="font-semibold text-amber-800">Advertencias</h3>
+        </div>
+        <ul class="space-y-2">
+          {% for warning in warnings %}
+          <li class="flex items-start gap-2 text-sm text-amber-700">
+            <span class="w-2 h-2 bg-amber-400 rounded-full mt-1.5 flex-shrink-0"></span>
+            {{ warning }}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- New Document Button -->
+      <div class="text-center">
+        <a href="/anonymizer" class="inline-flex items-center gap-2 bg-apc-red text-white px-8 py-3 rounded-xl font-medium hover:bg-apc-red-dark transition">
+          <i class="fas fa-plus"></i>
+          Anonimizar otro documento
+        </a>
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>

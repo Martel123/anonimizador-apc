@@ -14,6 +14,7 @@ import tempfile
 import traceback
 import zipfile
 from io import BytesIO
+from datetime import datetime
 from flask import Flask, Blueprint, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -492,17 +493,25 @@ def anonymizer_process():
         return render_error("No se pudo procesar el documento. Verifique el formato e intente nuevamente.")
 
 
+def truncate_value(value, max_len=10):
+    """Truncate value for display: first 3 chars ... last 3 chars"""
+    if len(value) <= max_len:
+        return value
+    return value[:3] + "..." + value[-3:]
+
+def get_result_paths(job_id):
+    """Get file paths for storing results."""
+    base = os.path.join(tempfile.gettempdir(), f"result_{job_id}")
+    return {
+        'doc': f"{base}.doc",
+        'meta': f"{base}.meta.json"
+    }
+
 @anonymizer_bp.route("/anonymizer/apply", methods=["POST"])
 @app.route("/anonymizer/apply", methods=["POST"])
 def anonymizer_apply():
     """
-    Aplica anonimización y devuelve archivo directamente.
-    
-    REGLA DE ORO:
-    - Siempre genera archivo o falla claro
-    - Siempre descarga directamente (sin redirección)
-    - Siempre borra temporales en finally
-    - Verifica que archivo final existe y tamaño > 0
+    Aplica anonimización y muestra página de resultados.
     """
     import html as html_lib
     
@@ -513,6 +522,7 @@ def anonymizer_apply():
     ext = request.form.get('ext', 'docx')
     original_filename = request.form.get('original_filename', 'documento')
     selected_entities_json = request.form.get('selected_entities_json', '[]')
+    export_csv = request.form.get('export_csv', 'false').lower() == 'true'
     
     if not temp_input or not os.path.exists(temp_input):
         return render_error("Sesión expirada. Suba el documento nuevamente.")
@@ -536,10 +546,8 @@ def anonymizer_apply():
         
         if ext == 'docx':
             replaced_count, mapping = apply_entities_to_docx(temp_input, temp_output, selected_entities)
-            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         else:
             replaced_count, mapping = apply_entities_to_text(temp_input, temp_output, selected_entities, ext)
-            mimetype = 'text/plain; charset=utf-8'
         
         if not os.path.exists(temp_output):
             logger.error(f"APPLY_FAIL | job={job_id} | reason=output_not_created")
@@ -558,30 +566,161 @@ def anonymizer_apply():
         base_name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
         download_name = f"{base_name}_anonimizado.{output_ext}"
         
-        output_buffer = BytesIO(output_bytes)
+        type_counts = {}
+        replacements_by_type = {}
         
-        logger.info(f"DOWNLOAD_OK | job={job_id} | filename={download_name}")
+        for token, original in mapping.items():
+            clean_token = token.replace('{{', '').replace('}}', '')
+            parts = clean_token.split('_')
+            if len(parts) >= 2:
+                entity_type = '_'.join(parts[:-1])
+            else:
+                entity_type = clean_token
+            
+            type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
+            
+            if entity_type not in replacements_by_type:
+                replacements_by_type[entity_type] = []
+            
+            replacements_by_type[entity_type].append({
+                'token': clean_token,
+                'original': original,
+                'original_truncated': truncate_value(original)
+            })
         
-        return send_file(
-            output_buffer,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype=mimetype
+        warnings = []
+        has_direccion = 'DIRECCION' in type_counts
+        has_persona = 'PERSONA' in type_counts
+        manual_count = sum(1 for e in selected_entities if e.get('source') == 'manual')
+        review_count = sum(1 for e in selected_entities if e.get('status') == 'needs_review')
+        
+        if has_direccion:
+            warnings.append("Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.")
+        if has_persona:
+            warnings.append("Los nombres fueron detectados mediante NER y patrones. Pueden existir nombres adicionales no detectados.")
+        if review_count > 0:
+            warnings.append(f"Se detectaron {review_count} entidades que requieren revisión manual.")
+        if manual_count > 0:
+            warnings.append(f"Se anonimizaron {manual_count} entidades adicionales tras la revisión manual.")
+        
+        report_data = {
+            'total_replaced': replaced_count,
+            'type_counts': type_counts,
+            'mapping': mapping,
+            'warnings': warnings,
+            'original_filename': original_filename
+        }
+        report_json = json.dumps(report_data, ensure_ascii=False, indent=2)
+        
+        result_paths = get_result_paths(job_id)
+        
+        with open(result_paths['doc'], 'wb') as f:
+            f.write(output_bytes)
+        
+        meta_data = {
+            'download_name': download_name,
+            'output_ext': output_ext,
+            'report_json': report_json,
+            'created_at': datetime.now().isoformat()
+        }
+        with open(result_paths['meta'], 'w', encoding='utf-8') as f:
+            json.dump(meta_data, f, ensure_ascii=False)
+        
+        safe_remove(temp_input)
+        safe_remove(temp_output)
+        
+        logger.info(f"RESULTS_PAGE | job={job_id} | replaced={replaced_count}")
+        
+        return render_template("anonymizer_results.html",
+            job_id=job_id,
+            total_replaced=replaced_count,
+            type_counts=type_counts,
+            replacements_by_type=replacements_by_type,
+            warnings=warnings,
+            download_url=f"/anonymizer/download/{job_id}",
+            report_url=f"/anonymizer/report/{job_id}",
+            output_ext=output_ext
         )
         
     except json.JSONDecodeError as e:
         logger.error(f"APPLY_FAIL | job={job_id} | reason=json_error | error={e}")
         logger.error(traceback.format_exc())
+        safe_remove(temp_input)
         return render_error("Error procesando la selección de entidades. Intente nuevamente.")
     
     except Exception as e:
         logger.error(f"APPLY_FAIL | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
-        return render_error("No se pudo generar el archivo final. Verifique el documento e intente nuevamente.")
-    
-    finally:
         safe_remove(temp_input)
         safe_remove(temp_output)
+        return render_error("No se pudo generar el archivo final. Verifique el documento e intente nuevamente.")
+
+
+@anonymizer_bp.route("/anonymizer/download/<job_id>")
+@app.route("/anonymizer/download/<job_id>")
+def anonymizer_download(job_id):
+    """Download the anonymized document."""
+    result_paths = get_result_paths(job_id)
+    
+    if not os.path.exists(result_paths['doc']) or not os.path.exists(result_paths['meta']):
+        return render_error("El enlace ha expirado. Por favor procese el documento nuevamente.")
+    
+    try:
+        with open(result_paths['meta'], 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        
+        with open(result_paths['doc'], 'rb') as f:
+            output_bytes = f.read()
+        
+        output_buffer = BytesIO(output_bytes)
+        
+        if meta['output_ext'] == 'docx':
+            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        else:
+            mimetype = 'text/plain; charset=utf-8'
+        
+        logger.info(f"DOWNLOAD | job={job_id} | filename={meta['download_name']}")
+        
+        return send_file(
+            output_buffer,
+            as_attachment=True,
+            download_name=meta['download_name'],
+            mimetype=mimetype
+        )
+    except Exception as e:
+        logger.error(f"DOWNLOAD_ERROR | job={job_id} | error={e}")
+        return render_error("Error al descargar el documento. Por favor procese el documento nuevamente.")
+
+
+@anonymizer_bp.route("/anonymizer/report/<job_id>")
+@app.route("/anonymizer/report/<job_id>")
+def anonymizer_report(job_id):
+    """Download the anonymization report."""
+    result_paths = get_result_paths(job_id)
+    
+    if not os.path.exists(result_paths['meta']):
+        return render_error("El enlace ha expirado. Por favor procese el documento nuevamente.")
+    
+    try:
+        with open(result_paths['meta'], 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        
+        report_buffer = BytesIO(meta['report_json'].encode('utf-8'))
+        
+        base_name = meta['download_name'].rsplit('.', 1)[0] if '.' in meta['download_name'] else meta['download_name']
+        report_name = f"{base_name}_reporte.json"
+        
+        logger.info(f"REPORT | job={job_id} | filename={report_name}")
+        
+        return send_file(
+            report_buffer,
+            as_attachment=True,
+            download_name=report_name,
+            mimetype='application/json'
+        )
+    except Exception as e:
+        logger.error(f"REPORT_ERROR | job={job_id} | error={e}")
+        return render_error("Error al descargar el reporte. Por favor procese el documento nuevamente.")
 
 
 app.register_blueprint(anonymizer_bp)
