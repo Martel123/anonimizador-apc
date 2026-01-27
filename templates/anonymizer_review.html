@@ -108,8 +108,11 @@
                 </div>
             </div>
 
-            <form action="{{ url_for('anonymizer.anonymizer_apply_review', job_id=job_id) }}" method="POST" id="review-form">
-                <input type="hidden" name="job_id" value="{{ job_id }}">
+            <form action="/anonymizer/apply" method="POST" id="review-form">
+                <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
+                <input type="hidden" name="ext" value="{{ ext }}">
+                <input type="hidden" name="original_filename" value="{{ original_filename }}">
+                <input type="hidden" name="all_entities_json" value="{{ all_entities_json|e }}">
                 <input type="hidden" name="manual_entities" id="manual-entities" value="[]">
                 
                 <div class="mb-6">
@@ -130,7 +133,7 @@
                         {% for entity in pending_entities %}
                         <div class="entity-card bg-apc-gray-bg rounded-xl p-4 border border-apc-gray-border hover:border-apc-red transition-all">
                             <label class="flex items-start cursor-pointer">
-                                <input type="checkbox" name="decisions[{{ entity.id }}]" value="true" 
+                                <input type="checkbox" name="decisions[pending_{{ entity.index }}]" value="true" 
                                        class="entity-checkbox mt-1 w-5 h-5 text-apc-red bg-white border-apc-gray-border rounded focus:ring-apc-red" checked>
                                 <div class="ml-4 flex-1">
                                     <div class="flex items-center space-x-2 mb-2">
@@ -177,7 +180,7 @@
                         <i class="fas fa-check-circle mr-2"></i>
                         Aplicar cambios y continuar
                     </button>
-                    <a href="{{ url_for('anonymizer.anonymizer_home') }}" 
+                    <a href="/anonymizer" 
                        class="py-4 px-6 btn-secondary font-medium rounded-xl transition-all flex items-center justify-center">
                         <i class="fas fa-times mr-2"></i>
                         Cancelar
