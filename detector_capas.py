@@ -88,10 +88,10 @@ ACTA_PATTERNS = [
     re.compile(r'\b(acta\s+n[°oº]?\s*\d+[-/]?\d*)\b', re.IGNORECASE),
 ]
 
-# Juzgado
+# Juzgado - pattern limitado a una línea, sin capturar nombres de personas
 JUZGADO_PATTERN = re.compile(
     r'\b(\d*[°ºo]?\s*juzgado\s+(?:de\s+)?(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial|constitucional)'
-    r'(?:\s+(?:de|del)\s+[A-Za-záéíóúñÁÉÍÓÚÑ\s]+){0,4})',
+    r'(?:\s+(?:de|del)\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,3})',
     re.IGNORECASE
 )
 

@@ -142,21 +142,45 @@ def normalize_entities(items):
 
 
 def dicts_to_entity_objects(entity_dicts):
-    """Convierte lista de dicts a objetos Entity para el motor."""
+    """Convierte lista de dicts a objetos Entity para el motor.
+    
+    Maneja entidades que cruzan líneas (ej: 'SAN BORJA\\nEDUARDO GAMARRA')
+    dividiéndolas en partes separadas para búsqueda en párrafos individuales.
+    """
     from detector_capas import Entity
     entities = []
     for d in entity_dicts:
         value = d.get('value') or d.get('text', '')
         if not value:
             continue
-        entities.append(Entity(
-            type=d.get('type', 'UNKNOWN'),
-            value=value,
-            start=d.get('start', 0),
-            end=d.get('end', 0),
-            source=d.get('source', 'manual'),
-            confidence=d.get('confidence', 1.0)
-        ))
+        
+        ent_type = d.get('type', 'UNKNOWN')
+        source = d.get('source', 'manual')
+        confidence = d.get('confidence', 1.0)
+        
+        # Si el valor contiene saltos de línea, dividir en partes
+        if '\n' in value:
+            parts = [p.strip() for p in value.split('\n') if p.strip()]
+            for part in parts:
+                # Solo agregar partes significativas (>3 chars para evitar ruido)
+                if len(part) > 3:
+                    entities.append(Entity(
+                        type=ent_type,
+                        value=part,
+                        start=0,
+                        end=len(part),
+                        source=source,
+                        confidence=confidence
+                    ))
+        else:
+            entities.append(Entity(
+                type=ent_type,
+                value=value,
+                start=d.get('start', 0),
+                end=d.get('end', 0),
+                source=source,
+                confidence=confidence
+            ))
     return entities
 
 
