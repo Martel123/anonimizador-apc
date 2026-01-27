@@ -187,11 +187,11 @@
                     <input type="hidden" name="selected_entities_json" id="selected-entities-json" value="[]">
                     
                     <div class="flex gap-3">
-                        <button type="submit" class="flex-1 py-4 btn-primary font-medium rounded-xl flex items-center justify-center">
-                            <i class="fas fa-download mr-2"></i>
-                            Aplicar y descargar
+                        <button type="submit" id="apply-btn" class="flex-1 py-4 btn-primary font-medium rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span id="btn-text"><i class="fas fa-download mr-2"></i>Aplicar y descargar</span>
+                            <span id="btn-loading" class="hidden"><span class="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>Procesando documento...</span>
                         </button>
-                        <a href="/anonymizer" class="py-4 px-6 btn-secondary font-medium rounded-xl flex items-center justify-center">
+                        <a href="/anonymizer" id="cancel-link" class="py-4 px-6 btn-secondary font-medium rounded-xl flex items-center justify-center">
                             <i class="fas fa-times mr-2"></i>
                             Cancelar
                         </a>
@@ -366,6 +366,16 @@
                 alert('Selecciona al menos una entidad para anonimizar.');
                 return false;
             }
+            
+            const applyBtn = document.getElementById('apply-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnLoading = document.getElementById('btn-loading');
+            const cancelLink = document.getElementById('cancel-link');
+            
+            applyBtn.disabled = true;
+            btnText.classList.add('hidden');
+            btnLoading.classList.remove('hidden');
+            cancelLink.classList.add('pointer-events-none', 'opacity-50');
         });
         
         updateFormData();

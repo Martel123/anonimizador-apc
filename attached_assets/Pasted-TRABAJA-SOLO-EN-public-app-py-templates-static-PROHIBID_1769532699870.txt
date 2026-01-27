@@ -1,0 +1,169 @@
+TRABAJA SOLO EN: public_app.py + templates/ + static/
+PROHIBIDO: tocar app.py, models.py, db, flask_login, sqlalchemy, pyotp.
+
+OBJETIVO DE ESTE PROMPT:
+Cerrar el flujo definitivamente para que:
+- Siempre se genere un archivo final
+- Siempre se descargue correctamente
+- Siempre se borren los temporales
+- Nunca se “quede colgado” después de aplicar
+- El usuario SIEMPRE tenga feedback claro
+
+Este prompt NO cambia la detección. SOLO asegura:
+- generación correcta del archivo final
+- descarga confiable
+- limpieza total
+- UX robusta
+
+==================================================
+1) REGLA DE ORO DE DESCARGA (OBLIGATORIO)
+==================================================
+En POST /anonymizer/apply:
+
+- El flujo DEBE ser:
+
+try:
+    - crear temp_out en /tmp/out_<uuid>.<ext>
+    - aplicar anonimización
+    - verificar:
+        os.path.exists(temp_out)
+        os.path.getsize(temp_out) > 0
+    - si no existe o pesa 0 bytes:
+        lanzar error claro: "No se pudo generar el archivo final"
+    - devolver send_file(temp_out, as_attachment=True, download_name=...)
+finally:
+    - borrar temp_input
+    - borrar temp_out (si existe)
+
+PROHIBIDO:
+- redirigir a otra página para descargar
+- guardar nada en disco persistente
+- dejar archivos sin borrar
+
+==================================================
+2) NORMALIZAR EXTENSIONES DE SALIDA (OBLIGATORIO)
+==================================================
+Reglas:
+
+- Si input es:
+  - DOCX → output debe ser DOCX
+  - TXT → output debe ser TXT
+  - PDF → output debe ser TXT (si tu pipeline trabaja en texto)
+
+Nombre del archivo descargado:
+  <nombre_original>_anonimizado.<ext_final>
+
+Ejemplo:
+  demanda.docx → demanda_anonimizado.docx
+  contrato.pdf → contrato_anonimizado.txt
+
+==================================================
+3) VERIFICACIÓN FUERTE DE RESULTADO (OBLIGATORIO)
+==================================================
+Después de aplicar:
+
+- Verificar:
+  - archivo existe
+  - tamaño > 0 bytes
+
+Si falla:
+- Mostrar página de error clara:
+  “No se pudo generar el archivo final. Intente nuevamente o use otro archivo.”
+
+- Loggear traceback completo.
+
+==================================================
+4) UI DE ESPERA / PROCESANDO (OBLIGATORIO)
+==================================================
+En anonymizer_review.html:
+
+- Al hacer submit:
+  - Deshabilitar botón
+  - Cambiar texto a: “Procesando documento...”
+  - Mostrar spinner simple o texto de espera
+
+Evita que el usuario haga doble submit.
+
+==================================================
+5) MANEJO DE ERRORES LIMPIO (OBLIGATORIO)
+==================================================
+Todos los errores deben:
+
+- Mostrar mensaje humano:
+  - “El archivo está dañado”
+  - “No se pudo leer el documento”
+  - “No se pudo generar el resultado”
+  - “El servicio no está disponible”
+
+- NO mostrar stacktrace al usuario
+- SÍ loggear stacktrace en servidor
+
+==================================================
+6) TIMEOUTS Y SEGURIDAD (OBLIGATORIO)
+==================================================
+- Tamaño máximo: 10 MB
+- Si el archivo es más grande:
+  - rechazar con mensaje claro
+
+- Si el procesamiento toma demasiado:
+  - debe fallar con error claro (no quedarse colgado)
+
+==================================================
+7) LOGS OBLIGATORIOS (OBLIGATORIO)
+==================================================
+Agregar logs INFO:
+
+- APPLY_START | ext=... | entities=...
+- APPLY_DONE | output_size=...
+- DOWNLOAD_OK | filename=...
+
+Y logs ERROR:
+
+- APPLY_FAIL | traceback
+
+==================================================
+8) PRUEBAS QUE DEBE PASAR (OBLIGATORIO)
+==================================================
+El sistema debe:
+
+- Subir DOCX → detectar → seleccionar → descargar DOCX anonimizado
+- Subir TXT → detectar → seleccionar → descargar TXT anonimizado
+- Subir PDF → detectar → seleccionar → descargar TXT anonimizado
+- Si algo falla → mostrar error claro
+- Nunca dejar archivos en /tmp
+
+==================================================
+9) EXPERIENCIA FINAL (OBJETIVO)
+==================================================
+El usuario siente que:
+
+- Subió su archivo
+- Vio TODO el documento
+- Eligió qué anonimizar
+- Hizo click
+- Descargó su archivo final
+- Y se acabó el proceso
+
+Sin sesiones, sin estados raros, sin residuos.
+
+==================================================
+10) PROHIBICIONES ABSOLUTAS
+==================================================
+- NO jobs_store
+- NO carpetas persistentes
+- NO guardar JSON
+- NO redirecciones a “páginas de descarga”
+- NO depender de app.py
+
+==================================================
+ENTREGA ESPERADA
+==================================================
+- public_app.py robusto con:
+  - POST /anonymizer/apply que SIEMPRE descarga o falla claro
+- templates ajustados con:
+  - botón bloqueado al enviar
+  - mensaje “Procesando...”
+- Limpieza garantizada de temporales en finally
+
+PIENSA COMO PRODUCTO FINAL DE PAGO.
+ESTO DEBE QUEDAR A PRUEBA DE USUARIO REAL.

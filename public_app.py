@@ -63,6 +63,22 @@ def get_extension(filename):
     return ''
 
 
+def get_output_extension(input_ext):
+    """
+    Normaliza extensión de salida:
+    - DOCX → DOCX
+    - TXT → TXT
+    - PDF → TXT (texto plano)
+    - DOC → TXT (texto plano)
+    """
+    if input_ext == 'docx':
+        return 'docx'
+    elif input_ext == 'txt':
+        return 'txt'
+    else:
+        return 'txt'
+
+
 def validate_file_format(file_path, ext):
     """Valida formato real del archivo."""
     try:
@@ -82,6 +98,13 @@ def validate_file_format(file_path, ext):
         return False, f"Error validando archivo: {str(e)}"
 
 
+def render_error(message, status_code=400):
+    """Renderiza página de error limpia sin stacktrace."""
+    return render_template("anonymizer_standalone.html",
+                           error=message,
+                           openai_available=check_openai_available()), status_code
+
+
 # ============================================================================
 # NORMALIZACIÓN DE ENTIDADES CON CANDIDATES
 # ============================================================================
@@ -97,19 +120,15 @@ def normalize_entity(ent_dict):
     
     original = value_base
     
-    # normalized: strip + reemplazar \r\n\t por espacio + colapsar espacios
     normalized = value_base.strip()
     normalized = re.sub(r'[\r\n\t]+', ' ', normalized)
     normalized = re.sub(r'\s+', ' ', normalized)
     
-    # no_newlines: original con \n -> " " y colapsa espacios
     no_newlines = re.sub(r'\n+', ' ', original)
     no_newlines = re.sub(r'\s+', ' ', no_newlines).strip()
     
-    # no_spaces: normalized sin espacios (solo si len >= 4)
     no_spaces = normalized.replace(' ', '') if len(normalized) >= 4 else None
     
-    # Construir lista de candidates única
     candidates = []
     seen_lower = set()
     
@@ -145,7 +164,6 @@ def normalize_entities(items):
         if isinstance(e, dict):
             normalized = normalize_entity(e)
         else:
-            # Objeto Entity
             d = {
                 'type': getattr(e, 'type', 'UNKNOWN'),
                 'value': getattr(e, 'value', ''),
@@ -250,7 +268,6 @@ def expand_entities_with_candidates(entity_dicts):
         candidates = d.get('candidates', [])
         value = d.get('value', '')
         
-        # Agregar value principal si no está en candidates
         all_values = set(candidates) if candidates else set()
         if value and len(value) >= 4:
             all_values.add(value)
@@ -284,7 +301,6 @@ def apply_entities_to_docx(input_path, output_path, entity_dicts):
     doc = Document(input_path)
     mapping = EntityMapping()
     
-    # Expandir entidades con todos los candidates
     expanded_entities = expand_entities_with_candidates(entity_dicts)
     
     stats = process_docx_run_aware(doc, expanded_entities, mapping)
@@ -302,7 +318,6 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
     counters = defaultdict(int)
     mapping = {}
     
-    # Expandir y ordenar por longitud descendente
     all_replacements = []
     for d in entity_dicts:
         ent_type = d.get('type', 'UNKNOWN')
@@ -317,7 +332,6 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
             if v and len(v) >= 4:
                 all_replacements.append((v, ent_type))
     
-    # Ordenar por longitud descendente
     all_replacements.sort(key=lambda x: len(x[0]), reverse=True)
     
     replaced_count = 0
@@ -376,30 +390,21 @@ def anonymizer_process():
     Procesa archivo y muestra página de revisión.
     Guarda archivo temporal que será borrado en /apply.
     """
-    # Validar OPENAI_API_KEY (OBLIGATORIO por negocio)
     if not check_openai_available():
-        return render_template("anonymizer_standalone.html",
-                               error="Servicio no disponible (OPENAI_API_KEY faltante)",
-                               openai_available=False), 503
+        return render_error("El servicio no está disponible en este momento. Contacte al administrador.", 503)
     
     if 'file' not in request.files:
-        return render_template("anonymizer_standalone.html", 
-                               error="No se seleccionó ningún archivo",
-                               openai_available=True)
+        return render_error("No se seleccionó ningún archivo")
     
     file = request.files['file']
     if not file or not file.filename:
-        return render_template("anonymizer_standalone.html", 
-                               error="Archivo vacío",
-                               openai_available=True)
+        return render_error("El archivo está vacío")
     
     filename = secure_filename(file.filename)
     ext = get_extension(filename)
     
     if not allowed_file(filename):
-        return render_template("anonymizer_standalone.html", 
-                               error=f"Formato no soportado: .{ext}. Use DOC, DOCX, PDF o TXT",
-                               openai_available=True)
+        return render_error(f"Formato no soportado: .{ext}. Use DOCX, PDF o TXT")
     
     job_id = str(uuid.uuid4())
     temp_input = os.path.join(tempfile.gettempdir(), f"in_{job_id}_{filename}")
@@ -409,30 +414,22 @@ def anonymizer_process():
         file_size = os.path.getsize(temp_input)
         logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext} | size={file_size}")
         
-        # Validar formato real
         valid, error_msg = validate_file_format(temp_input, ext)
         if not valid:
             safe_remove(temp_input)
-            return render_template("anonymizer_standalone.html", 
-                                   error=error_msg,
-                                   openai_available=True)
+            return render_error(error_msg)
         
-        # Extraer texto completo
         full_text = extract_text(temp_input, ext)
         
         if not full_text or len(full_text.strip()) < 10:
             safe_remove(temp_input)
-            return render_template("anonymizer_standalone.html", 
-                                   error="No se pudo extraer texto del documento",
-                                   openai_available=True)
+            return render_error("No se pudo leer el contenido del documento")
         
-        # Detectar PII
         from detector_capas import detect_all_pii
         entities, detect_meta = detect_all_pii(full_text)
         all_entities = normalize_entities(entities)
         all_entities = deduplicate_entities(all_entities)
         
-        # Separar por confidence
         confirmed = []
         needs_review = []
         
@@ -446,11 +443,9 @@ def anonymizer_process():
             elif conf >= 0.50:
                 ent['status'] = 'needs_review'
                 needs_review.append(ent)
-            # Descartamos < 0.50
         
         entities_all = confirmed + needs_review
         
-        # Agrupar por tipo para UI
         confirmed_by_type = {}
         needs_review_by_type = {}
         
@@ -487,9 +482,7 @@ def anonymizer_process():
         safe_remove(temp_input)
         logger.error(f"PROCESS_ERROR | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
-        return render_template("anonymizer_standalone.html", 
-                               error=f"Error procesando documento: {str(e)[:100]}",
-                               openai_available=True)
+        return render_error("No se pudo procesar el documento. Verifique el formato e intente nuevamente.")
 
 
 @anonymizer_bp.route("/anonymizer/apply", methods=["POST"])
@@ -497,15 +490,17 @@ def anonymizer_process():
 def anonymizer_apply():
     """
     Aplica anonimización y devuelve archivo directamente.
-    Borra archivos temporales SIEMPRE en finally.
+    
+    REGLA DE ORO:
+    - Siempre genera archivo o falla claro
+    - Siempre descarga directamente (sin redirección)
+    - Siempre borra temporales en finally
+    - Verifica que archivo final existe y tamaño > 0
     """
     import html as html_lib
     
-    # Validar OPENAI_API_KEY (OBLIGATORIO)
     if not check_openai_available():
-        return render_template("anonymizer_standalone.html",
-                               error="Servicio no disponible (OPENAI_API_KEY faltante)",
-                               openai_available=False), 503
+        return render_error("El servicio no está disponible en este momento.", 503)
     
     temp_input = request.form.get('temp_input_path', '')
     ext = request.form.get('ext', 'docx')
@@ -513,47 +508,52 @@ def anonymizer_apply():
     selected_entities_json = request.form.get('selected_entities_json', '[]')
     
     if not temp_input or not os.path.exists(temp_input):
-        return render_template("anonymizer_standalone.html", 
-                               error="Sesión expirada. Suba el documento nuevamente.",
-                               openai_available=True)
+        return render_error("Sesión expirada. Suba el documento nuevamente.")
     
     job_id = str(uuid.uuid4())
-    temp_output = os.path.join(tempfile.gettempdir(), f"out_{job_id}.{ext if ext == 'docx' else 'txt'}")
+    output_ext = get_output_extension(ext)
+    temp_output = os.path.join(tempfile.gettempdir(), f"out_{job_id}.{output_ext}")
+    
+    logger.info(f"APPLY_START | job={job_id} | ext={ext} | output_ext={output_ext}")
     
     try:
-        # Decodificar JSON (puede tener escapes HTML)
         selected_entities_json = html_lib.unescape(selected_entities_json)
         selected_entities = json.loads(selected_entities_json)
         
+        entity_count = len(selected_entities) if selected_entities else 0
+        logger.info(f"APPLY_START | job={job_id} | entities={entity_count}")
+        
         if not selected_entities:
             safe_remove(temp_input)
-            return render_template("anonymizer_standalone.html", 
-                                   error="No se seleccionaron entidades para anonimizar.",
-                                   openai_available=True)
+            return render_error("No se seleccionaron entidades para anonimizar.")
         
-        logger.info(f"APPLY | job={job_id} | entities={len(selected_entities)}")
-        
-        # Aplicar según formato
         if ext == 'docx':
             replaced_count, mapping = apply_entities_to_docx(temp_input, temp_output, selected_entities)
-            output_ext = 'docx'
             mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         else:
-            # PDF, TXT, DOC -> salida como TXT
             replaced_count, mapping = apply_entities_to_text(temp_input, temp_output, selected_entities, ext)
-            output_ext = 'txt'
             mimetype = 'text/plain; charset=utf-8'
+        
+        if not os.path.exists(temp_output):
+            logger.error(f"APPLY_FAIL | job={job_id} | reason=output_not_created")
+            return render_error("No se pudo generar el archivo final. Intente nuevamente.")
+        
+        output_size = os.path.getsize(temp_output)
+        if output_size == 0:
+            logger.error(f"APPLY_FAIL | job={job_id} | reason=output_empty")
+            return render_error("No se pudo generar el archivo final. Intente nuevamente.")
+        
+        logger.info(f"APPLY_DONE | job={job_id} | replaced={replaced_count} | output_size={output_size}")
+        
+        with open(temp_output, 'rb') as f:
+            output_bytes = f.read()
         
         base_name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
         download_name = f"{base_name}_anonimizado.{output_ext}"
         
-        logger.info(f"APPLY_OK | job={job_id} | replaced={replaced_count}")
-        
-        # Leer archivo a memoria antes de borrarlo
-        with open(temp_output, 'rb') as f:
-            output_bytes = f.read()
-        
         output_buffer = BytesIO(output_bytes)
+        
+        logger.info(f"DOWNLOAD_OK | job={job_id} | filename={download_name}")
         
         return send_file(
             output_buffer,
@@ -563,17 +563,14 @@ def anonymizer_apply():
         )
         
     except json.JSONDecodeError as e:
-        logger.error(f"JSON_ERROR | job={job_id} | error={e}")
-        return render_template("anonymizer_standalone.html", 
-                               error="Error procesando selección de entidades.",
-                               openai_available=True)
+        logger.error(f"APPLY_FAIL | job={job_id} | reason=json_error | error={e}")
+        logger.error(traceback.format_exc())
+        return render_error("Error procesando la selección de entidades. Intente nuevamente.")
     
     except Exception as e:
-        logger.error(f"APPLY_ERROR | job={job_id} | error={e}")
+        logger.error(f"APPLY_FAIL | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
-        return render_template("anonymizer_standalone.html", 
-                               error=f"Error aplicando anonimización: {str(e)[:100]}",
-                               openai_available=True)
+        return render_error("No se pudo generar el archivo final. Verifique el documento e intente nuevamente.")
     
     finally:
         safe_remove(temp_input)
