@@ -295,62 +295,232 @@ def expand_entities_with_candidates(entity_dicts):
 
 
 def apply_entities_to_docx(input_path, output_path, entity_dicts):
-    """Aplica anonimización a DOCX con candidates expandidos."""
+    """
+    Aplica anonimización a DOCX con soporte para tokens predefinidos (manual entities).
+    Usa reemplazo run-aware para manejar texto partido.
+    """
     from docx import Document
-    from processor_docx import EntityMapping, process_docx_run_aware
+    from processor_docx import EntityMapping
     
     doc = Document(input_path)
-    mapping = EntityMapping()
     
-    expanded_entities = expand_entities_with_candidates(entity_dicts)
+    replacements = []
+    reverse_mapping = {}
+    type_counters = {}
+    value_to_token = {}
     
-    stats = process_docx_run_aware(doc, expanded_entities, mapping)
+    for d in entity_dicts:
+        ent_type = d.get('type', 'UNKNOWN')
+        value = d.get('value', '')
+        token = d.get('token', '')
+        replace_all = d.get('replace_all', True)
+        candidates = d.get('candidates', [])
+        
+        if not value:
+            continue
+        
+        all_values = set()
+        if value:
+            all_values.add(value)
+        if candidates:
+            all_values.update(candidates)
+        
+        for v in all_values:
+            if not v or len(v) < 2:
+                continue
+            
+            normalized = v.strip().lower()
+            key = f"{ent_type}|{normalized}"
+            
+            if key in value_to_token:
+                t = value_to_token[key]
+            elif token:
+                t = token
+                value_to_token[key] = t
+            else:
+                type_counters[ent_type] = type_counters.get(ent_type, 0) + 1
+                t = f"{{{{{ent_type}_{type_counters[ent_type]}}}}}"
+                value_to_token[key] = t
+            
+            replacements.append((v, t, replace_all))
+            
+            clean_token = t.replace('{{', '').replace('}}', '')
+            if t not in reverse_mapping:
+                masked = v[:3] + '...' + v[-2:] if len(v) > 8 else v[:2] + '***'
+                reverse_mapping[t] = masked
+    
+    replacements.sort(key=lambda x: len(x[0]), reverse=True)
+    
+    replaced_count = apply_replacements_to_docx(doc, replacements)
+    
     doc.save(output_path)
     
-    return stats['replacements'], mapping.reverse_mappings
+    return replaced_count, reverse_mapping
+
+
+def apply_replacements_to_docx(doc, replacements):
+    """
+    Aplica lista de reemplazos (value, token, replace_all) al documento DOCX.
+    Maneja párrafos, tablas, headers y footers con reemplazo run-aware.
+    """
+    total_count = 0
+    
+    def replace_in_paragraph(paragraph, replacements):
+        count = 0
+        for original, token, replace_all in replacements:
+            full_text = paragraph.text
+            if original not in full_text:
+                continue
+            
+            run_map = []
+            pos = 0
+            for idx, run in enumerate(paragraph.runs):
+                run_text = run.text
+                run_map.append((pos, pos + len(run_text), idx, run))
+                pos += len(run_text)
+            
+            start = 0
+            iterations = 0
+            max_iterations = 100
+            
+            while iterations < max_iterations:
+                iterations += 1
+                full_text = paragraph.text
+                idx = full_text.find(original, start)
+                if idx == -1:
+                    break
+                
+                end_idx = idx + len(original)
+                
+                affected_runs = []
+                for run_start, run_end, run_idx, run in run_map:
+                    if run_start < end_idx and run_end > idx:
+                        affected_runs.append((run_start, run_end, run_idx, run))
+                
+                if not affected_runs:
+                    start = idx + 1
+                    continue
+                
+                first_run = affected_runs[0]
+                first_run_obj = first_run[3]
+                local_start = idx - first_run[0]
+                
+                if len(affected_runs) == 1:
+                    local_end = local_start + len(original)
+                    old_text = first_run_obj.text
+                    first_run_obj.text = old_text[:local_start] + token + old_text[local_end:]
+                else:
+                    old_text = first_run_obj.text
+                    first_run_obj.text = old_text[:local_start] + token
+                    
+                    for _, _, _, run in affected_runs[1:-1]:
+                        run.text = ''
+                    
+                    last_run = affected_runs[-1]
+                    last_run_obj = last_run[3]
+                    local_end_in_last = end_idx - last_run[0]
+                    last_run_obj.text = last_run_obj.text[local_end_in_last:]
+                
+                count += 1
+                
+                if not replace_all:
+                    break
+                
+                run_map = []
+                pos = 0
+                for r_idx, run in enumerate(paragraph.runs):
+                    run_map.append((pos, pos + len(run.text), r_idx, run))
+                    pos += len(run.text)
+                start = 0
+        
+        return count
+    
+    for para in doc.paragraphs:
+        total_count += replace_in_paragraph(para, replacements)
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    total_count += replace_in_paragraph(para, replacements)
+    
+    try:
+        for section in doc.sections:
+            if section.header:
+                for para in section.header.paragraphs:
+                    total_count += replace_in_paragraph(para, replacements)
+            if section.footer:
+                for para in section.footer.paragraphs:
+                    total_count += replace_in_paragraph(para, replacements)
+    except Exception as e:
+        logger.warning(f"Error processing headers/footers: {e}")
+    
+    return total_count
 
 
 def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
-    """Aplica anonimización a texto plano."""
-    from collections import defaultdict
-    
+    """
+    Aplica anonimización a texto plano con soporte para tokens predefinidos.
+    """
     text = extract_text(input_path, ext)
     
-    counters = defaultdict(int)
-    mapping = {}
+    type_counters = {}
+    value_to_token = {}
+    reverse_mapping = {}
     
     all_replacements = []
+    
     for d in entity_dicts:
         ent_type = d.get('type', 'UNKNOWN')
-        candidates = d.get('candidates', [])
         value = d.get('value', '')
+        token = d.get('token', '')
+        replace_all = d.get('replace_all', True)
+        candidates = d.get('candidates', [])
         
-        values = set(candidates) if candidates else set()
+        all_values = set()
         if value:
-            values.add(value)
+            all_values.add(value)
+        if candidates:
+            all_values.update(candidates)
         
-        for v in values:
-            if v and len(v) >= 4:
-                all_replacements.append((v, ent_type))
+        for v in all_values:
+            if not v or len(v) < 2:
+                continue
+            
+            normalized = v.strip().lower()
+            key = f"{ent_type}|{normalized}"
+            
+            if key in value_to_token:
+                t = value_to_token[key]
+            elif token:
+                t = token
+                value_to_token[key] = t
+            else:
+                type_counters[ent_type] = type_counters.get(ent_type, 0) + 1
+                t = f"{{{{{ent_type}_{type_counters[ent_type]}}}}}"
+                value_to_token[key] = t
+            
+            all_replacements.append((v, t, replace_all))
+            
+            if t not in reverse_mapping:
+                masked = v[:3] + '...' + v[-2:] if len(v) > 8 else v[:2] + '***'
+                reverse_mapping[t] = masked
     
     all_replacements.sort(key=lambda x: len(x[0]), reverse=True)
     
     replaced_count = 0
-    for value, ent_type in all_replacements:
+    for value, token, replace_all in all_replacements:
         if value in text:
-            if value not in [m.get('original') for m in mapping.values()]:
-                counters[ent_type] += 1
-                token = f"{{{{{ent_type}_{counters[ent_type]}}}}}"
-                mapping[token] = {'original': value, 'type': ent_type}
+            if replace_all:
                 count = text.count(value)
                 text = text.replace(value, token)
                 replaced_count += count
+            else:
+                text = text.replace(value, token, 1)
+                replaced_count += 1
     
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(text)
-    
-    reverse_mapping = {k: v['original'][:20] + '...' if len(v['original']) > 20 else v['original'] 
-                       for k, v in mapping.items()}
     
     return replaced_count, reverse_mapping
 
@@ -560,6 +730,47 @@ def anonymizer_apply():
         
         logger.info(f"APPLY_DONE | job={job_id} | replaced={replaced_count} | output_size={output_size}")
         
+        # POST-SCAN OBLIGATORIO: Verificar que no quede PII residual
+        from detector_capas import post_scan_final
+        
+        post_scan_text = ""
+        if output_ext == 'docx':
+            from docx import Document
+            doc_check = Document(temp_output)
+            post_scan_text = extract_full_text_docx(doc_check)
+        else:
+            with open(temp_output, 'r', encoding='utf-8', errors='ignore') as f:
+                post_scan_text = f.read()
+        
+        pii_remains, residual_pii = post_scan_final(post_scan_text)
+        
+        # Filtrar tokens ya reemplazados ({{TIPO_N}}) del texto para re-scan
+        text_without_tokens = re.sub(r'\{\{[A-Z]+_\d+\}\}', '', post_scan_text)
+        _, residual_pii_clean = post_scan_final(text_without_tokens)
+        
+        residual_warning = None
+        strict_mode = True  # Siempre activo por defecto
+        
+        if residual_pii_clean:
+            real_residual = [r for r in residual_pii_clean if r['count'] > 0]
+            if real_residual:
+                logger.warning(f"POST_SCAN | job={job_id} | residual_pii={real_residual}")
+                
+                if strict_mode:
+                    # MODO ESTRICTO: Bloquear descarga y mostrar qué queda
+                    safe_remove(temp_output)
+                    types_list = [f"{r['type']} ({r['count']} ocurrencias)" for r in real_residual]
+                    
+                    return render_template("anonymizer_blocked.html",
+                        residual_types=types_list,
+                        total_residual=sum(r['count'] for r in real_residual),
+                        original_filename=original_filename
+                    )
+                else:
+                    # Modo permisivo: warning pero permite descarga
+                    types_found = ', '.join([f"{r['type']} ({r['count']})" for r in real_residual])
+                    residual_warning = f"ATENCIÓN: Se detectó posible PII residual en el documento: {types_found}. Revise el documento antes de compartirlo."
+        
         with open(temp_output, 'rb') as f:
             output_bytes = f.read()
         
@@ -593,6 +804,10 @@ def anonymizer_apply():
         has_persona = 'PERSONA' in type_counts
         manual_count = sum(1 for e in selected_entities if e.get('source') == 'manual')
         review_count = sum(1 for e in selected_entities if e.get('status') == 'needs_review')
+        
+        # Agregar warning de PII residual si existe (más importante)
+        if residual_warning:
+            warnings.insert(0, residual_warning)
         
         if has_direccion:
             warnings.append("Las direcciones fueron detectadas mediante heurísticas. Revise el documento para confirmar la correcta anonimización.")

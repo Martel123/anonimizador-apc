@@ -105,6 +105,28 @@ CUENTA_PATTERNS = [
 # Placa vehicular
 PLACA_PATTERN = re.compile(r'\b([A-Z]{3}[-\s]?\d{3})\b', re.IGNORECASE)
 
+# Firma, Sello, Huella - heurísticas de texto
+FIRMA_PATTERNS = [
+    re.compile(r'(firma\s*:?\s*[^\n]{0,50})', re.IGNORECASE),
+    re.compile(r'(_____+)', re.IGNORECASE),  # Líneas de firma
+    re.compile(r'(FIRMADO\s*(?:DIGITAL(?:MENTE)?)?)', re.IGNORECASE),
+    re.compile(r'(/s/\s*[^\n]{0,30})', re.IGNORECASE),
+    re.compile(r'(firmante\s*:?\s*[^\n]{0,50})', re.IGNORECASE),
+    re.compile(r'(suscribe\s*:?\s*[^\n]{0,50})', re.IGNORECASE),
+]
+
+SELLO_PATTERNS = [
+    re.compile(r'(sello\s*:?\s*[^\n]{0,50})', re.IGNORECASE),
+    re.compile(r'(\[sello\])', re.IGNORECASE),
+    re.compile(r'(sellado\s+por\s*:?\s*[^\n]{0,50})', re.IGNORECASE),
+]
+
+HUELLA_PATTERNS = [
+    re.compile(r'(huella\s*(?:digital|dactilar)?\s*:?\s*[^\n]{0,30})', re.IGNORECASE),
+    re.compile(r'(\[huella\])', re.IGNORECASE),
+    re.compile(r'(impresión\s+dactilar\s*:?\s*[^\n]{0,30})', re.IGNORECASE),
+]
+
 
 def is_in_money_context(text: str, start: int, end: int) -> bool:
     """Verifica si un número está en contexto monetario."""
@@ -253,6 +275,48 @@ def detect_layer1_regex(text: str) -> List[Entity]:
             end=match.end(1),
             source='regex'
         ))
+    
+    # Firma
+    for pattern in FIRMA_PATTERNS:
+        for match in pattern.finditer(text):
+            value = match.group(1).strip()
+            if len(value) >= 5:  # Mínimo longitud
+                entities.append(Entity(
+                    type='FIRMA',
+                    value=value,
+                    start=match.start(1),
+                    end=match.end(1),
+                    source='regex',
+                    confidence=0.7
+                ))
+    
+    # Sello
+    for pattern in SELLO_PATTERNS:
+        for match in pattern.finditer(text):
+            value = match.group(1).strip()
+            if len(value) >= 4:
+                entities.append(Entity(
+                    type='SELLO',
+                    value=value,
+                    start=match.start(1),
+                    end=match.end(1),
+                    source='regex',
+                    confidence=0.7
+                ))
+    
+    # Huella
+    for pattern in HUELLA_PATTERNS:
+        for match in pattern.finditer(text):
+            value = match.group(1).strip()
+            if len(value) >= 5:
+                entities.append(Entity(
+                    type='HUELLA',
+                    value=value,
+                    start=match.start(1),
+                    end=match.end(1),
+                    source='regex',
+                    confidence=0.7
+                ))
     
     return entities
 

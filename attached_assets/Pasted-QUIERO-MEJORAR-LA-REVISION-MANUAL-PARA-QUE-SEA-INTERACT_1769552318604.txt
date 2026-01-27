@@ -1,0 +1,78 @@
+QUIERO MEJORAR LA REVISION MANUAL PARA QUE SEA INTERACTIVA Y APLIQUE LOS CAMBIOS AL DOCUMENTO FINAL (DOCX) SIN FALLAR.
+
+MANTENER:
+- Todo el flujo actual (subida -> procesamiento -> resultados -> revisión -> descarga).
+- Cero almacenamiento + borrado automático.
+- Modo estricto ON.
+- Salida por TOKENS (no reescritura).
+- Quitar/ocultar Sintético y Asteriscos (ya decidido).
+
+NUEVA FUNCIONALIDAD CLAVE (OBLIGATORIA)
+1) Revisión manual con reemplazo en vivo:
+   - En la pantalla de revisión, el usuario puede seleccionar texto con el mouse.
+   - Luego elige una categoría (Persona, DNI, Dirección, etc.).
+   - Inmediatamente el texto seleccionado en el PREVIEW se reemplaza por el token correspondiente.
+   - Ese mismo reemplazo se guarda como “rule” y al confirmar, se aplica al DOCX final para descarga.
+
+2) Reemplazo consistente:
+   - Si el usuario marca "Eduardo" como PERSONA, debe convertirse en {{PERSONA_1}} siempre que aparezca (opción seleccionable).
+   - Debe existir toggle por regla:
+     - “Solo esta ocurrencia”
+     - “Todas las ocurrencias exactas”
+   - El motor debe mantener mapping global para no crear tokens distintos para el mismo valor.
+
+3) Buscador (OBLIGATORIO):
+   - Agrega un campo “Buscar en documento”.
+   - Muestra coincidencias en el preview (lista y/o resaltado).
+   - Permite seleccionar una coincidencia y tokenizarla.
+   - Botón “Tokenizar todas las coincidencias” con categoría seleccionada.
+   - Esto debe funcionar sin almacenar el documento permanentemente.
+
+NUEVAS CATEGORÍAS (agregar al selector)
+- Persona -> {{PERSONA_n}}
+- DNI -> {{DNI_n}}
+- RUC -> {{RUC_n}}
+- Email -> {{EMAIL_n}}
+- Teléfono -> {{TELEFONO_n}}
+- Dirección -> {{DIRECCION_n}}
+- Expediente -> {{EXPEDIENTE_n}}
+- Acta -> {{ACTA_n}}
+- Casilla -> {{CASILLA_n}}
+- Entidad/Juzgado/Empresa -> {{ENTIDAD_n}}
+- Cuenta/CCI -> {{CUENTA_n}}
+- Placa -> {{PLACA_n}}
+- Firma -> {{FIRMA_n}}
+- Sello -> {{SELLO_n}}
+- Huella -> {{HUELLA_n}}
+
+FIRMA / SELLO / HUELLA (mecánico)
+- Implementa detección y reemplazo por heurísticas de texto:
+  - “Firma:” hasta fin de línea -> {{FIRMA_n}}
+  - líneas “_____” largas -> {{FIRMA_n}}
+  - “FIRMADO”, “/s/” -> {{FIRMA_n}}
+- En revisión manual, permitir que el usuario seleccione manualmente el texto de firma y asignarlo a {{FIRMA_n}}.
+- Si hay imágenes en DOCX (firma escaneada) y es viable:
+  - permitir marcar una imagen como FIRMA/SELLO y eliminarla o reemplazarla por token (si es complejo, deja como “beta” documentado).
+
+DOCX RUN-AWARE (OBLIGATORIO PARA QUE FUNCIONE)
+- Asegura que los reemplazos manuales se aplican aunque el texto esté partido en runs.
+- Debe cubrir: párrafos, tablas, headers, footers.
+- Prohibido reescribir texto: solo reemplazo 1:1 por tokens.
+
+MODO ESTRICTO (reforzar)
+- Después de aplicar auto + manual:
+  - ejecutar post-scan del documento FINAL.
+  - Si queda PII, bloquear descarga y mostrar exactamente qué quedó para corregir.
+
+PRIVACIDAD
+- No DB.
+- Archivos en /tmp por job_id.
+- Borrar al descargar y por TTL.
+- No logs con contenido.
+
+ENTREGABLE
+- La selección manual y la búsqueda deben reflejarse en el preview y en el DOCX final descargable.
+- Nuevas categorías funcionando.
+- Nada de sintético/asteriscos.
+- Sin romper el flujo actual.
+- Prueba manual: selecciono un nombre y lo convierto en {{PERSONA_1}} y al descargar el DOCX ya no aparece el nombre.

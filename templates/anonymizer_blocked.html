@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anonimización incompleta - Anonimizador Legal | APC Jurídica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'inter': ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            'apc': {
+              'red': '#B30000',
+              'red-dark': '#8B0000',
+              'red-light': '#FEF2F2',
+              'black': '#0B0B0B',
+              'gray-bg': '#F5F5F5',
+              'gray-text': '#6F6F6F',
+              'gray-border': '#E5E5E5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+  </style>
+</head>
+<body class="bg-apc-gray-bg min-h-screen">
+  
+  <header class="bg-apc-black">
+    <div class="max-w-5xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-14 w-auto">
+          <div>
+            <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
+            <p class="text-xs text-gray-400">Modo estricto activado</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="py-12 px-4">
+    <div class="max-w-xl mx-auto">
+      
+      <div class="bg-white rounded-2xl shadow-lg p-8 text-center">
+        
+        <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <i class="fas fa-exclamation-triangle text-apc-red text-3xl"></i>
+        </div>
+        
+        <h2 class="text-2xl font-bold text-gray-900 mb-3">Anonimización incompleta</h2>
+        
+        <p class="text-apc-gray-text mb-6">
+          El modo estricto ha detectado <strong class="text-apc-red">{{ total_residual }} dato(s) sensible(s)</strong> 
+          que no fueron anonimizados en el documento.
+        </p>
+        
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left">
+          <p class="font-medium text-red-800 mb-2">Tipos de datos detectados:</p>
+          <ul class="space-y-1">
+            {% for type_info in residual_types %}
+            <li class="flex items-center gap-2 text-sm text-red-700">
+              <i class="fas fa-exclamation-circle"></i>
+              {{ type_info }}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        
+        <p class="text-sm text-apc-gray-text mb-6">
+          Para proteger la confidencialidad, la descarga ha sido bloqueada. 
+          Por favor, regrese a la revisión y marque los datos faltantes.
+        </p>
+        
+        <div class="flex flex-col gap-3">
+          <a href="/anonymizer" class="w-full bg-apc-red text-white py-3 rounded-xl font-medium hover:bg-apc-red-dark flex items-center justify-center gap-2">
+            <i class="fas fa-redo"></i>
+            Subir documento nuevamente
+          </a>
+          <p class="text-xs text-apc-gray-text">
+            El documento "{{ original_filename }}" no fue guardado por seguridad.
+          </p>
+        </div>
+        
+      </div>
+      
+    </div>
+  </main>
+</body>
+</html>
