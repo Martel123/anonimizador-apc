@@ -239,42 +239,58 @@
           </div>
         </div>
 
-        <div id="entitiesContainer">
-          {% for entity in entities_all %}
-          <div class="entity-card" data-entity='{{ entity | tojson }}' data-selected="{{ 'true' if entity.confidence >= 0.8 else 'false' }}">
-            <div class="flex items-start gap-4">
-              <div class="custom-checkbox {{ 'checked' if entity.confidence >= 0.8 else '' }}" data-entity-id="{{ loop.index }}"></div>
-              <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                  <span class="type-badge type-{{ entity.type }}">{{ entity.type }}</span>
-                  <span class="text-sm text-apc-gray-text">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
+        <!-- Scrollable entities widget - shows 2-3 initially -->
+        <div id="entitiesWidget" class="relative">
+          <div id="entitiesContainer" class="max-h-[280px] overflow-hidden transition-all duration-300">
+            {% for entity in entities_all %}
+            <div class="entity-card" data-entity='{{ entity | tojson }}' data-selected="{{ 'true' if entity.confidence >= 0.8 else 'false' }}">
+              <div class="flex items-start gap-4">
+                <div class="custom-checkbox {{ 'checked' if entity.confidence >= 0.8 else '' }}" data-entity-id="{{ loop.index }}"></div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-2">
+                    <span class="type-badge type-{{ entity.type }}">{{ entity.type }}</span>
+                    <span class="text-sm text-apc-gray-text">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
+                  </div>
+                  <p class="font-medium text-gray-900">{{ entity.value }}</p>
+                  {% if entity.context %}
+                  <p class="text-sm text-apc-gray-text mt-1">Contexto: "{{ entity.context[:60] }}{% if entity.context|length > 60 %}...{% endif %}"</p>
+                  {% endif %}
                 </div>
-                <p class="font-medium text-gray-900">{{ entity.value }}</p>
-                {% if entity.context %}
-                <p class="text-sm text-apc-gray-text mt-1">Contexto: "{{ entity.context[:60] }}{% if entity.context|length > 60 %}...{% endif %}"</p>
-                {% endif %}
               </div>
             </div>
-          </div>
-          {% endfor %}
+            {% endfor %}
 
-          {% if not entities_all %}
-          <div class="text-center py-8 text-apc-gray-text">
-            <i class="fas fa-search text-4xl mb-3 opacity-50"></i>
-            <p>No se detectaron entidades automáticamente</p>
-            <p class="text-sm">Selecciona texto en el documento para marcarlo manualmente</p>
+            {% if not entities_all %}
+            <div class="text-center py-8 text-apc-gray-text">
+              <i class="fas fa-search text-4xl mb-3 opacity-50"></i>
+              <p>No se detectaron entidades automáticamente</p>
+              <p class="text-sm">Selecciona texto en el documento para marcarlo manualmente</p>
+            </div>
+            {% endif %}
           </div>
+          
+          <!-- Fade overlay and show more button -->
+          {% if entities_all|length > 3 %}
+          <div id="fadeOverlay" class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-apc-gray-bg to-transparent pointer-events-none"></div>
+          <button type="button" id="showMoreBtn" class="w-full py-3 text-center text-apc-red font-medium hover:bg-red-50 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2">
+            <span id="showMoreText">Ver {{ entities_all|length - 3 }} entidades más</span>
+            <i id="showMoreIcon" class="fas fa-chevron-down"></i>
+          </button>
           {% endif %}
         </div>
       </div>
 
       <!-- Manual Entities Section -->
-      <div id="manualSection" class="mb-6" style="display: none;">
+      <div id="manualSection" class="mb-6">
         <div class="flex items-center gap-2 mb-4">
           <i class="fas fa-hand-pointer text-apc-red"></i>
           <h3 class="font-semibold text-gray-900">Entidades marcadas manualmente (<span id="manualCount">0</span>)</h3>
         </div>
-        <div id="manualList"></div>
+        <div id="manualCards"></div>
+        <div id="manualEmpty" class="bg-white border border-dashed border-apc-gray-border rounded-xl p-6 text-center">
+          <i class="fas fa-mouse-pointer text-apc-gray-text text-2xl mb-2"></i>
+          <p class="text-apc-gray-text text-sm">Selecciona texto en el documento para marcarlo como dato sensible</p>
+        </div>
       </div>
 
       <!-- Actions -->
@@ -342,7 +358,8 @@
     const typeButtons = document.querySelectorAll('#typeButtons button');
     const replaceAllCheckbox = document.getElementById('replaceAllCheckbox');
     const manualSection = document.getElementById('manualSection');
-    const manualList = document.getElementById('manualList');
+    const manualCards = document.getElementById('manualCards');
+    const manualEmpty = document.getElementById('manualEmpty');
     const manualCountSpan = document.getElementById('manualCount');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deselectAllBtn = document.getElementById('deselectAllBtn');
@@ -351,10 +368,37 @@
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const processingOverlay = document.getElementById('processingOverlay');
+    const entitiesContainer = document.getElementById('entitiesContainer');
+    const showMoreBtn = document.getElementById('showMoreBtn');
+    const showMoreText = document.getElementById('showMoreText');
+    const showMoreIcon = document.getElementById('showMoreIcon');
+    const fadeOverlay = document.getElementById('fadeOverlay');
 
     let selectedText = '';
     let manualEntities = [];
     let originalPreviewText = documentPreview.innerHTML;
+    let entitiesExpanded = false;
+    
+    // Count of auto-detected entities (fixed at page load)
+    const autoDetectedCount = entitiesContainer.querySelectorAll('.entity-card').length;
+
+    // Show more/less entities toggle
+    if (showMoreBtn) {
+      showMoreBtn.addEventListener('click', function() {
+        entitiesExpanded = !entitiesExpanded;
+        if (entitiesExpanded) {
+          entitiesContainer.style.maxHeight = 'none';
+          fadeOverlay.style.display = 'none';
+          showMoreText.textContent = 'Ver menos';
+          showMoreIcon.className = 'fas fa-chevron-up';
+        } else {
+          entitiesContainer.style.maxHeight = '280px';
+          fadeOverlay.style.display = 'block';
+          showMoreText.textContent = `Ver ${autoDetectedCount - 3} entidades más`;
+          showMoreIcon.className = 'fas fa-chevron-down';
+        }
+      });
+    }
 
     // Custom checkbox toggle
     document.querySelectorAll('.custom-checkbox').forEach(checkbox => {
@@ -431,29 +475,26 @@
     }
 
     function renderManualEntities() {
+      manualCountSpan.textContent = manualEntities.length;
+      
       if (manualEntities.length === 0) {
-        manualSection.style.display = 'none';
+        manualCards.innerHTML = '';
+        manualEmpty.style.display = 'block';
         return;
       }
       
-      manualSection.style.display = 'block';
-      manualCountSpan.textContent = manualEntities.length;
+      manualEmpty.style.display = 'none';
       
-      manualList.innerHTML = manualEntities.map((entity, idx) => `
-        <div class="entity-card">
-          <div class="flex items-start gap-4">
-            <div class="custom-checkbox checked"></div>
-            <div class="flex-1">
-              <div class="flex items-center gap-3 mb-2">
-                <span class="type-badge type-${entity.type}">${entity.type}</span>
-                <span class="text-sm text-apc-gray-text">Manual</span>
-              </div>
-              <p class="font-medium text-gray-900">${entity.value}</p>
-            </div>
-            <button type="button" class="text-gray-400 hover:text-red-600" onclick="removeManualEntity(${idx})">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
+      // Render manual entity cards in the dedicated container
+      manualCards.innerHTML = manualEntities.map((entity, idx) => `
+        <div class="manual-entity-card bg-white border border-apc-gray-border rounded-xl p-4 mb-3 flex items-center gap-4">
+          <span class="type-badge type-${entity.type}">${entity.type}</span>
+          <span class="font-medium text-gray-900 flex-1">${entity.value}</span>
+          <span class="text-sm text-apc-gray-text font-mono">{{${entity.type}_${idx + 1}}}</span>
+          <span class="text-xs text-apc-gray-text">${entity.replace_all ? '(todas)' : ''}</span>
+          <button type="button" class="text-gray-400 hover:text-apc-red text-lg" onclick="removeManualEntity(${idx})">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
       `).join('');
     }

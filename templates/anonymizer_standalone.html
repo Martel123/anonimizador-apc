@@ -190,28 +190,32 @@
         <!-- Dropzone Card -->
         <div class="bg-white rounded-2xl shadow-sm border border-apc-gray-border p-6 mb-4">
           
-          <!-- Dropzone -->
-          <div id="dropzone" class="drop-zone rounded-xl p-12 text-center cursor-pointer mb-4">
+          <!-- Dropzone - Expanded -->
+          <div id="dropzone" class="drop-zone rounded-xl py-16 px-8 text-center cursor-pointer mb-4">
             <div id="dropzoneDefault" class="flex flex-col items-center">
-              <div class="w-16 h-16 rounded-full bg-apc-red-light flex items-center justify-center mb-4">
-                <i class="fas fa-cloud-upload-alt text-3xl text-apc-red"></i>
+              <div class="w-20 h-20 rounded-full bg-apc-red-light flex items-center justify-center mb-5">
+                <i class="fas fa-cloud-upload-alt text-4xl text-apc-red"></i>
               </div>
-              <p class="text-base font-medium text-gray-800 mb-1">Arrastra tu archivo aquí</p>
-              <p class="text-sm text-apc-gray-text mb-4">o <span class="text-apc-red font-medium cursor-pointer">haz clic para seleccionar</span></p>
+              <p class="text-lg font-medium text-gray-800 mb-2">Arrastra tu archivo aquí</p>
+              <p class="text-sm text-apc-gray-text mb-5">o <span class="text-apc-red font-medium cursor-pointer hover:underline">haz clic para seleccionar</span></p>
               
               <!-- Format indicators -->
-              <div class="flex items-center justify-center gap-6 mb-3">
+              <div class="flex items-center justify-center gap-8 mb-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
-                  <i class="fas fa-file-word text-blue-600"></i>
+                  <i class="fas fa-file-word text-blue-600 text-lg"></i>
                   <span>DOCX</span>
                 </div>
                 <div class="flex items-center gap-2 text-sm text-gray-600">
-                  <i class="fas fa-file-pdf text-red-600"></i>
+                  <i class="fas fa-file-pdf text-red-600 text-lg"></i>
                   <span>PDF</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                  <i class="fas fa-file-alt text-gray-500 text-lg"></i>
+                  <span>TXT</span>
                 </div>
               </div>
               
-              <p class="text-xs text-apc-gray-text">Máximo 10 MB | PDF hasta 50 páginas</p>
+              <p class="text-sm text-apc-gray-text">Máximo 10 MB</p>
             </div>
             
             <!-- File loaded state -->
@@ -231,7 +235,7 @@
             </div>
           </div>
 
-          <input type="file" id="fileInput" name="file" accept=".docx,.pdf" class="hidden">
+          <input type="file" id="fileInput" name="file" accept=".docx,.pdf,.txt" class="hidden">
         </div>
 
         <!-- Options Card -->
@@ -281,7 +285,7 @@
         <!-- Submit Button -->
         <button type="submit" id="submitBtn" class="btn-primary w-full py-4 rounded-2xl font-medium text-base flex items-center justify-center gap-2" disabled data-service-available="{{ 'true' if openai_available else 'false' }}">
           <i class="fas fa-shield-alt"></i>
-          <span id="submitText">Anonimizar documento</span>
+          <span id="submitText">Analizar documento</span>
         </button>
       </form>
 
@@ -289,26 +293,76 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
         <div class="feature-card">
           <div class="feature-icon bg-red-50">
-            <i class="fas fa-fingerprint text-apc-red text-lg"></i>
+            <i class="fas fa-shield-alt text-apc-red text-lg"></i>
           </div>
-          <h3 class="font-semibold text-gray-900 mb-2">Detección híbrida</h3>
-          <p class="text-sm text-apc-gray-text">Combina IA (spaCy NER) con reglas especializadas para documentos legales peruanos.</p>
+          <h3 class="font-semibold text-gray-900 mb-2">Confidencial</h3>
+          <p class="text-sm text-apc-gray-text">Los archivos se procesan en memoria y se eliminan inmediatamente.</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon bg-red-50">
             <i class="fas fa-user-check text-apc-red text-lg"></i>
           </div>
-          <h3 class="font-semibold text-gray-900 mb-2">Modo estricto</h3>
-          <p class="text-sm text-apc-gray-text">Revisa manualmente entidades dudosas antes de finalizar la anonimización.</p>
+          <h3 class="font-semibold text-gray-900 mb-2">Revisión manual</h3>
+          <p class="text-sm text-apc-gray-text">Revisa y selecciona qué datos tokenizar antes de aplicar.</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon bg-red-50">
             <i class="fas fa-code text-apc-red text-lg"></i>
           </div>
-          <h3 class="font-semibold text-gray-900 mb-2">Tokens determinísticos</h3>
-          <p class="text-sm text-apc-gray-text">Reemplazo preciso con tokens como {{PERSONA_1}}, para trazabilidad.</p>
+          <h3 class="font-semibold text-gray-900 mb-2">Tokens claros</h3>
+          <p class="text-sm text-apc-gray-text">Reemplazo con tokens como {{PERSONA_1}}, para trazabilidad.</p>
+        </div>
+      </div>
+
+      <!-- Tipos de datos detectados Section -->
+      <div class="bg-white rounded-2xl shadow-sm border border-apc-gray-border p-6 mt-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-tags text-apc-gray-text"></i>
+          <span class="font-medium text-gray-800">Tipos de datos detectados</span>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-red-500 text-white">DNI</span>
+            <span class="text-sm text-gray-600">8 dígitos</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-orange-500 text-white">RUC</span>
+            <span class="text-sm text-gray-600">11 dígitos</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-500 text-white">EMAIL</span>
+            <span class="text-sm text-gray-600">Correos</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-cyan-500 text-white">TEL</span>
+            <span class="text-sm text-gray-600">Teléfonos</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-500 text-white">PERSONA</span>
+            <span class="text-sm text-gray-600">Nombres</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-pink-500 text-white">DIR</span>
+            <span class="text-sm text-gray-600">Direcciones</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-500 text-white">EXP</span>
+            <span class="text-sm text-gray-600">Expedientes</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-indigo-500 text-white">CAS</span>
+            <span class="text-sm text-gray-600">Casillas</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-slate-500 text-white">JUZ</span>
+            <span class="text-sm text-gray-600">Juzgados</span>
+          </div>
+          <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-yellow-500 text-white">CUENTA</span>
+            <span class="text-sm text-gray-600">Bancarias</span>
+          </div>
         </div>
       </div>
 
@@ -332,7 +386,7 @@
     const strictModeInput = document.getElementById('strictModeInput');
     const exportCsvInput = document.getElementById('exportCsvInput');
     
-    const allowedExtensions = ['docx', 'pdf'];
+    const allowedExtensions = ['docx', 'pdf', 'txt'];
     const maxSize = 10 * 1024 * 1024;
     const serviceAvailable = submitBtn.dataset.serviceAvailable === 'true';
 
