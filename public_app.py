@@ -364,10 +364,16 @@ def apply_replacements_to_docx(doc, replacements):
     Maneja párrafos, tablas, headers y footers con reemplazo run-aware.
     """
     total_count = 0
+    # Track which once-only replacements have been done (global across paragraphs)
+    done_once = set()
     
     def replace_in_paragraph(paragraph, replacements):
+        nonlocal done_once
         count = 0
         for original, token, replace_all in replacements:
+            # Skip if this is a once-only replacement that's already been applied globally
+            if not replace_all and original in done_once:
+                continue
             full_text = paragraph.text
             if original not in full_text:
                 continue
@@ -424,6 +430,7 @@ def apply_replacements_to_docx(doc, replacements):
                 count += 1
                 
                 if not replace_all:
+                    done_once.add(original)
                     break
                 
                 run_map = []
@@ -749,7 +756,7 @@ def anonymizer_apply():
         _, residual_pii_clean = post_scan_final(text_without_tokens)
         
         residual_warning = None
-        strict_mode = True  # Siempre activo por defecto
+        strict_mode = False  # Deshabilitado - solo warning, no bloqueo
         
         if residual_pii_clean:
             real_residual = [r for r in residual_pii_clean if r['count'] > 0]

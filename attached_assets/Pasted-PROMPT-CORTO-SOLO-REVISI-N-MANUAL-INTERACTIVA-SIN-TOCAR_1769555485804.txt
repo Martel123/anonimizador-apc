@@ -1,0 +1,57 @@
+PROMPT CORTO (SOLO “REVISIÓN MANUAL INTERACTIVA” — SIN TOCAR FLUJO NI BACKEND EXISTENTE)
+
+Contexto: Proyecto ya existente. NO rehacer. NO cambiar rutas, endpoints ni el flujo (subida → procesamiento → resultados → revisión → descarga). Esta tarea es SOLO para implementar la selección manual interactiva en la pantalla de revisión y que esa selección se aplique al DOCX final.
+
+OBJETIVO ÚNICO
+1) En la pantalla “Revisión de entidades”, permitir:
+   a) Seleccionar texto con el mouse dentro del PREVIEW del documento.
+   b) Elegir una categoría en un selector (mínimo: Persona, DNI, Dirección, Email, Teléfono, RUC).
+   c) Aplicar tokenización a esa selección:
+      - El preview debe reemplazar INMEDIATAMENTE el texto seleccionado por el token (ej: {{PERSONA_1}}).
+      - Debe agregarse una “regla manual” (manualRules[]) con:
+        { id, category, token, originalText, scope: "once"|"all_exact", createdAt }
+   d) Toggle por regla:
+      - “Solo esta ocurrencia” (once)
+      - “Todas las ocurrencias exactas” (all_exact)
+   e) Mantener mapping consistente:
+      - Si originalText="Eduardo" y category=PERSONA con all_exact, siempre usar el MISMO token ({{PERSONA_1}}) para ese valor.
+      - Implementa un diccionario in-memory por job: tokenMap[category][originalText] -> token
+
+2) Aplicación al DOCX final (sin romper nada):
+   - NO inventes un nuevo endpoint si ya existe /apply o la función de generar DOCX.
+   - Conecta manualRules al momento de generar el DOCX final:
+     - Antes de escribir/descargar, aplica los reemplazos manuales al texto del DOCX.
+     - Reemplazo “run-aware”: el texto puede estar partido en runs; debe funcionar igual.
+     - Debe cubrir: párrafos y tablas (headers/footers si ya los tocan, mantenerlo; si no, no expandir alcance en este prompt).
+   - Prohibido reescribir: solo reemplazar el substring por el token.
+
+IMPLEMENTACIÓN MÍNIMA (para ahorrar costo)
+FRONTEND:
+- En el preview, captura selección (window.getSelection) y extrae el texto seleccionado.
+- Al seleccionar, muestra un popover pequeño cerca del cursor con:
+  - dropdown de categoría
+  - toggle: “Solo esta ocurrencia / Todas las ocurrencias exactas”
+  - botón: “Tokenizar”
+- Al confirmar:
+  - Genera token incremental por categoría: {{PERSONA_1}}, {{PERSONA_2}}, etc.
+  - Inserta en manualRules
+  - Actualiza el preview:
+     - Si scope=once: reemplaza SOLO la ocurrencia seleccionada en el preview (usa rangos/índices si ya los tienes; si no, reemplaza la primera coincidencia exacta que corresponda a la selección actual).
+     - Si scope=all_exact: reemplaza todas las ocurrencias exactas (match literal) en el preview.
+
+BACKEND:
+- Asegura que el “apply”/generación de DOCX recibe manualRules (o se accede desde el estado del job actual) y los aplica.
+- Implementa función utilitaria:
+  apply_manual_rules_to_docx(doc, manualRules, tokenMap)
+  que recorra párrafos y tablas y reemplace texto aunque esté dividido en runs (run-aware).
+- NO logs con contenido del documento.
+
+CRITERIO DE ÉXITO (PRUEBA MANUAL)
+1) En revisión: selecciono “Eduardo” → categoría Persona → “Todas las ocurrencias exactas” → Tokenizar.
+2) El preview muestra {{PERSONA_1}} en lugar de Eduardo (y en todas las apariciones).
+3) Descargo el DOCX: “Eduardo” ya no aparece; aparece {{PERSONA_1}}.
+
+ENTREGABLE
+- Solo esta funcionalidad de selección manual + reglas + aplicación a DOCX.
+- No agregar buscador, no post-scan estricto, no firmas/sellos, no nuevas pantallas.
+- Mantener intacto el resto del flujo.
