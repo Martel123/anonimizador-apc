@@ -1,0 +1,98 @@
+PROMPT 3 — DISEÑO + UX IGUAL AL VIDEO OBJETIVO (SUBIR → PREVIEW → SELECCIONAR → APLICAR → DESCARGAR)
+TRABAJA SOLO EN: templates/ + static/ + public_app.py (solo si necesitas pasar variables al template).
+PROHIBIDO: tocar app.py, models.py, db, login.
+
+OBJETIVO VISUAL:
+Quiero que el UI quede como el video objetivo (header negro, acento rojo, estilo limpio, cajas blancas redondeadas, drag&drop grande, botones modernos).
+El flujo debe ser EXACTO:
+1) Subir archivo (drag&drop) + botón “Analizar documento”
+2) Pantalla de revisión: “Vista previa del documento” (texto completo con scroll) + “Entidades detectadas automáticamente” (chips/checkbox agrupados) + botones “Seleccionar todos / Deseleccionar todos” + botón “Aplicar anonimización”
+3) Al aplicar: descargar automáticamente el archivo anonimizador (send_file) y mostrar feedback (loading).
+
+REGLAS CRÍTICAS:
+- NO inventes endpoints nuevos: usa los que ya están definidos:
+  GET /  -> subida (anonymizer_standalone.html)
+  POST /anonymizer/process -> review (anonymizer_review.html)
+  POST /anonymizer/apply -> descarga directa (send_file)
+- NO uses jobs_store ni guardados. (Eso ya se resolvió en prompts anteriores.)
+- Mantén compatibilidad con blueprint si existe (anonymizer_bp), pero NO dependas de app.py.
+
+ENTREGABLES:
+A) Crear/actualizar estos archivos:
+  - templates/anonymizer_standalone.html
+  - templates/anonymizer_review.html
+  - (si existe) templates/anonymizer_download_standalone.html -> puede quedar como fallback, pero el flujo ideal descarga desde /anonymizer/apply directo
+  - static/anonymizer.css
+  - static/anonymizer.js
+  - (opcional) static/icons/*.svg (si ya hay carpeta, úsala; si no, inline SVG)
+
+B) Estilo EXACTO (aprox como el frame objetivo):
+  - Fondo general: gris muy claro (#f3f4f6 o similar)
+  - Header/topbar: negro (#111827) con logo APC en círculo rojo
+  - Color primario: rojo APC (#b91c1c o #dc2626)
+  - Cards: blanco, border suave, sombra leve, border-radius 16px
+  - Tipografía: Inter (Google Fonts). Si ya hay otra, cambia a Inter.
+  - Botón principal: rojo, full width en subida (“Analizar documento”)
+  - Drag&drop: caja grande con borde punteado rojo y un ícono cloud upload
+
+C) UX/Interacción (JS obligatorio):
+1) Subida (anonymizer_standalone.html)
+  - Área drag&drop funcional:
+    - arrastrar archivo -> lo asigna al input[type=file]
+    - muestra nombre del archivo + tamaño
+    - habilita botón “Analizar documento”
+  - Validación front: extensiones doc/docx/pdf/txt y tamaño (10MB)
+  - Si hay error (variable template error), muéstralo como alert roja elegante
+
+2) Review (anonymizer_review.html)
+  Layout 2 columnas (en desktop):
+  - Izquierda: “Vista previa del documento” con scroll vertical (altura fija, ej. 420px)
+  - Derecha: “Entidades detectadas automáticamente”
+    - Barra superior con:
+      - “Seleccionar todos” (check)
+      - “Deseleccionar todos” (x)
+    - Lista agrupada por tipo en secciones:
+      PERSONA, DNI, EMAIL, CEL, DIRECCION, RUC, EXPEDIENTE, PLACA, OTROS
+    - Cada entidad como fila con:
+      [checkbox]  valor (monospace suave)  badge de confianza (ej 0.86)
+  - Debajo botón principal: “Aplicar anonimización” (rojo)
+  - Mostrar contador dinámico “Seleccionadas: N”
+
+3) Envío “Aplicar anonimización”:
+  - NO recargar sin feedback:
+    - Al hacer submit:
+      - deshabilitar botón
+      - mostrar loader (“Anonimizando…”)
+  - Enviar SOLO entidades seleccionadas:
+    - Si el backend espera JSON: manda fetch POST con JSON
+    - Si el backend espera form: manda input hidden “selected_entities_json”
+  IMPORTANTE: NO rompas backend:
+    - Primero revisa cómo public_app.py espera los datos en /anonymizer/apply.
+    - Ajusta JS y template para coincidir exactamente con eso.
+    - Si hace falta un pequeño ajuste en public_app.py para leer “selected_entities_json”, hazlo (pero NO cambies lógica de detección).
+
+D) Accesibilidad/Detalles:
+  - Responsive: en móvil, columnas se vuelven 1 columna
+  - No usar frameworks (sin Tailwind). Solo CSS limpio.
+  - No uses dependencias nuevas.
+
+PASOS DE IMPLEMENTACIÓN OBLIGATORIOS:
+1) Inspecciona qué variables está pasando public_app.py al render de templates (error, text_preview, entities, etc.)
+2) Ajusta templates para usar esas variables sin romper.
+3) Implementa CSS en static/anonymizer.css y enlázalo en ambos templates.
+4) Implementa JS en static/anonymizer.js y enlázalo:
+   - subida: drag/drop + enable button
+   - review: select all / deselect all + contador + submit loader + empaquetar entidades seleccionadas
+5) Verifica local en Replit:
+   - Subir DOCX de prueba
+   - Ver preview con scroll
+   - Seleccionar entidades
+   - Aplicar -> debe descargar archivo
+
+ENTREGA FINAL:
+- Pega el contenido final de:
+  - templates/anonymizer_standalone.html
+  - templates/anonymizer_review.html
+  - static/anonymizer.css
+  - static/anonymizer.js
+y confirma que NO tocaste app.py.
