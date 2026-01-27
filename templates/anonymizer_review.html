@@ -3,195 +3,542 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Revisión - Anonimizador Legal | APC Jurídica</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='anonymizer.css') }}">
+  <title>Revisión interactiva - Anonimizador Legal | APC Jurídica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'inter': ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            'apc': {
+              'red': '#B30000',
+              'red-dark': '#8B0000',
+              'red-light': '#FEF2F2',
+              'black': '#0B0B0B',
+              'gray-bg': '#F5F5F5',
+              'gray-text': '#6F6F6F',
+              'gray-border': '#E5E5E5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    
+    /* Token highlighting in preview */
+    .token-highlight {
+      background-color: #FEF3C7;
+      border-radius: 2px;
+      padding: 1px 2px;
+      font-family: monospace;
+    }
+    
+    /* Entity type badges */
+    .type-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .type-PERSONA { background: #FECACA; color: #991B1B; }
+    .type-DNI { background: #FED7AA; color: #9A3412; }
+    .type-RUC { background: #FDE68A; color: #92400E; }
+    .type-DIRECCION { background: #D9F99D; color: #3F6212; }
+    .type-EMAIL { background: #A7F3D0; color: #065F46; }
+    .type-TELEFONO { background: #A5F3FC; color: #0E7490; }
+    .type-EXPEDIENTE { background: #C7D2FE; color: #3730A3; }
+    .type-ACTA { background: #DDD6FE; color: #5B21B6; }
+    .type-CASILLA { background: #FBCFE8; color: #9D174D; }
+    .type-ENTIDAD { background: #FED7AA; color: #9A3412; }
+    .type-CUENTA { background: #E5E7EB; color: #374151; }
+    .type-PLACA { background: #D1D5DB; color: #1F2937; }
+    .type-FIRMA { background: #FECDD3; color: #9F1239; }
+    .type-SELLO { background: #CCFBF1; color: #0F766E; }
+    .type-HUELLA { background: #FEE2E2; color: #B91C1C; }
+    .type-JUZGADO { background: #DBEAFE; color: #1E40AF; }
+    
+    /* Selection popup */
+    .selection-popup {
+      position: fixed;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+      padding: 16px;
+      z-index: 1000;
+      max-width: 400px;
+      display: none;
+    }
+    .selection-popup.visible {
+      display: block;
+    }
+    
+    /* Custom checkbox */
+    .custom-checkbox {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #E5E5E5;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .custom-checkbox.checked {
+      background: #3B82F6;
+      border-color: #3B82F6;
+    }
+    .custom-checkbox.checked::after {
+      content: '';
+      width: 6px;
+      height: 10px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+    
+    /* Document preview */
+    .document-preview {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 24px;
+      background: white;
+      border: 1px solid #E5E5E5;
+      border-radius: 12px;
+    }
+    
+    /* Entity cards */
+    .entity-card {
+      background: white;
+      border: 1px solid #E5E5E5;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    
+    /* Processing overlay */
+    .processing-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+  </style>
 </head>
-<body>
-  <header class="header">
-    <div class="header-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>
+<body class="bg-apc-gray-bg min-h-screen">
+  
+  <!-- Header -->
+  <header class="bg-apc-black">
+    <div class="max-w-5xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-14 w-auto">
+          <div>
+            <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
+            <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información ni reescribir documentos</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2 text-sm text-gray-400">
+          <i class="fas fa-lock text-apc-red"></i>
+          <span class="hidden sm:inline">Procesamiento seguro</span>
+        </div>
+      </div>
     </div>
-    <div>
-      <div class="header-title">Revisión de entidades</div>
-      <div class="header-subtitle">{{ original_filename }}</div>
-    </div>
-    <a href="/anonymizer" class="back-link-header">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-      Cancelar
-    </a>
   </header>
 
-  <main class="main-container">
-    <div class="review-container">
-      <div class="card preview-card">
-        <div class="preview-header">
-          <h2 class="preview-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            Vista previa del documento
-          </h2>
+  <main class="py-6 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Review Header Card (Black) -->
+      <div class="bg-apc-black rounded-2xl p-6 mb-6 flex items-center gap-4">
+        <div class="w-14 h-14 bg-apc-red rounded-xl flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-user-check text-white text-2xl"></i>
         </div>
-        <div class="document-preview" id="documentText">{{ full_text }}</div>
-        <p class="preview-hint">Selecciona texto para marcarlo manualmente como entidad</p>
+        <div>
+          <h2 class="text-xl font-semibold text-white">Revisión interactiva</h2>
+          <p class="text-gray-400" id="pendingCount">{{ needs_review_count }} entidades pendientes de confirmación</p>
+        </div>
       </div>
 
-      <div class="card entities-card">
-        <div class="entities-header">
-          <h2 class="entities-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9 11 12 14 22 4"/>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-            </svg>
-            Entidades detectadas
-          </h2>
-          <div class="entities-actions">
-            <button type="button" id="selectAllBtn">Seleccionar todos</button>
-            <button type="button" id="deselectAllBtn">Deseleccionar</button>
+      <!-- Strict Mode Alert -->
+      {% if strict_mode %}
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+        <div class="flex items-start gap-3">
+          <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+          <div>
+            <p class="font-medium text-amber-700">Modo estricto activado</p>
+            <p class="text-sm text-amber-600">Revisa las entidades detectadas, busca texto adicional y selecciona manualmente datos que no fueron detectados. Los cambios se aplican en vivo al preview.</p>
           </div>
         </div>
+      </div>
+      {% endif %}
 
-        <div class="entities-list" id="entitiesContainer">
-          {% if confirmed_by_type %}
-          <div class="entities-section">
-            <div class="section-header section-confirmed">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-              </svg>
-              Confirmadas ({{ confirmed_count }})
-            </div>
-            {% for type, entities in confirmed_by_type.items() %}
-            <div class="entity-group">
-              <div class="entity-group-title">
-                <span class="type-badge type-{{ type }}">{{ type }}</span>
-                <span class="entity-group-count">{{ entities|length }}</span>
-              </div>
-              {% for entity in entities %}
-              <label class="entity-item entity-confirmed">
-                <input type="checkbox" class="entity-checkbox" data-entity='{{ entity | tojson }}' checked>
-                <span class="entity-value" title="{{ entity.value }}">{{ entity.value[:40] }}{% if entity.value|length > 40 %}...{% endif %}</span>
-                <span class="entity-confidence confidence-high">{{ (entity.confidence * 100)|round|int }}%</span>
-              </label>
-              {% endfor %}
-            </div>
-            {% endfor %}
-          </div>
-          {% endif %}
-
-          {% if needs_review_by_type %}
-          <div class="entities-section">
-            <div class="section-header section-review">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              Requieren revisión ({{ needs_review_count }})
-            </div>
-            {% for type, entities in needs_review_by_type.items() %}
-            <div class="entity-group">
-              <div class="entity-group-title">
-                <span class="type-badge type-{{ type }}">{{ type }}</span>
-                <span class="entity-group-count">{{ entities|length }}</span>
-              </div>
-              {% for entity in entities %}
-              <label class="entity-item entity-review">
-                <input type="checkbox" class="entity-checkbox" data-entity='{{ entity | tojson }}'>
-                <span class="entity-value" title="{{ entity.value }}">{{ entity.value[:40] }}{% if entity.value|length > 40 %}...{% endif %}</span>
-                <span class="entity-confidence confidence-medium">{{ (entity.confidence * 100)|round|int }}%</span>
-              </label>
-              {% endfor %}
-            </div>
-            {% endfor %}
-          </div>
-          {% endif %}
-
-          {% if not confirmed_by_type and not needs_review_by_type %}
-          <div class="empty-state">
-            <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <p>No se detectaron entidades automáticamente</p>
-            <p style="font-size: 13px; margin-top: 4px;">Selecciona texto en el documento para marcarlo manualmente</p>
-          </div>
-          {% endif %}
+      <!-- Search in Document -->
+      <div class="mb-6">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fas fa-search text-apc-gray-text"></i>
+          <span class="font-medium text-gray-800">Buscar en documento</span>
         </div>
-
-        <div id="manualSection" class="manual-section" style="display: none;">
-          <div class="section-header section-manual">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            Marcadas manualmente (<span id="manualCount">0</span>)
-          </div>
-          <div id="manualList" class="manual-list"></div>
+        <div class="flex gap-3">
+          <input type="text" id="searchInput" placeholder="Buscar texto..." 
+                 class="flex-1 px-4 py-3 border border-apc-gray-border rounded-xl focus:outline-none focus:ring-2 focus:ring-apc-red focus:border-transparent">
+          <button type="button" id="searchBtn" class="bg-apc-red text-white px-6 py-3 rounded-xl font-medium hover:bg-apc-red-dark flex items-center gap-2">
+            <i class="fas fa-search"></i>
+            Buscar
+          </button>
         </div>
+      </div>
 
-        <div class="selection-counter" id="selectionCount">
-          Seleccionadas: <strong>0</strong> de 0
+      <!-- Document Preview -->
+      <div class="mb-6">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fas fa-file-alt text-apc-gray-text"></i>
+          <span class="font-medium text-gray-800">Vista previa del documento</span>
+          <span class="text-sm text-apc-gray-text">(selecciona texto para tokenizar)</span>
         </div>
+        <div class="document-preview" id="documentPreview">{{ preview_text }}</div>
+      </div>
 
-        <form id="applyForm" action="/anonymizer/apply" method="POST">
-          <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
-          <input type="hidden" name="ext" value="{{ ext }}">
-          <input type="hidden" name="original_filename" value="{{ original_filename }}">
-          <input type="hidden" name="selected_entities_json" id="selectedEntitiesJson" value="[]">
-
-          <div class="review-footer">
-            <button type="submit" id="applyBtn" class="btn btn-primary">
-              <span id="applySpinner" class="spinner" style="display: none;"></span>
-              <span id="applyText">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Aplicar anonimización
-              </span>
+      <!-- Detected Entities Section -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-900">Entidades detectadas automáticamente</h3>
+          <div class="flex items-center gap-4 text-sm">
+            <button type="button" id="selectAllBtn" class="text-apc-red font-medium hover:underline flex items-center gap-1">
+              <i class="fas fa-check-double"></i>
+              Seleccionar todos
             </button>
-            <a href="/anonymizer" class="btn btn-secondary" id="cancelBtn">Cancelar</a>
+            <button type="button" id="deselectAllBtn" class="text-apc-gray-text font-medium hover:underline flex items-center gap-1">
+              <i class="fas fa-times"></i>
+              Deseleccionar todos
+            </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
 
-    <div id="selectionToolbar" class="selection-toolbar" style="display: none;">
-      <p class="toolbar-label">Marcar como:</p>
-      <div class="toolbar-buttons">
-        <button type="button" class="mark-type-btn type-badge type-PERSONA" data-type="PERSONA">PERSONA</button>
-        <button type="button" class="mark-type-btn type-badge type-DNI" data-type="DNI">DNI</button>
-        <button type="button" class="mark-type-btn type-badge type-RUC" data-type="RUC">RUC</button>
-        <button type="button" class="mark-type-btn type-badge type-EMAIL" data-type="EMAIL">EMAIL</button>
-        <button type="button" class="mark-type-btn type-badge type-TELEFONO" data-type="TELEFONO">TELEFONO</button>
-        <button type="button" class="mark-type-btn type-badge type-DIRECCION" data-type="DIRECCION">DIRECCION</button>
-        <button type="button" class="mark-type-btn type-badge type-EXPEDIENTE" data-type="EXPEDIENTE">EXPEDIENTE</button>
+        <div id="entitiesContainer">
+          {% for entity in entities_all %}
+          <div class="entity-card" data-entity='{{ entity | tojson }}' data-selected="{{ 'true' if entity.confidence >= 0.8 else 'false' }}">
+            <div class="flex items-start gap-4">
+              <div class="custom-checkbox {{ 'checked' if entity.confidence >= 0.8 else '' }}" data-entity-id="{{ loop.index }}"></div>
+              <div class="flex-1">
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="type-badge type-{{ entity.type }}">{{ entity.type }}</span>
+                  <span class="text-sm text-apc-gray-text">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
+                </div>
+                <p class="font-medium text-gray-900">{{ entity.value }}</p>
+                {% if entity.context %}
+                <p class="text-sm text-apc-gray-text mt-1">Contexto: "{{ entity.context[:60] }}{% if entity.context|length > 60 %}...{% endif %}"</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+
+          {% if not entities_all %}
+          <div class="text-center py-8 text-apc-gray-text">
+            <i class="fas fa-search text-4xl mb-3 opacity-50"></i>
+            <p>No se detectaron entidades automáticamente</p>
+            <p class="text-sm">Selecciona texto en el documento para marcarlo manualmente</p>
+          </div>
+          {% endif %}
+        </div>
       </div>
+
+      <!-- Manual Entities Section -->
+      <div id="manualSection" class="mb-6" style="display: none;">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-hand-pointer text-apc-red"></i>
+          <h3 class="font-semibold text-gray-900">Entidades marcadas manualmente (<span id="manualCount">0</span>)</h3>
+        </div>
+        <div id="manualList"></div>
+      </div>
+
+      <!-- Actions -->
+      <form id="applyForm" action="/anonymizer/apply" method="POST">
+        <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
+        <input type="hidden" name="ext" value="{{ ext }}">
+        <input type="hidden" name="original_filename" value="{{ original_filename }}">
+        <input type="hidden" name="selected_entities_json" id="selectedEntitiesJson" value="[]">
+        <input type="hidden" name="export_csv" value="{{ export_csv }}">
+
+        <div class="flex gap-4">
+          <button type="submit" id="applyBtn" class="flex-1 bg-apc-red text-white py-4 rounded-xl font-medium hover:bg-apc-red-dark flex items-center justify-center gap-2">
+            <i class="fas fa-shield-alt"></i>
+            <span id="applyText">Aplicar anonimización</span>
+          </button>
+          <a href="/anonymizer" class="px-8 py-4 border border-apc-gray-border rounded-xl font-medium text-gray-600 hover:bg-gray-50 text-center">
+            Cancelar
+          </a>
+        </div>
+      </form>
+
     </div>
   </main>
 
-  <div id="processingOverlay" class="processing-overlay">
-    <div class="processing-modal">
-      <div class="processing-spinner"></div>
-      <div class="processing-text">Anonimizando documento...</div>
+  <!-- Selection Popup -->
+  <div id="selectionPopup" class="selection-popup">
+    <p class="text-sm text-apc-gray-text mb-3">Marcar "<span id="selectedTextDisplay"></span>" como:</p>
+    <div class="grid grid-cols-5 gap-2 mb-4" id="typeButtons">
+      <button type="button" class="type-badge type-PERSONA cursor-pointer hover:opacity-80" data-type="PERSONA">PERSONA</button>
+      <button type="button" class="type-badge type-DNI cursor-pointer hover:opacity-80" data-type="DNI">DNI</button>
+      <button type="button" class="type-badge type-RUC cursor-pointer hover:opacity-80" data-type="RUC">RUC</button>
+      <button type="button" class="type-badge type-DIRECCION cursor-pointer hover:opacity-80" data-type="DIRECCION">DIRECCION</button>
+      <button type="button" class="type-badge type-EMAIL cursor-pointer hover:opacity-80" data-type="EMAIL">EMAIL</button>
+      <button type="button" class="type-badge type-TELEFONO cursor-pointer hover:opacity-80" data-type="TELEFONO">TELEFONO</button>
+      <button type="button" class="type-badge type-EXPEDIENTE cursor-pointer hover:opacity-80" data-type="EXPEDIENTE">EXPEDIENTE</button>
+      <button type="button" class="type-badge type-ACTA cursor-pointer hover:opacity-80" data-type="ACTA">ACTA</button>
+      <button type="button" class="type-badge type-CASILLA cursor-pointer hover:opacity-80" data-type="CASILLA">CASILLA</button>
+      <button type="button" class="type-badge type-ENTIDAD cursor-pointer hover:opacity-80" data-type="ENTIDAD">ENTIDAD</button>
+      <button type="button" class="type-badge type-CUENTA cursor-pointer hover:opacity-80" data-type="CUENTA">CUENTA</button>
+      <button type="button" class="type-badge type-PLACA cursor-pointer hover:opacity-80" data-type="PLACA">PLACA</button>
+      <button type="button" class="type-badge type-FIRMA cursor-pointer hover:opacity-80" data-type="FIRMA">FIRMA</button>
+      <button type="button" class="type-badge type-SELLO cursor-pointer hover:opacity-80" data-type="SELLO">SELLO</button>
+      <button type="button" class="type-badge type-HUELLA cursor-pointer hover:opacity-80" data-type="HUELLA">HUELLA</button>
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+      <input type="checkbox" id="replaceAllCheckbox" checked class="w-4 h-4 text-apc-red rounded">
+      Reemplazar todas las ocurrencias
+    </label>
+  </div>
+
+  <!-- Processing Overlay -->
+  <div id="processingOverlay" class="processing-overlay" style="display: none;">
+    <div class="bg-white rounded-2xl p-8 text-center">
+      <i class="fas fa-circle-notch spinner text-apc-red text-4xl mb-4"></i>
+      <p class="font-medium text-gray-800">Anonimizando documento...</p>
     </div>
   </div>
 
   <script>
-  window.__ENTITIES__ = {{ entities_all | tojson }};
+  {% raw %}
+  document.addEventListener('DOMContentLoaded', function() {
+    const documentPreview = document.getElementById('documentPreview');
+    const selectionPopup = document.getElementById('selectionPopup');
+    const selectedTextDisplay = document.getElementById('selectedTextDisplay');
+    const typeButtons = document.querySelectorAll('#typeButtons button');
+    const replaceAllCheckbox = document.getElementById('replaceAllCheckbox');
+    const manualSection = document.getElementById('manualSection');
+    const manualList = document.getElementById('manualList');
+    const manualCountSpan = document.getElementById('manualCount');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const applyForm = document.getElementById('applyForm');
+    const selectedEntitiesJson = document.getElementById('selectedEntitiesJson');
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const processingOverlay = document.getElementById('processingOverlay');
+
+    let selectedText = '';
+    let manualEntities = [];
+    let originalPreviewText = documentPreview.innerHTML;
+
+    // Custom checkbox toggle
+    document.querySelectorAll('.custom-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('click', function() {
+        this.classList.toggle('checked');
+        const card = this.closest('.entity-card');
+        card.dataset.selected = this.classList.contains('checked') ? 'true' : 'false';
+        updatePreview();
+      });
+    });
+
+    // Select all / Deselect all
+    selectAllBtn.addEventListener('click', function() {
+      document.querySelectorAll('.custom-checkbox').forEach(cb => {
+        cb.classList.add('checked');
+        cb.closest('.entity-card').dataset.selected = 'true';
+      });
+      updatePreview();
+    });
+
+    deselectAllBtn.addEventListener('click', function() {
+      document.querySelectorAll('.custom-checkbox').forEach(cb => {
+        cb.classList.remove('checked');
+        cb.closest('.entity-card').dataset.selected = 'false';
+      });
+      updatePreview();
+    });
+
+    // Text selection in preview
+    documentPreview.addEventListener('mouseup', function(e) {
+      const selection = window.getSelection();
+      const text = selection.toString().trim();
+      
+      if (text.length > 0 && text.length < 200) {
+        selectedText = text;
+        selectedTextDisplay.textContent = text.length > 30 ? text.substring(0, 30) + '...' : text;
+        
+        // Position popup near selection
+        const rect = selection.getRangeAt(0).getBoundingClientRect();
+        selectionPopup.style.left = Math.min(rect.left, window.innerWidth - 420) + 'px';
+        selectionPopup.style.top = (rect.bottom + window.scrollY + 10) + 'px';
+        selectionPopup.classList.add('visible');
+      }
+    });
+
+    // Hide popup when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!selectionPopup.contains(e.target) && !documentPreview.contains(e.target)) {
+        selectionPopup.classList.remove('visible');
+      }
+    });
+
+    // Type button click - add manual entity
+    typeButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const type = this.dataset.type;
+        addManualEntity(selectedText, type, replaceAllCheckbox.checked);
+        selectionPopup.classList.remove('visible');
+        window.getSelection().removeAllRanges();
+      });
+    });
+
+    function addManualEntity(value, type, replaceAll) {
+      const entity = {
+        value: value,
+        type: type,
+        confidence: 1.0,
+        source: 'manual',
+        replace_all: replaceAll
+      };
+      manualEntities.push(entity);
+      renderManualEntities();
+      updatePreview();
+    }
+
+    function renderManualEntities() {
+      if (manualEntities.length === 0) {
+        manualSection.style.display = 'none';
+        return;
+      }
+      
+      manualSection.style.display = 'block';
+      manualCountSpan.textContent = manualEntities.length;
+      
+      manualList.innerHTML = manualEntities.map((entity, idx) => `
+        <div class="entity-card">
+          <div class="flex items-start gap-4">
+            <div class="custom-checkbox checked"></div>
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="type-badge type-${entity.type}">${entity.type}</span>
+                <span class="text-sm text-apc-gray-text">Manual</span>
+              </div>
+              <p class="font-medium text-gray-900">${entity.value}</p>
+            </div>
+            <button type="button" class="text-gray-400 hover:text-red-600" onclick="removeManualEntity(${idx})">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    window.removeManualEntity = function(idx) {
+      manualEntities.splice(idx, 1);
+      renderManualEntities();
+      updatePreview();
+    };
+
+    // Search functionality
+    searchBtn.addEventListener('click', performSearch);
+    searchInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') performSearch();
+    });
+
+    function performSearch() {
+      const query = searchInput.value.trim();
+      if (!query) {
+        documentPreview.innerHTML = originalPreviewText;
+        return;
+      }
+      
+      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      documentPreview.innerHTML = originalPreviewText.replace(regex, '<mark class="bg-yellow-300">$1</mark>');
+    }
+
+    // Update preview with tokens
+    function updatePreview() {
+      let text = originalPreviewText;
+      
+      // Get selected auto-detected entities
+      document.querySelectorAll('.entity-card[data-selected="true"]').forEach(card => {
+        try {
+          const entity = JSON.parse(card.dataset.entity);
+          if (entity && entity.value) {
+            const escapedValue = entity.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedValue, 'g');
+            const counter = window.entityCounters || {};
+            counter[entity.type] = (counter[entity.type] || 0) + 1;
+            window.entityCounters = counter;
+            text = text.replace(regex, `<span class="token-highlight">{{${entity.type}_${counter[entity.type]}}}</span>`);
+          }
+        } catch(e) {}
+      });
+      
+      // Add manual entities
+      manualEntities.forEach((entity, idx) => {
+        const escapedValue = entity.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = entity.replace_all ? new RegExp(escapedValue, 'g') : new RegExp(escapedValue);
+        text = text.replace(regex, `<span class="token-highlight">{{${entity.type}_${idx + 1}}}</span>`);
+      });
+      
+      documentPreview.innerHTML = text;
+    }
+
+    // Form submit
+    applyForm.addEventListener('submit', function(e) {
+      // Collect all selected entities
+      const selected = [];
+      
+      document.querySelectorAll('.entity-card[data-selected="true"]').forEach(card => {
+        try {
+          const entity = JSON.parse(card.dataset.entity);
+          if (entity) selected.push(entity);
+        } catch(e) {}
+      });
+      
+      // Add manual entities
+      manualEntities.forEach(entity => selected.push(entity));
+      
+      if (selected.length === 0) {
+        e.preventDefault();
+        alert('Por favor seleccione al menos una entidad para anonimizar.');
+        return;
+      }
+      
+      selectedEntitiesJson.value = JSON.stringify(selected);
+      processingOverlay.style.display = 'flex';
+    });
+
+    // Initial preview update
+    updatePreview();
+  });
+  {% endraw %}
   </script>
-  <script src="{{ url_for('static', filename='anonymizer.js') }}"></script>
 </body>
 </html>

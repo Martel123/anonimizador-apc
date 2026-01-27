@@ -406,6 +406,10 @@ def anonymizer_process():
     if not allowed_file(filename):
         return render_error(f"Formato no soportado: .{ext}. Use DOCX, PDF o TXT")
     
+    # Get options from form
+    strict_mode = request.form.get('strict_mode', 'true').lower() == 'true'
+    export_csv = request.form.get('export_csv', 'false').lower() == 'true'
+    
     job_id = str(uuid.uuid4())
     temp_input = os.path.join(tempfile.gettempdir(), f"in_{job_id}_{filename}")
     
@@ -469,13 +473,16 @@ def anonymizer_process():
             original_filename=filename,
             job_id=job_id,
             full_text=full_text,
+            preview_text=full_text,
             confirmed=confirmed,
             needs_review=needs_review,
             confirmed_by_type=confirmed_by_type,
             needs_review_by_type=needs_review_by_type,
             entities_all=entities_all,
             confirmed_count=len(confirmed),
-            needs_review_count=len(needs_review)
+            needs_review_count=len(needs_review),
+            strict_mode=strict_mode,
+            export_csv=export_csv
         )
         
     except Exception as e:
