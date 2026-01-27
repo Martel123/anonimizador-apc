@@ -4,140 +4,343 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Anonimizador Legal | APC Jurídica</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='anonymizer.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'inter': ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            'apc': {
+              'red': '#B30000',
+              'red-dark': '#8B0000',
+              'red-light': '#FEF2F2',
+              'black': '#0B0B0B',
+              'gray-bg': '#F2F2F2',
+              'gray-text': '#6F6F6F',
+              'gray-border': '#E5E5E5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    
+    .drop-zone {
+      border: 2px dashed #E5E5E5;
+      transition: all 0.2s ease;
+    }
+    .drop-zone:hover {
+      border-color: #B30000;
+      background-color: #FEF2F2;
+    }
+    .drop-zone.dragover {
+      border-color: #B30000;
+      background-color: #FEF2F2;
+    }
+    .drop-zone.has-file {
+      border-color: #10B981;
+      background-color: #ECFDF5;
+    }
+    
+    .btn-primary {
+      background-color: #B30000;
+      transition: background-color 0.2s ease;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background-color: #8B0000;
+    }
+    .btn-primary:disabled {
+      background-color: #E5E5E5;
+      color: #9CA3AF;
+      cursor: not-allowed;
+    }
+    
+    .format-chip {
+      background-color: #F3F4F6;
+      color: #374151;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 9999px;
+    }
+    
+    .processing-box {
+      background-color: #FEF2F2;
+      border: 1px solid #FECACA;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+  </style>
 </head>
-<body>
-  <header class="header">
-    <div class="header-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>
-    </div>
-    <div>
-      <div class="header-title">APC Jurídica</div>
-      <div class="header-subtitle">Anonimizador de Documentos Legales</div>
+<body class="bg-apc-gray-bg min-h-screen flex flex-col">
+  
+  <!-- Header -->
+  <header class="bg-apc-black">
+    <div class="max-w-4xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-14 w-auto">
+          <div>
+            <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
+            <p class="text-xs text-gray-400">Protege datos personales en documentos jurídicos</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2 text-sm text-gray-400">
+          <i class="fas fa-lock text-apc-red"></i>
+          <span class="hidden sm:inline">Sin almacenamiento</span>
+        </div>
+      </div>
     </div>
   </header>
 
-  <main class="main-container">
-    <div class="card upload-card">
-      <h1 class="card-title">Anonimizar Documento</h1>
-      <p class="card-description">
-        Suba un documento legal para detectar y anonimizar automáticamente datos personales como DNI, nombres, direcciones y más.
-      </p>
+  <!-- Main Content -->
+  <main class="flex-1 flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-lg">
+      
+      <!-- Card Principal -->
+      <div class="bg-white rounded-2xl shadow-sm border border-apc-gray-border p-8">
+        
+        <h2 class="text-xl font-semibold text-gray-900 mb-1">Anonimizar Documento</h2>
+        <p class="text-sm text-apc-gray-text mb-6">Detecta y reemplaza datos personales automáticamente</p>
 
-      {% if error %}
-      <div class="alert alert-error">
-        {{ error }}
-      </div>
-      {% endif %}
-
-      {% if not openai_available %}
-      <div class="alert alert-error">
-        <strong>Servicio no disponible</strong><br>
-        <span style="font-size: 13px;">OPENAI_API_KEY no configurada. Contacte al administrador.</span>
-      </div>
-      {% endif %}
-
-      <form id="uploadForm" action="/anonymizer/process" method="POST" enctype="multipart/form-data">
-        <div id="dropzone" class="dropzone">
-          <div class="dropzone-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
+        {% if error %}
+        <div class="mb-6 p-4 rounded-xl bg-red-50 text-apc-red border border-red-200 text-sm">
+          <div class="flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>
+            {{ error }}
           </div>
-          <div class="dropzone-text">Arrastre su documento aquí</div>
-          <div class="dropzone-hint">o <strong>haga clic para seleccionar</strong></div>
         </div>
+        {% endif %}
 
-        <input type="file" id="fileInput" name="file" accept=".doc,.docx,.pdf,.txt">
+        {% if not openai_available %}
+        <div class="mb-6 p-4 rounded-xl bg-red-50 text-apc-red border border-red-200 text-sm">
+          <div class="flex items-start">
+            <i class="fas fa-exclamation-triangle mr-2 mt-0.5"></i>
+            <div>
+              <strong>Servicio no disponible</strong><br>
+              <span class="text-xs">Contacte al administrador del sistema.</span>
+            </div>
+          </div>
+        </div>
+        {% endif %}
 
-        <div id="filePreview" class="file-preview">
-          <div class="file-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            </svg>
+        <form id="uploadForm" action="/anonymizer/process" method="POST" enctype="multipart/form-data">
+          
+          <!-- Dropzone -->
+          <div id="dropzone" class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-4">
+            <div id="dropzoneDefault" class="flex flex-col items-center">
+              <div class="w-14 h-14 rounded-full bg-apc-red-light flex items-center justify-center mb-4">
+                <i class="fas fa-cloud-upload-alt text-2xl text-apc-red"></i>
+              </div>
+              <p class="text-base font-medium text-gray-800 mb-1">Arrastra tu archivo aquí</p>
+              <p class="text-sm text-apc-gray-text">o <span class="text-apc-red font-medium cursor-pointer">haga clic para seleccionar</span></p>
+            </div>
+            
+            <!-- Estado archivo cargado -->
+            <div id="dropzoneFile" class="hidden">
+              <div class="flex items-center justify-center space-x-3">
+                <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <i class="fas fa-check text-green-600"></i>
+                </div>
+                <div class="text-left">
+                  <p id="fileName" class="text-sm font-medium text-gray-800 truncate max-w-[200px]">documento.docx</p>
+                  <p id="fileSize" class="text-xs text-apc-gray-text">1.2 MB</p>
+                </div>
+              </div>
+              <button type="button" id="changeFileBtn" class="mt-3 text-sm text-apc-red font-medium hover:underline">
+                <i class="fas fa-sync-alt mr-1"></i> Cambiar archivo
+              </button>
+            </div>
           </div>
-          <div class="file-info">
-            <div id="fileName" class="file-name">documento.docx</div>
-            <div id="fileSize" class="file-size">1.2 MB</div>
+
+          <input type="file" id="fileInput" name="file" accept=".docx,.pdf,.txt" class="hidden">
+
+          <!-- Chips de formatos -->
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <span class="format-chip">DOCX</span>
+            <span class="format-chip">PDF</span>
+            <span class="format-chip">TXT</span>
           </div>
-          <button type="button" id="fileRemove" class="file-remove" title="Quitar archivo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+          
+          <!-- Límite -->
+          <p class="text-xs text-center text-apc-gray-text mb-6">Máximo 10 MB</p>
+
+          <!-- Processing State -->
+          <div id="processingState" class="hidden mb-6">
+            <div class="processing-box rounded-xl p-5 text-center">
+              <div class="flex items-center justify-center space-x-3">
+                <i class="fas fa-circle-notch spinner text-apc-red text-xl"></i>
+                <div class="text-left">
+                  <p class="text-sm font-medium text-gray-800">Procesando documento…</p>
+                  <p class="text-xs text-apc-gray-text">Detectando datos personales</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botón Submit -->
+          <button type="submit" id="submitBtn" class="btn-primary w-full py-3.5 rounded-xl text-white font-medium text-base" disabled data-service-available="{{ 'true' if openai_available else 'false' }}">
+            Analizar documento
           </button>
-        </div>
+        </form>
+      </div>
 
-        <div class="formats-list">
-          <span class="format-badge">DOCX</span>
-          <span class="format-badge">PDF</span>
-          <span class="format-badge">TXT</span>
-          <span class="format-badge">DOC</span>
-        </div>
-
-        <button type="submit" id="submitBtn" class="btn btn-primary" disabled style="margin-top: 24px;" {% if not openai_available %}disabled{% endif %}>
-          <span id="submitSpinner" class="spinner" style="display: none;"></span>
-          <span id="submitText">Analizar documento</span>
-        </button>
-      </form>
-
-      <div class="features-grid">
-        <div class="feature-item">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-title">Confidencial</div>
-            <div class="feature-desc">Archivos eliminados inmediatamente</div>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="8.5" cy="7" r="4"/>
-              <polyline points="17 11 19 13 23 9"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-title">Revisión manual</div>
-            <div class="feature-desc">Selecciona qué datos tokenizar</div>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="16 18 22 12 16 6"/>
-              <polyline points="8 6 2 12 8 18"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-title">Tokens claros</div>
-            <div class="feature-desc">{{PERSONA_1}}, {{DNI_1}}, etc.</div>
-          </div>
+      <!-- Footer info -->
+      <div class="mt-6 text-center">
+        <div class="flex items-center justify-center space-x-2 text-sm text-apc-gray-text">
+          <i class="fas fa-shield-alt text-apc-red"></i>
+          <span>Los documentos se procesan en memoria y se eliminan automáticamente</span>
         </div>
       </div>
     </div>
   </main>
 
-  <footer class="footer">
-    <div class="footer-content">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      </svg>
-      <span>Procesamiento confidencial - sin almacenamiento permanente</span>
-    </div>
-    <div class="footer-brand">APC Jurídica</div>
-  </footer>
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const dropzone = document.getElementById('dropzone');
+    const dropzoneDefault = document.getElementById('dropzoneDefault');
+    const dropzoneFile = document.getElementById('dropzoneFile');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const changeFileBtn = document.getElementById('changeFileBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const uploadForm = document.getElementById('uploadForm');
+    const processingState = document.getElementById('processingState');
+    
+    const allowedExtensions = ['docx', 'pdf', 'txt'];
+    const maxSize = 10 * 1024 * 1024;
+    const serviceAvailable = submitBtn.dataset.serviceAvailable === 'true';
 
-  <script src="{{ url_for('static', filename='anonymizer.js') }}"></script>
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function showFileState(file) {
+      dropzone.classList.add('has-file');
+      dropzoneDefault.classList.add('hidden');
+      dropzoneFile.classList.remove('hidden');
+      fileName.textContent = file.name;
+      fileSize.textContent = formatFileSize(file.size);
+      if (serviceAvailable) {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function resetFileState() {
+      dropzone.classList.remove('has-file');
+      dropzoneDefault.classList.remove('hidden');
+      dropzoneFile.classList.add('hidden');
+      fileInput.value = '';
+      submitBtn.disabled = true;
+    }
+
+    function handleFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      
+      if (!allowedExtensions.includes(ext)) {
+        alert('Formato no soportado. Use archivos DOCX, PDF o TXT.');
+        return;
+      }
+      if (file.size > maxSize) {
+        alert('El archivo excede el tamaño máximo de 10 MB.');
+        return;
+      }
+
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      
+      showFileState(file);
+    }
+
+    // Click to select
+    dropzone.addEventListener('click', function(e) {
+      if (e.target === changeFileBtn || changeFileBtn.contains(e.target)) return;
+      fileInput.click();
+    });
+
+    // File input change
+    fileInput.addEventListener('change', function() {
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    // Change file button
+    changeFileBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    // Drag and drop
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dropzone.classList.contains('has-file')) {
+          dropzone.classList.add('dragover');
+        }
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+
+    // Form submit with processing state
+    uploadForm.addEventListener('submit', function(e) {
+      if (!fileInput.files.length) {
+        e.preventDefault();
+        alert('Por favor seleccione un archivo');
+        return;
+      }
+
+      // Show processing state
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Procesando...';
+      processingState.classList.remove('hidden');
+
+      // Simulate minimum 900ms processing time
+      const startTime = Date.now();
+      const minProcessingTime = 900;
+
+      // Store original submit
+      const form = uploadForm;
+      e.preventDefault();
+
+      setTimeout(function() {
+        form.submit();
+      }, minProcessingTime);
+    });
+  });
+  </script>
 </body>
 </html>
