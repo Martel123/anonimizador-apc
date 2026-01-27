@@ -20,7 +20,7 @@
               'red-dark': '#8B0000',
               'red-light': '#FEF2F2',
               'black': '#0B0B0B',
-              'gray-bg': '#F2F2F2',
+              'gray-bg': '#F5F5F5',
               'gray-text': '#6F6F6F',
               'gray-border': '#E5E5E5',
             }
@@ -33,7 +33,8 @@
     body { font-family: 'Inter', system-ui, sans-serif; }
     
     .drop-zone {
-      border: 2px dashed #E5E5E5;
+      border: 2px dashed #D4A0A0;
+      background-color: #FEF7F7;
       transition: all 0.2s ease;
     }
     .drop-zone:hover {
@@ -50,30 +51,60 @@
     }
     
     .btn-primary {
-      background-color: #B30000;
-      transition: background-color 0.2s ease;
+      background-color: #F5F5F5;
+      color: #9CA3AF;
+      transition: all 0.2s ease;
     }
-    .btn-primary:hover:not(:disabled) {
+    .btn-primary.enabled {
+      background-color: #B30000;
+      color: white;
+    }
+    .btn-primary.enabled:hover {
       background-color: #8B0000;
     }
-    .btn-primary:disabled {
+    
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
       background-color: #E5E5E5;
-      color: #9CA3AF;
-      cursor: not-allowed;
-    }
-    
-    .format-chip {
-      background-color: #F3F4F6;
-      color: #374151;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 4px 12px;
       border-radius: 9999px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .toggle-switch.active {
+      background-color: #B30000;
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch.active::after {
+      transform: translateX(22px);
     }
     
-    .processing-box {
-      background-color: #FEF2F2;
-      border: 1px solid #FECACA;
+    .progress-bar {
+      height: 4px;
+      background-color: #FEE2E2;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background-color: #B30000;
+      animation: progress 2s ease-in-out infinite;
+    }
+    @keyframes progress {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
     }
     
     @keyframes spin {
@@ -82,128 +113,205 @@
     .spinner {
       animation: spin 1s linear infinite;
     }
+
+    .feature-card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: left;
+    }
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
   </style>
 </head>
 <body class="bg-apc-gray-bg min-h-screen flex flex-col">
   
   <!-- Header -->
   <header class="bg-apc-black">
-    <div class="max-w-4xl mx-auto px-4 py-3">
+    <div class="max-w-5xl mx-auto px-4 py-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
           <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-14 w-auto">
           <div>
             <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
-            <p class="text-xs text-gray-400">Protege datos personales en documentos jurídicos</p>
+            <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información ni reescribir documentos</p>
           </div>
         </div>
         <div class="flex items-center space-x-2 text-sm text-gray-400">
           <i class="fas fa-lock text-apc-red"></i>
-          <span class="hidden sm:inline">Sin almacenamiento</span>
+          <span class="hidden sm:inline">Procesamiento seguro</span>
         </div>
       </div>
     </div>
   </header>
 
   <!-- Main Content -->
-  <main class="flex-1 flex items-start justify-center py-10 px-4">
-    <div class="w-full max-w-lg">
+  <main class="flex-1 py-10 px-4">
+    <div class="max-w-3xl mx-auto">
       
-      <!-- Card Principal -->
-      <div class="bg-white rounded-2xl shadow-sm border border-apc-gray-border p-8">
+      <!-- Title Section -->
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-3">Anonimiza tus documentos legales</h2>
+        <p class="text-sm text-apc-gray-text max-w-xl mx-auto">
+          Sube un documento DOCX o PDF y nuestro sistema identificará automáticamente datos personales usando IA y reglas especializadas para documentos legales peruanos.
+        </p>
+      </div>
+
+      {% if error %}
+      <div class="mb-6 p-4 rounded-xl bg-red-50 text-apc-red border border-red-200 text-sm max-w-lg mx-auto">
+        <div class="flex items-center">
+          <i class="fas fa-exclamation-circle mr-2"></i>
+          {{ error }}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if not openai_available %}
+      <div class="mb-6 p-4 rounded-xl bg-red-50 text-apc-red border border-red-200 text-sm max-w-lg mx-auto">
+        <div class="flex items-start">
+          <i class="fas fa-exclamation-triangle mr-2 mt-0.5"></i>
+          <div>
+            <strong>Servicio no disponible</strong><br>
+            <span class="text-xs">Contacte al administrador del sistema.</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <form id="uploadForm" action="/anonymizer/process" method="POST" enctype="multipart/form-data">
         
-        <h2 class="text-xl font-semibold text-gray-900 mb-1">Anonimizar Documento</h2>
-        <p class="text-sm text-apc-gray-text mb-6">Detecta y reemplaza datos personales automáticamente</p>
-
-        {% if error %}
-        <div class="mb-6 p-4 rounded-xl bg-red-50 text-apc-red border border-red-200 text-sm">
-          <div class="flex items-center">
-            <i class="fas fa-exclamation-circle mr-2"></i>
-            {{ error }}
-          </div>
-        </div>
-        {% endif %}
-
-        {% if not openai_available %}
-        <div class="mb-6 p-4 rounded-xl bg-red-50 text-apc-red border border-red-200 text-sm">
-          <div class="flex items-start">
-            <i class="fas fa-exclamation-triangle mr-2 mt-0.5"></i>
-            <div>
-              <strong>Servicio no disponible</strong><br>
-              <span class="text-xs">Contacte al administrador del sistema.</span>
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        <form id="uploadForm" action="/anonymizer/process" method="POST" enctype="multipart/form-data">
+        <!-- Dropzone Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-apc-gray-border p-6 mb-4">
           
           <!-- Dropzone -->
-          <div id="dropzone" class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-4">
+          <div id="dropzone" class="drop-zone rounded-xl p-12 text-center cursor-pointer mb-4">
             <div id="dropzoneDefault" class="flex flex-col items-center">
-              <div class="w-14 h-14 rounded-full bg-apc-red-light flex items-center justify-center mb-4">
-                <i class="fas fa-cloud-upload-alt text-2xl text-apc-red"></i>
+              <div class="w-16 h-16 rounded-full bg-apc-red-light flex items-center justify-center mb-4">
+                <i class="fas fa-cloud-upload-alt text-3xl text-apc-red"></i>
               </div>
               <p class="text-base font-medium text-gray-800 mb-1">Arrastra tu archivo aquí</p>
-              <p class="text-sm text-apc-gray-text">o <span class="text-apc-red font-medium cursor-pointer">haga clic para seleccionar</span></p>
+              <p class="text-sm text-apc-gray-text mb-4">o <span class="text-apc-red font-medium cursor-pointer">haz clic para seleccionar</span></p>
+              
+              <!-- Format indicators -->
+              <div class="flex items-center justify-center gap-6 mb-3">
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                  <i class="fas fa-file-word text-blue-600"></i>
+                  <span>DOCX</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                  <i class="fas fa-file-pdf text-red-600"></i>
+                  <span>PDF</span>
+                </div>
+              </div>
+              
+              <p class="text-xs text-apc-gray-text">Máximo 10 MB | PDF hasta 50 páginas</p>
             </div>
             
-            <!-- Estado archivo cargado -->
+            <!-- File loaded state -->
             <div id="dropzoneFile" class="hidden">
               <div class="flex items-center justify-center space-x-3">
-                <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <i class="fas fa-check text-green-600"></i>
+                <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <i class="fas fa-check text-green-600 text-xl"></i>
                 </div>
                 <div class="text-left">
-                  <p id="fileName" class="text-sm font-medium text-gray-800 truncate max-w-[200px]">documento.docx</p>
+                  <p id="fileName" class="text-sm font-medium text-gray-800 truncate max-w-[250px]">documento.docx</p>
                   <p id="fileSize" class="text-xs text-apc-gray-text">1.2 MB</p>
                 </div>
               </div>
-              <button type="button" id="changeFileBtn" class="mt-3 text-sm text-apc-red font-medium hover:underline">
+              <button type="button" id="changeFileBtn" class="mt-4 text-sm text-apc-red font-medium hover:underline">
                 <i class="fas fa-sync-alt mr-1"></i> Cambiar archivo
               </button>
             </div>
           </div>
 
-          <input type="file" id="fileInput" name="file" accept=".docx,.pdf,.txt" class="hidden">
+          <input type="file" id="fileInput" name="file" accept=".docx,.pdf" class="hidden">
+        </div>
 
-          <!-- Chips de formatos -->
-          <div class="flex items-center justify-center gap-2 mb-2">
-            <span class="format-chip">DOCX</span>
-            <span class="format-chip">PDF</span>
-            <span class="format-chip">TXT</span>
+        <!-- Options Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-apc-gray-border p-6 mb-4">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-cog text-apc-gray-text"></i>
+            <span class="font-medium text-gray-800">Opciones de anonimización</span>
           </div>
           
-          <!-- Límite -->
-          <p class="text-xs text-center text-apc-gray-text mb-6">Máximo 10 MB</p>
-
-          <!-- Processing State -->
-          <div id="processingState" class="hidden mb-6">
-            <div class="processing-box rounded-xl p-5 text-center">
-              <div class="flex items-center justify-center space-x-3">
-                <i class="fas fa-circle-notch spinner text-apc-red text-xl"></i>
-                <div class="text-left">
-                  <p class="text-sm font-medium text-gray-800">Procesando documento…</p>
-                  <p class="text-xs text-apc-gray-text">Detectando datos personales</p>
-                </div>
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div>
+                <p class="text-sm font-medium text-gray-800">Modo estricto</p>
+                <p class="text-xs text-apc-gray-text">Revisión manual de nombres dudosos</p>
               </div>
+              <div id="toggleEstricto" class="toggle-switch active" data-option="strict"></div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+              <div>
+                <p class="text-sm font-medium text-gray-800">Diccionario CSV</p>
+                <p class="text-xs text-apc-gray-text">Exportar tabla de mapeo</p>
+              </div>
+              <div id="toggleCSV" class="toggle-switch" data-option="csv"></div>
             </div>
           </div>
+        </div>
 
-          <!-- Botón Submit -->
-          <button type="submit" id="submitBtn" class="btn-primary w-full py-3.5 rounded-xl text-white font-medium text-base" disabled data-service-available="{{ 'true' if openai_available else 'false' }}">
-            Analizar documento
-          </button>
-        </form>
-      </div>
+        <!-- Hidden inputs for options -->
+        <input type="hidden" name="strict_mode" id="strictModeInput" value="true">
+        <input type="hidden" name="export_csv" id="exportCsvInput" value="false">
 
-      <!-- Footer info -->
-      <div class="mt-6 text-center">
-        <div class="flex items-center justify-center space-x-2 text-sm text-apc-gray-text">
-          <i class="fas fa-shield-alt text-apc-red"></i>
-          <span>Los documentos se procesan en memoria y se eliminan automáticamente</span>
+        <!-- Processing State -->
+        <div id="processingState" class="hidden mb-4">
+          <div class="bg-apc-red-light rounded-2xl border border-red-200 p-6 text-center">
+            <div class="flex items-center justify-center gap-3 mb-3">
+              <i class="fas fa-circle-notch spinner text-apc-red text-xl"></i>
+              <span class="text-base font-medium text-gray-800">Procesando documento...</span>
+            </div>
+            <div class="progress-bar max-w-md mx-auto mb-3">
+              <div class="progress-bar-fill"></div>
+            </div>
+            <p class="text-sm text-apc-red">Detectando datos personales con IA y reglas</p>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="submitBtn" class="btn-primary w-full py-4 rounded-2xl font-medium text-base flex items-center justify-center gap-2" disabled data-service-available="{{ 'true' if openai_available else 'false' }}">
+          <i class="fas fa-shield-alt"></i>
+          <span id="submitText">Anonimizar documento</span>
+        </button>
+      </form>
+
+      <!-- Features Section -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+        <div class="feature-card">
+          <div class="feature-icon bg-red-50">
+            <i class="fas fa-fingerprint text-apc-red text-lg"></i>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Detección híbrida</h3>
+          <p class="text-sm text-apc-gray-text">Combina IA (spaCy NER) con reglas especializadas para documentos legales peruanos.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon bg-red-50">
+            <i class="fas fa-user-check text-apc-red text-lg"></i>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Modo estricto</h3>
+          <p class="text-sm text-apc-gray-text">Revisa manualmente entidades dudosas antes de finalizar la anonimización.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon bg-red-50">
+            <i class="fas fa-code text-apc-red text-lg"></i>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Tokens determinísticos</h3>
+          <p class="text-sm text-apc-gray-text">Reemplazo preciso con tokens como {{PERSONA_1}}, para trazabilidad.</p>
         </div>
       </div>
+
     </div>
   </main>
 
@@ -219,10 +327,25 @@
     const submitBtn = document.getElementById('submitBtn');
     const uploadForm = document.getElementById('uploadForm');
     const processingState = document.getElementById('processingState');
+    const toggleEstricto = document.getElementById('toggleEstricto');
+    const toggleCSV = document.getElementById('toggleCSV');
+    const strictModeInput = document.getElementById('strictModeInput');
+    const exportCsvInput = document.getElementById('exportCsvInput');
     
-    const allowedExtensions = ['docx', 'pdf', 'txt'];
+    const allowedExtensions = ['docx', 'pdf'];
     const maxSize = 10 * 1024 * 1024;
     const serviceAvailable = submitBtn.dataset.serviceAvailable === 'true';
+
+    // Toggle switches
+    toggleEstricto.addEventListener('click', function() {
+      this.classList.toggle('active');
+      strictModeInput.value = this.classList.contains('active') ? 'true' : 'false';
+    });
+
+    toggleCSV.addEventListener('click', function() {
+      this.classList.toggle('active');
+      exportCsvInput.value = this.classList.contains('active') ? 'true' : 'false';
+    });
 
     function formatFileSize(bytes) {
       if (bytes === 0) return '0 Bytes';
@@ -240,6 +363,7 @@
       fileSize.textContent = formatFileSize(file.size);
       if (serviceAvailable) {
         submitBtn.disabled = false;
+        submitBtn.classList.add('enabled');
       }
     }
 
@@ -249,13 +373,14 @@
       dropzoneFile.classList.add('hidden');
       fileInput.value = '';
       submitBtn.disabled = true;
+      submitBtn.classList.remove('enabled');
     }
 
     function handleFile(file) {
       const ext = file.name.split('.').pop().toLowerCase();
       
       if (!allowedExtensions.includes(ext)) {
-        alert('Formato no soportado. Use archivos DOCX, PDF o TXT.');
+        alert('Formato no soportado. Use archivos DOCX o PDF.');
         return;
       }
       if (file.size > maxSize) {
@@ -325,20 +450,14 @@
 
       // Show processing state
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Procesando...';
+      submitBtn.classList.remove('enabled');
       processingState.classList.remove('hidden');
 
       // Simulate minimum 900ms processing time
-      const startTime = Date.now();
-      const minProcessingTime = 900;
-
-      // Store original submit
-      const form = uploadForm;
       e.preventDefault();
-
       setTimeout(function() {
-        form.submit();
-      }, minProcessingTime);
+        uploadForm.submit();
+      }, 900);
     });
   });
   </script>
