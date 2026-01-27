@@ -1,0 +1,218 @@
+TRABAJA SOLO EN: public_app.py + templates/ + static/ 
+(y SOLO si es estrictamente necesario para el reemplazo DOCX: processor_docx.py y/o detector_capas.py).
+PROHIBIDO: tocar app.py, models.py, db, flask_login, sqlalchemy, pyotp.
+
+OBJETIVO:
+Que el anonimizador funcione EXACTO como el video:
+SUBIR → PREVIEW COMPLETO → LISTA (seleccionar/deseleccionar) → APLICAR → DESCARGAR
+y que el REEMPLAZO en DOCX sea “MUY ALTO” (runs, saltos de línea, espacios, mayúsculas, etc.)
+y que sea CONFIDENCIAL REAL (sin persistencia).
+
+========================================
+0) CONFIDENCIALIDAD REAL (OBLIGATORIO)
+========================================
+- Eliminar cualquier persistencia: NO UPLOAD_FOLDER, NO OUTPUT_FOLDER, NO JOBS_DIR, NO jobs_store, NO save_job/load_job, NO JSON en disco.
+- Usar SOLO archivos temporales individuales en /tmp:
+  temp_in  = /tmp/in_<uuid>_<secure_filename>
+  temp_out = /tmp/out_<uuid>.<ext>
+- En cada endpoint que cree archivos, usar try/finally y BORRAR SIEMPRE temp_in y temp_out aunque haya error.
+- No guardar nada en static/, templates/ ni carpetas de proyecto.
+
+========================================
+1) ENDPOINTS FINALES (OBLIGATORIO)
+========================================
+A) GET /health
+   - devuelve "ok"
+
+B) GET /
+   - renderiza templates/anonymizer_standalone.html
+   - debe permitir subir archivo (doc, docx, pdf, txt)
+   - si falta OPENAI_API_KEY: mostrar error claro “Servicio no disponible (OPENAI_API_KEY faltante)” y deshabilitar botón.
+
+C) POST /anonymizer/process
+   - valida OPENAI_API_KEY (OBLIGATORIO). Si falta:
+       - devolver 503 con página de error (misma plantilla con mensaje claro).
+   - recibe archivo, lo guarda en temp_in (/tmp/in_uuid_filename)
+   - extrae texto COMPLETO (full_text) según ext:
+       - DOCX: usar extract_full_text_docx(Document)
+       - PDF: extract_text_pdf
+       - TXT: leer todo el contenido
+   - detecta entidades (alta precisión) llamando detect_all_pii(full_text)
+   - normaliza entidades (candidates) y separa confirmed/needs_review con thresholds:
+       Confirmed: confidence >= 0.80
+       Needs_review: 0.50 a 0.79
+       DESCARTAR: < 0.50 (no se muestra, no se aplica)
+   - renderiza templates/anonymizer_review.html con:
+       - full_text COMPLETO (sin recorte)
+       - confirmed agrupadas por tipo
+       - needs_review agrupadas por tipo
+       - hidden inputs: temp_input_path, ext, original_filename
+       - y un “payload” con entidades (incluyendo candidates) que luego se enviará a /anonymizer/apply
+   - IMPORTANTE: NO borrar temp_in en este paso, porque se necesita para aplicar.
+     (Se borrará en /anonymizer/apply cuando se descargue el resultado.)
+
+D) POST /anonymizer/apply
+   - valida OPENAI_API_KEY (OBLIGATORIO). Si falta: 503.
+   - recibe: temp_input_path, ext, original_filename, y lista de entidades seleccionadas (con candidates).
+   - genera temp_out en /tmp/out_uuid.<ext_final>
+   - aplica reemplazo:
+       - DOCX: apply_entities_to_docx(temp_input_path, temp_out, selected_entities)
+       - PDF: apply_entities_to_pdf(temp_input_path, temp_out, selected_entities)  (si tu pipeline convierte a txt, que el download sea .txt)
+       - TXT: apply_entities_to_text(temp_input_path, temp_out, selected_entities)
+   - devuelve send_file(temp_out, as_attachment=True, download_name=f"{base}_anonimizado.<ext>")
+   - finally: borrar temp_input_path y temp_out SIEMPRE.
+
+========================================
+2) OPENAI OBLIGATORIO (OBLIGATORIO)
+========================================
+- Debe existir check_openai_available() que valide os.environ["OPENAI_API_KEY"].
+- Si falta, todos los endpoints críticos deben responder 503 con mensaje claro.
+- NO eliminar el requisito aunque “el detector no lo use”: el sistema requiere IA por negocio.
+- NO usar try/except para “hacerlo opcional”. Debe fallar claro.
+
+========================================
+3) NORMALIZACIÓN (CANDIDATES) (OBLIGATORIO)
+========================================
+Después de detectar entidades y antes de aplicar o renderizar:
+Implementar función normalize_entity(ent_dict) y normalize_entities(list):
+Para cada entidad:
+- value_base = ent["value"] o ent["text"]
+- original = value_base tal cual (si existe)
+- normalized:
+   - strip()
+   - reemplazar \r \n \t por espacio
+   - colapsar múltiples espacios a uno
+- no_newlines:
+   - original con \n -> " " y luego colapsa espacios
+- no_spaces:
+   - normalized removiendo espacios COMPLETAMENTE (solo si len(normalized)>=4)
+- candidates = lista única en orden: [original, normalized, no_newlines, no_spaces]
+Reglas:
+- eliminar None/vacíos
+- ignorar candidate si len < 4
+- deduplicar por lower()
+Guardar:
+- ent["value"] debe quedar como normalized (para consistencia)
+- ent["candidates"] = candidates
+- ent["confidence"] debe existir (default 1.0)
+- ent["type"] debe existir (default "UNKNOWN")
+- ent["source"] default "detector"
+
+========================================
+4) REEMPLAZO DOCX “MUY ALTO” (OBLIGATORIO)
+========================================
+Problema: DOCX parte texto en runs; entidades pueden venir con saltos/espacios.
+Solución: EXPANDIR candidates en Entities antes de process_docx_run_aware.
+
+En apply_entities_to_docx(input_path, output_path, entity_dicts):
+- Convertir entity_dicts a objetos Entity (del detector_capas import Entity) pero así:
+   1) Por cada dict entidad:
+      - tomar ent_type, confidence, source
+      - por cada candidate en ent["candidates"]:
+           crear Entity(type=ent_type, value=candidate, start=0, end=len(candidate), source=source, confidence=confidence)
+      - además incluir el ent["value"] por si acaso no está en candidates
+   2) Deduplicar Entities por clave: (type.lower(), value.lower())
+   3) Ignorar candidates <4 caracteres
+- Luego llamar process_docx_run_aware(doc, expanded_entities, mapping)
+- Guardar output_path
+- Retornar replaced_count y mapping
+
+Si AÚN falla el match por runs:
+- En processor_docx.py (solo si es necesario):
+   - agregar un modo fallback:
+     1) construir texto completo del párrafo (concatenando runs)
+     2) buscar cada candidate en ese texto con comparación “case-insensitive” y “space-normalized”
+     3) si encuentra, reemplazar por token usando lógica run-aware (ajustando runs)
+Esto solo si el agente confirma que process_docx_run_aware no logra cubrir.
+
+========================================
+5) STRICT MODE REAL (OBLIGATORIO)
+========================================
+- strict_mode significa “mostrar revisión para seleccionar”
+- NO significa “mandar TODO a needs_review”
+- Lógica:
+   confirmed = [ent if confidence>=0.80]
+   needs_review = [ent if 0.50<=confidence<=0.79]
+   discard <0.50
+- En review:
+   - Confirmed: checkbox marcado por defecto
+   - Needs_review: checkbox desmarcado por defecto
+
+========================================
+6) REVIEW TEMPLATE (OBLIGATORIO)
+========================================
+Editar templates/anonymizer_review.html para que:
+A) MUESTRE TODO EL TEXTO COMPLETO
+- usar un contenedor con scroll para que no reviente la UI:
+  - div con height: 420px (o similar), overflow:auto, white-space: pre-wrap; font-family monospace o similar.
+- Debe renderizar full_text completo (no preview truncado).
+- Debe permitir “seleccionar texto para tokenizar” si el UI original lo hacía (opcional), pero al menos que se vea completo.
+
+B) ENTIDADES AGRUPADAS + CONTROLES
+- Agrupar por tipo:
+  PERSONA, DNI, EMAIL, CEL, DIRECCION, etc. (lo que venga)
+- Mostrar conteo por tipo.
+- Controles:
+  - Botón “Seleccionar todo”
+  - Botón “Deseleccionar todo”
+  - Botón “Seleccionar solo confirmadas”
+- Cada entidad con:
+  - checkbox
+  - value visible
+  - confidence visible (ej: 0.82)
+  - (opcional) source
+- Debe evitar duplicados visuales: deduplicar por value.lower() dentro del tipo.
+
+C) ENVÍO A /anonymizer/apply
+- Debe enviar SOLO las entidades seleccionadas.
+- Formas válidas:
+  Opción 1 (recomendada): un <input type="hidden" name="selected_entities_json"> con JSON stringify de la lista seleccionada.
+  - En JS: al enviar form, recolectar entidades seleccionadas desde un dataset embebido (ver abajo), y ponerlo en el hidden.
+- También enviar hidden:
+  temp_input_path, ext, original_filename
+
+D) CARGA DEL DATASET DE ENTIDADES PARA JS (OBLIGATORIO)
+- En el HTML, incluir un script tag que exponga una variable:
+  window.__ENTITIES__ = {{ entities_all | tojson }};
+donde entities_all = confirmed + needs_review (ya normalizadas y con candidates)
+- CUIDADO: evitar problemas de escape HTML:
+  usar el filtro |tojson correctamente (Jinja).
+- JS debe leer window.__ENTITIES__ para armar la lista seleccionada.
+
+========================================
+7) anonymizer_standalone.html (OBLIGATORIO)
+========================================
+- Debe tener el formulario de subida:
+  action="/anonymizer/process" method="POST" enctype="multipart/form-data"
+- Debe mostrar errores si se pasan desde backend.
+- Debe mostrar/permitir strict_mode checkbox (si existe), pero por defecto activado (para seguir el video: preview → seleccionar).
+  Si prefieres siempre review, entonces no uses strict_mode checkbox: el flujo SIEMPRE va a review.
+
+========================================
+8) VALIDACIONES Y LOGS (OBLIGATORIO)
+========================================
+- Tamaño máximo: 10MB.
+- Validación de formato:
+  - PDF empieza con %PDF
+  - DOCX es zipfile
+  - DOC clásico opcional: si no conviertes, rechazar con mensaje claro
+- Logs INFO:
+  - upload ok (ext, size)
+  - detect ok (counts confirmed/needs_review)
+  - apply ok (replaced_count)
+- En errores: devolver mensaje corto para el usuario + log con traceback.
+
+========================================
+9) RESULTADO FINAL (ENTREGA)
+========================================
+- Actualizar public_app.py completo con este flujo (sin jobs).
+- Actualizar templates:
+  - anonymizer_standalone.html (subida)
+  - anonymizer_review.html (texto completo + lista seleccionable + botones + submit a apply)
+- Si necesitas CSS/JS: poner en static/ y referenciarlo.
+
+IMPORTANTE:
+- Mantener Blueprint si ya lo tienes, pero el server final debe funcionar con gunicorn public_app:app.
+- No depender de app.py para nada.
+- Probar mentalmente: subir → ver texto completo → seleccionar → aplicar → descarga.
+- Descargar SIEMPRE debe funcionar: send_file del archivo generado en /tmp y luego borrado en finally.

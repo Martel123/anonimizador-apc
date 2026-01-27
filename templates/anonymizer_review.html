@@ -1,453 +1,375 @@
-{% extends "base_anonymizer.html" %}
-
-{% block title %}Revisión - Anonimizador Legal{% endblock %}
-
-{% block content %}
-<div class="space-y-6 fade-in">
-    <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
-        <div class="bg-apc-black px-8 py-6">
-            <div class="flex items-center space-x-4">
-                <div class="w-14 h-14 bg-apc-red rounded-xl flex items-center justify-center">
-                    <i class="fas fa-user-check text-white text-2xl"></i>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revisión - Anonimizador Legal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 'inter': ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        'apc': {
+                            'red': '#B30000',
+                            'red-dark': '#8B0000',
+                            'black': '#0B0B0B',
+                            'gray-bg': '#F2F2F2',
+                            'gray-text': '#6F6F6F',
+                            'gray-border': '#E5E5E5',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .btn-primary { background-color: #B30000; color: white; }
+        .btn-primary:hover { background-color: #8B0000; }
+        .btn-secondary { background-color: #F2F2F2; color: #0B0B0B; border: 1px solid #E5E5E5; }
+        .btn-secondary:hover { background-color: #E5E5E5; }
+        .entity-card:hover { border-color: #B30000; }
+        .type-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .type-PERSONA { background: #EDE9FE; color: #6D28D9; }
+        .type-DNI { background: #FEE2E2; color: #B91C1C; }
+        .type-RUC { background: #FFEDD5; color: #C2410C; }
+        .type-EMAIL { background: #DBEAFE; color: #1D4ED8; }
+        .type-TELEFONO { background: #D1FAE5; color: #047857; }
+        .type-DIRECCION { background: #FEF3C7; color: #B45309; }
+        .type-EXPEDIENTE { background: #FCE7F3; color: #BE185D; }
+        .type-JUZGADO { background: #E0E7FF; color: #4338CA; }
+        .type-CASILLA { background: #CFFAFE; color: #0E7490; }
+        .type-ENTIDAD { background: #F3E8FF; color: #7C3AED; }
+        .type-CUENTA { background: #ECFDF5; color: #059669; }
+        .type-PLACA { background: #FEF9C3; color: #A16207; }
+        .type-UNKNOWN { background: #F3F4F6; color: #4B5563; }
+    </style>
+</head>
+<body class="bg-apc-gray-bg min-h-screen">
+    <header class="bg-apc-black shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-5">
+                    <div class="w-10 h-10 bg-apc-red rounded-lg flex items-center justify-center text-white font-bold">APC</div>
+                    <div>
+                        <h1 class="text-lg font-semibold text-white">Revisión de entidades</h1>
+                        <p class="text-xs text-gray-400">{{ original_filename }}</p>
+                    </div>
                 </div>
-                <div class="text-white">
-                    <h2 class="text-xl font-semibold">Revisión interactiva</h2>
-                    <p class="text-gray-400">{{ pending_count }} entidades pendientes de confirmación</p>
-                </div>
+                <a href="/anonymizer" class="text-gray-400 hover:text-white text-sm">
+                    <i class="fas fa-times mr-1"></i> Cancelar
+                </a>
             </div>
         </div>
+    </header>
 
-        <div class="p-8">
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-                <div class="flex items-start">
-                    <i class="fas fa-exclamation-triangle text-amber-600 mt-1 mr-3"></i>
-                    <div class="text-sm text-amber-700">
-                        <p class="font-medium mb-1">Modo estricto activado</p>
-                        <p>Revisa las entidades detectadas, busca texto adicional y selecciona manualmente datos que no fueron detectados. Los cambios se aplican en vivo al preview.</p>
-                    </div>
+    <main class="max-w-6xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
+                <div class="bg-apc-black px-6 py-4">
+                    <h2 class="text-white font-semibold flex items-center">
+                        <i class="fas fa-file-alt mr-2 text-apc-red"></i>
+                        Documento completo
+                    </h2>
+                </div>
+                <div class="p-4">
+                    <div id="document-text" class="bg-apc-gray-bg p-4 rounded-lg border border-apc-gray-border overflow-auto font-mono text-sm whitespace-pre-wrap leading-relaxed" style="height: 420px; max-height: 420px;">{{ full_text }}</div>
+                    <p class="text-xs text-apc-gray-text mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Selecciona texto para marcarlo manualmente como entidad
+                    </p>
                 </div>
             </div>
 
-            <div class="mb-6">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-medium text-apc-black-secondary flex items-center">
-                        <i class="fas fa-search text-apc-gray-text mr-2"></i>
-                        Buscar en documento
-                    </h4>
-                </div>
-                <div class="flex gap-3 mb-3">
-                    <input type="text" id="search-input" placeholder="Buscar texto..." 
-                           class="flex-1 px-4 py-3 border border-apc-gray-border rounded-xl bg-white focus:ring-2 focus:ring-red-100 focus:border-apc-red">
-                    <button type="button" id="search-btn" class="px-6 py-3 btn-primary rounded-xl">
-                        <i class="fas fa-search mr-1"></i> Buscar
-                    </button>
-                </div>
-                <div id="search-results" class="hidden bg-apc-gray-bg rounded-xl p-4 border border-apc-gray-border">
-                    <div class="flex items-center justify-between mb-3">
-                        <span id="search-count" class="text-sm text-apc-gray-text"></span>
-                        <div class="flex items-center gap-2">
-                            <select id="tokenize-type" class="px-3 py-2 border border-apc-gray-border rounded-lg text-sm bg-white">
-                                <option value="PERSONA">PERSONA</option>
-                                <option value="DNI">DNI</option>
-                                <option value="RUC">RUC</option>
-                                <option value="DIRECCION">DIRECCION</option>
-                                <option value="EMAIL">EMAIL</option>
-                                <option value="TELEFONO">TELEFONO</option>
-                                <option value="EXPEDIENTE">EXPEDIENTE</option>
-                                <option value="ACTA">ACTA</option>
-                                <option value="CASILLA">CASILLA</option>
-                                <option value="ENTIDAD">ENTIDAD</option>
-                                <option value="CUENTA">CUENTA</option>
-                                <option value="PLACA">PLACA</option>
-                                <option value="FIRMA">FIRMA</option>
-                                <option value="SELLO">SELLO</option>
-                                <option value="HUELLA">HUELLA</option>
-                            </select>
-                            <button type="button" id="tokenize-all-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
-                                <i class="fas fa-magic mr-1"></i> Tokenizar todas
-                            </button>
+            <div class="space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden">
+                    <div class="bg-apc-black px-6 py-4">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-white font-semibold flex items-center">
+                                <i class="fas fa-list-check mr-2 text-apc-red"></i>
+                                Entidades detectadas
+                            </h2>
+                            <div class="flex items-center space-x-3 text-sm">
+                                <button type="button" id="select-all-btn" class="text-green-400 hover:text-green-300">
+                                    <i class="fas fa-check-double mr-1"></i> Todo
+                                </button>
+                                <button type="button" id="deselect-all-btn" class="text-gray-400 hover:text-gray-300">
+                                    <i class="fas fa-times mr-1"></i> Ninguno
+                                </button>
+                                <button type="button" id="select-confirmed-btn" class="text-blue-400 hover:text-blue-300">
+                                    <i class="fas fa-check mr-1"></i> Confirmadas
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div id="search-matches" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                </div>
-            </div>
-
-            <div class="mb-6 p-4 bg-apc-gray-bg rounded-xl border border-apc-gray-border">
-                <h4 class="font-medium text-apc-black-secondary mb-3 flex items-center">
-                    <i class="fas fa-file-alt text-apc-gray-text mr-2"></i>
-                    Vista previa del documento
-                    <span class="ml-2 text-xs text-apc-gray-text">(selecciona texto para tokenizar)</span>
-                </h4>
-                <div id="document-preview" class="bg-white p-4 rounded-xl border border-apc-gray-border max-h-80 overflow-y-auto text-sm whitespace-pre-wrap font-mono leading-relaxed">{{ document_text }}</div>
-            </div>
-
-            <div id="selection-toolbar" class="hidden fixed bg-white shadow-xl rounded-xl p-4 border border-apc-gray-border z-50 max-w-md">
-                <p class="text-xs text-apc-gray-text mb-2">Marcar "<span id="selected-text-display" class="font-medium text-apc-black-secondary"></span>" como:</p>
-                <div class="flex flex-wrap gap-2 mb-3">
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200" data-type="PERSONA">PERSONA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-red-100 text-apc-red rounded-lg text-xs font-medium hover:bg-red-200" data-type="DNI">DNI</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200" data-type="RUC">RUC</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200" data-type="DIRECCION">DIRECCION</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200" data-type="EMAIL">EMAIL</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200" data-type="TELEFONO">TELEFONO</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-pink-100 text-pink-700 rounded-lg text-xs font-medium hover:bg-pink-200" data-type="EXPEDIENTE">EXPEDIENTE</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-lg text-xs font-medium hover:bg-cyan-200" data-type="ACTA">ACTA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-teal-100 text-teal-700 rounded-lg text-xs font-medium hover:bg-teal-200" data-type="CASILLA">CASILLA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium hover:bg-indigo-200" data-type="ENTIDAD">ENTIDAD</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-lime-100 text-lime-700 rounded-lg text-xs font-medium hover:bg-lime-200" data-type="CUENTA">CUENTA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200" data-type="PLACA">PLACA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-rose-100 text-rose-700 rounded-lg text-xs font-medium hover:bg-rose-200" data-type="FIRMA">FIRMA</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-fuchsia-100 text-fuchsia-700 rounded-lg text-xs font-medium hover:bg-fuchsia-200" data-type="SELLO">SELLO</button>
-                    <button type="button" class="mark-btn px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-medium hover:bg-violet-200" data-type="HUELLA">HUELLA</button>
-                </div>
-                <div class="flex items-center gap-4 border-t border-apc-gray-border pt-3">
-                    <label class="flex items-center text-xs text-apc-gray-text cursor-pointer">
-                        <input type="checkbox" id="replace-all-toggle" checked class="mr-2 rounded text-apc-red focus:ring-apc-red">
-                        Reemplazar todas las ocurrencias
-                    </label>
-                </div>
-            </div>
-
-            <form action="/anonymizer/apply" method="POST" id="review-form">
-                <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
-                <input type="hidden" name="ext" value="{{ ext }}">
-                <input type="hidden" name="original_filename" value="{{ original_filename }}">
-                <input type="hidden" name="all_entities_json" value="{{ all_entities_json|e }}">
-                <input type="hidden" name="manual_entities" id="manual-entities" value="[]">
-                
-                <div class="mb-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-apc-black-secondary">Entidades detectadas automáticamente</h3>
-                        <div class="flex items-center space-x-2">
-                            <button type="button" id="select-all" class="text-sm text-apc-red hover:text-apc-red-dark font-medium">
-                                <i class="fas fa-check-double mr-1"></i> Seleccionar todos
-                            </button>
-                            <span class="text-apc-gray-border">|</span>
-                            <button type="button" id="deselect-all" class="text-sm text-apc-gray-text hover:text-apc-black-secondary font-medium">
-                                <i class="fas fa-times mr-1"></i> Deseleccionar todos
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3 max-h-64 overflow-y-auto">
-                        {% for entity in pending_entities %}
-                        <div class="entity-card bg-apc-gray-bg rounded-xl p-4 border border-apc-gray-border hover:border-apc-red transition-all">
-                            <label class="flex items-start cursor-pointer">
-                                <input type="checkbox" name="decisions[pending_{{ entity.index }}]" value="true" 
-                                       class="entity-checkbox mt-1 w-5 h-5 text-apc-red bg-white border-apc-gray-border rounded focus:ring-apc-red" checked>
-                                <div class="ml-4 flex-1">
-                                    <div class="flex items-center space-x-2 mb-2">
-                                        <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium">{{ entity.type }}</span>
-                                        <span class="text-xs text-apc-gray-text">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
-                                    </div>
-                                    <p class="text-apc-black-secondary font-medium">{{ entity.value }}</p>
-                                    <p class="text-sm text-apc-gray-text mt-1">
-                                        <span class="text-apc-gray-text">Contexto:</span> 
-                                        "...{{ entity.context|replace(entity.value, '<mark class="bg-amber-200 px-0.5 rounded">' + entity.value + '</mark>')|safe }}..."
-                                    </p>
+                    
+                    <div class="p-4 max-h-96 overflow-y-auto" id="entities-container">
+                        {% if confirmed_by_type %}
+                        <div class="mb-4">
+                            <h3 class="text-sm font-semibold text-green-700 mb-2 flex items-center">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                Confirmadas ({{ confirmed_count }}) - marcadas por defecto
+                            </h3>
+                            {% for type, entities in confirmed_by_type.items() %}
+                            <div class="mb-3">
+                                <div class="text-xs font-medium text-apc-gray-text mb-1 flex items-center justify-between">
+                                    <span class="type-badge type-{{ type }}">{{ type }}</span>
+                                    <span>{{ entities|length }} encontradas</span>
                                 </div>
-                            </label>
+                                <div class="space-y-1">
+                                    {% for entity in entities %}
+                                    <label class="entity-card flex items-center p-2 bg-green-50 rounded-lg border border-green-200 cursor-pointer hover:border-green-400 transition-all">
+                                        <input type="checkbox" class="entity-cb confirmed-cb w-4 h-4 text-apc-red rounded focus:ring-apc-red mr-3" data-index="{{ entity.index }}" checked>
+                                        <span class="flex-1 text-sm text-apc-black truncate" title="{{ entity.value }}">{{ entity.value[:50] }}{% if entity.value|length > 50 %}...{% endif %}</span>
+                                        <span class="text-xs text-green-600 ml-2">{{ (entity.confidence * 100)|round|int }}%</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
+                        {% endif %}
+                        
+                        {% if needs_review_by_type %}
+                        <div class="mb-4">
+                            <h3 class="text-sm font-semibold text-amber-700 mb-2 flex items-center">
+                                <i class="fas fa-question-circle mr-2"></i>
+                                Requieren revisión ({{ needs_review_count }}) - desmarcadas por defecto
+                            </h3>
+                            {% for type, entities in needs_review_by_type.items() %}
+                            <div class="mb-3">
+                                <div class="text-xs font-medium text-apc-gray-text mb-1 flex items-center justify-between">
+                                    <span class="type-badge type-{{ type }}">{{ type }}</span>
+                                    <span>{{ entities|length }} encontradas</span>
+                                </div>
+                                <div class="space-y-1">
+                                    {% for entity in entities %}
+                                    <label class="entity-card flex items-center p-2 bg-amber-50 rounded-lg border border-amber-200 cursor-pointer hover:border-amber-400 transition-all">
+                                        <input type="checkbox" class="entity-cb review-cb w-4 h-4 text-apc-red rounded focus:ring-apc-red mr-3" data-index="{{ entity.index }}">
+                                        <span class="flex-1 text-sm text-apc-black truncate" title="{{ entity.value }}">{{ entity.value[:50] }}{% if entity.value|length > 50 %}...{% endif %}</span>
+                                        <span class="text-xs text-amber-600 ml-2">{{ (entity.confidence * 100)|round|int }}%</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if not confirmed_by_type and not needs_review_by_type %}
+                        <div class="text-center py-8 text-apc-gray-text">
+                            <i class="fas fa-search text-4xl mb-3"></i>
+                            <p>No se detectaron entidades automáticamente</p>
+                            <p class="text-sm">Selecciona texto en el documento para marcarlo manualmente</p>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
-                <div id="manual-entities-section" class="mb-6 hidden">
-                    <h3 class="font-semibold text-apc-black-secondary mb-4 flex items-center">
-                        <i class="fas fa-hand-pointer text-apc-red mr-2"></i>
-                        Entidades marcadas manualmente (<span id="manual-count">0</span>)
-                    </h3>
-                    <div id="manual-entities-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
-                </div>
-
-                <div class="bg-apc-gray-bg rounded-xl p-4 mb-6 border border-apc-gray-border">
-                    <h4 class="font-medium text-apc-black-secondary mb-3 flex items-center">
-                        <i class="fas fa-chart-pie text-apc-gray-text mr-2"></i>
-                        Entidades ya anonimizadas ({{ confirmed_count }})
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {% for entity_type, count in entities_summary.items() %}
-                        <div class="bg-white rounded-xl p-3 text-center border border-apc-gray-border">
-                            <div class="text-2xl font-bold text-apc-red">{{ count }}</div>
-                            <div class="text-xs text-apc-gray-text">{{ entity_type }}</div>
-                        </div>
-                        {% endfor %}
+                <div id="manual-section" class="bg-white rounded-xl shadow-sm border border-apc-gray-border overflow-hidden hidden">
+                    <div class="bg-apc-red px-6 py-3">
+                        <h3 class="text-white font-semibold text-sm flex items-center">
+                            <i class="fas fa-hand-pointer mr-2"></i>
+                            Marcadas manualmente (<span id="manual-count">0</span>)
+                        </h3>
                     </div>
+                    <div id="manual-list" class="p-3 max-h-40 overflow-y-auto space-y-1"></div>
                 </div>
 
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <button type="submit" class="flex-1 py-4 btn-primary font-medium rounded-xl transition-all flex items-center justify-center">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        Aplicar cambios y continuar
-                    </button>
-                    <a href="/anonymizer" 
-                       class="py-4 px-6 btn-secondary font-medium rounded-xl transition-all flex items-center justify-center">
-                        <i class="fas fa-times mr-2"></i>
-                        Cancelar
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="bg-blue-50 rounded-xl p-6 border border-blue-200">
-        <div class="flex items-start">
-            <i class="fas fa-info-circle text-blue-600 mt-1 mr-3"></i>
-            <div class="text-sm text-blue-700">
-                <p class="font-medium mb-1">Instrucciones</p>
-                <ul class="list-disc list-inside space-y-1">
-                    <li><strong>Buscar:</strong> Escribe texto para encontrar coincidencias y tokenizarlas todas a la vez</li>
-                    <li><strong>Seleccionar:</strong> Selecciona texto con el mouse y elige el tipo de entidad</li>
-                    <li><strong>Toggle:</strong> Activa "Todas las ocurrencias" para reemplazar cada aparición del mismo texto</li>
-                    <li><strong>Preview en vivo:</strong> Los cambios se muestran inmediatamente en la vista previa</li>
-                </ul>
+                <form id="apply-form" action="/anonymizer/apply" method="POST">
+                    <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
+                    <input type="hidden" name="ext" value="{{ ext }}">
+                    <input type="hidden" name="original_filename" value="{{ original_filename }}">
+                    <input type="hidden" name="selected_entities_json" id="selected-entities-json" value="[]">
+                    
+                    <div class="flex gap-3">
+                        <button type="submit" class="flex-1 py-4 btn-primary font-medium rounded-xl flex items-center justify-center">
+                            <i class="fas fa-download mr-2"></i>
+                            Aplicar y descargar
+                        </button>
+                        <a href="/anonymizer" class="py-4 px-6 btn-secondary font-medium rounded-xl flex items-center justify-center">
+                            <i class="fas fa-times mr-2"></i>
+                            Cancelar
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
-    </div>
-</div>
-{% endblock %}
 
-{% block scripts %}
-{% raw %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const selectAllBtn = document.getElementById('select-all');
-    const deselectAllBtn = document.getElementById('deselect-all');
-    const checkboxes = document.querySelectorAll('.entity-checkbox');
-    const preview = document.getElementById('document-preview');
-    const toolbar = document.getElementById('selection-toolbar');
-    const manualInput = document.getElementById('manual-entities');
-    const manualSection = document.getElementById('manual-entities-section');
-    const manualList = document.getElementById('manual-entities-list');
-    const manualCount = document.getElementById('manual-count');
-    const replaceAllToggle = document.getElementById('replace-all-toggle');
-    const selectedTextDisplay = document.getElementById('selected-text-display');
+        <div id="selection-toolbar" class="hidden fixed bg-white shadow-xl rounded-xl p-4 border-2 border-apc-red z-50" style="max-width: 400px;">
+            <p class="text-xs text-apc-gray-text mb-2">Marcar como:</p>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-PERSONA hover:opacity-80" data-type="PERSONA">PERSONA</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-DNI hover:opacity-80" data-type="DNI">DNI</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-RUC hover:opacity-80" data-type="RUC">RUC</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-EMAIL hover:opacity-80" data-type="EMAIL">EMAIL</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-TELEFONO hover:opacity-80" data-type="TELEFONO">TELEFONO</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-DIRECCION hover:opacity-80" data-type="DIRECCION">DIRECCION</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-EXPEDIENTE hover:opacity-80" data-type="EXPEDIENTE">EXPEDIENTE</button>
+                <button type="button" class="mark-type-btn px-3 py-1.5 type-badge type-ENTIDAD hover:opacity-80" data-type="ENTIDAD">ENTIDAD</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    window.__ENTITIES__ = {{ entities_all | tojson }};
     
-    const searchInput = document.getElementById('search-input');
-    const searchBtn = document.getElementById('search-btn');
-    const searchResults = document.getElementById('search-results');
-    const searchCount = document.getElementById('search-count');
-    const searchMatches = document.getElementById('search-matches');
-    const tokenizeType = document.getElementById('tokenize-type');
-    const tokenizeAllBtn = document.getElementById('tokenize-all-btn');
-    
-    let manualEntities = [];
-    let selectedText = '';
-    let originalPreviewText = preview.textContent;
-    let tokenCounters = {};
-    let searchTerm = '';
-    
-    function getNextToken(type) {
-        if (!tokenCounters[type]) {
-            tokenCounters[type] = 0;
-        }
-        tokenCounters[type]++;
-        return `{{${type}_${tokenCounters[type]}}}`;
-    }
-    
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-    
-    function highlightSearchMatches(term) {
-        if (!term) {
-            preview.innerHTML = preview.textContent;
-            return;
-        }
-        const regex = new RegExp(`(${escapeRegExp(term)})`, 'gi');
-        const text = preview.textContent;
-        preview.innerHTML = text.replace(regex, '<mark class="bg-amber-200 px-0.5 rounded">$1</mark>');
-    }
-    
-    function updatePreview() {
-        let text = originalPreviewText;
+    document.addEventListener('DOMContentLoaded', function() {
+        const allEntities = window.__ENTITIES__ || [];
+        const manualEntities = [];
         
-        manualEntities.forEach(e => {
-            if (e.replaceAll) {
-                const regex = new RegExp(escapeRegExp(e.value), 'g');
-                text = text.replace(regex, e.token);
+        const selectAllBtn = document.getElementById('select-all-btn');
+        const deselectAllBtn = document.getElementById('deselect-all-btn');
+        const selectConfirmedBtn = document.getElementById('select-confirmed-btn');
+        const applyForm = document.getElementById('apply-form');
+        const selectedEntitiesInput = document.getElementById('selected-entities-json');
+        const docText = document.getElementById('document-text');
+        const toolbar = document.getElementById('selection-toolbar');
+        const manualSection = document.getElementById('manual-section');
+        const manualList = document.getElementById('manual-list');
+        const manualCountEl = document.getElementById('manual-count');
+        
+        let selectedText = '';
+        
+        function getSelectedEntities() {
+            const selected = [];
+            document.querySelectorAll('.entity-cb:checked').forEach(cb => {
+                const idx = parseInt(cb.dataset.index);
+                if (allEntities[idx]) {
+                    selected.push(allEntities[idx]);
+                }
+            });
+            manualEntities.forEach(e => selected.push(e));
+            return selected;
+        }
+        
+        function updateFormData() {
+            const selected = getSelectedEntities();
+            selectedEntitiesInput.value = JSON.stringify(selected);
+        }
+        
+        selectAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('.entity-cb').forEach(cb => cb.checked = true);
+            updateFormData();
+        });
+        
+        deselectAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('.entity-cb').forEach(cb => cb.checked = false);
+            updateFormData();
+        });
+        
+        selectConfirmedBtn.addEventListener('click', () => {
+            document.querySelectorAll('.entity-cb').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.confirmed-cb').forEach(cb => cb.checked = true);
+            updateFormData();
+        });
+        
+        document.querySelectorAll('.entity-cb').forEach(cb => {
+            cb.addEventListener('change', updateFormData);
+        });
+        
+        docText.addEventListener('mouseup', function(e) {
+            const selection = window.getSelection();
+            selectedText = selection.toString().trim();
+            
+            if (selectedText.length >= 3) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                
+                let top = rect.bottom + 8;
+                let left = rect.left;
+                
+                if (top + 150 > window.innerHeight) top = rect.top - 150;
+                if (left + 400 > window.innerWidth) left = window.innerWidth - 410;
+                if (left < 10) left = 10;
+                
+                toolbar.style.top = top + 'px';
+                toolbar.style.left = left + 'px';
+                toolbar.classList.remove('hidden');
             } else {
-                text = text.replace(e.value, e.token);
-            }
-        });
-        
-        preview.textContent = text;
-        
-        if (searchTerm) {
-            highlightSearchMatches(searchTerm);
-        }
-    }
-    
-    function addManualEntity(value, type, replaceAll) {
-        const existing = manualEntities.find(e => e.value === value && e.type === type);
-        if (existing) return;
-        
-        const token = getNextToken(type);
-        manualEntities.push({
-            id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            type: type,
-            value: value,
-            token: token,
-            replaceAll: replaceAll
-        });
-        
-        updateManualEntitiesList();
-        manualInput.value = JSON.stringify(manualEntities);
-        updatePreview();
-    }
-    
-    selectAllBtn.addEventListener('click', () => {
-        checkboxes.forEach(cb => cb.checked = true);
-    });
-    
-    deselectAllBtn.addEventListener('click', () => {
-        checkboxes.forEach(cb => cb.checked = false);
-    });
-    
-    preview.addEventListener('mouseup', function(e) {
-        const selection = window.getSelection();
-        selectedText = selection.toString().trim();
-        
-        if (selectedText.length > 1) {
-            const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            
-            selectedTextDisplay.textContent = selectedText.length > 30 ? selectedText.substring(0, 30) + '...' : selectedText;
-            
-            // Position toolbar near selection (fixed positioning uses viewport coordinates)
-            let topPos = rect.bottom + 8;
-            let leftPos = rect.left;
-            
-            // Keep toolbar in viewport
-            const toolbarHeight = 150;
-            const toolbarWidth = 400;
-            
-            if (topPos + toolbarHeight > window.innerHeight) {
-                topPos = rect.top - toolbarHeight - 8;
-            }
-            if (leftPos + toolbarWidth > window.innerWidth) {
-                leftPos = window.innerWidth - toolbarWidth - 10;
-            }
-            if (leftPos < 10) leftPos = 10;
-            
-            toolbar.style.top = topPos + 'px';
-            toolbar.style.left = leftPos + 'px';
-            toolbar.classList.remove('hidden');
-        } else {
-            toolbar.classList.add('hidden');
-        }
-    });
-    
-    document.addEventListener('click', function(e) {
-        if (!toolbar.contains(e.target) && !preview.contains(e.target)) {
-            toolbar.classList.add('hidden');
-        }
-    });
-    
-    document.querySelectorAll('.mark-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const entityType = this.dataset.type;
-            const replaceAll = replaceAllToggle.checked;
-            
-            if (selectedText) {
-                addManualEntity(selectedText, entityType, replaceAll);
                 toolbar.classList.add('hidden');
-                window.getSelection().removeAllRanges();
             }
         });
-    });
-    
-    function performSearch() {
-        searchTerm = searchInput.value.trim();
-        if (!searchTerm) {
-            searchResults.classList.add('hidden');
-            updatePreview();
-            return;
-        }
         
-        const text = preview.textContent;
-        const regex = new RegExp(escapeRegExp(searchTerm), 'gi');
-        const matches = text.match(regex) || [];
+        document.addEventListener('click', function(e) {
+            if (!toolbar.contains(e.target) && !docText.contains(e.target)) {
+                toolbar.classList.add('hidden');
+            }
+        });
         
-        searchCount.textContent = `${matches.length} coincidencia(s) encontrada(s)`;
-        searchResults.classList.remove('hidden');
-        
-        highlightSearchMatches(searchTerm);
-        
-        if (matches.length > 0) {
-            const uniqueMatches = [...new Set(matches)];
-            searchMatches.innerHTML = uniqueMatches.map(m => `
-                <div class="flex items-center justify-between bg-white p-2 rounded-lg border border-apc-gray-border">
-                    <span class="text-sm font-mono">${m}</span>
-                    <button type="button" class="tokenize-one px-2 py-1 bg-red-50 text-apc-red rounded-lg text-xs hover:bg-red-100" data-value="${m}">
-                        Tokenizar
-                    </button>
-                </div>
-            `).join('');
-            
-            document.querySelectorAll('.tokenize-one').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const value = this.dataset.value;
-                    const type = tokenizeType.value;
-                    addManualEntity(value, type, true);
-                    performSearch();
-                });
+        document.querySelectorAll('.mark-type-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const type = this.dataset.type;
+                if (selectedText) {
+                    addManualEntity(selectedText, type);
+                    toolbar.classList.add('hidden');
+                    window.getSelection().removeAllRanges();
+                }
             });
-        } else {
-            searchMatches.innerHTML = '<p class="text-sm text-apc-gray-text">No se encontraron coincidencias</p>';
-        }
-    }
-    
-    searchBtn.addEventListener('click', performSearch);
-    searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            performSearch();
-        }
-    });
-    
-    tokenizeAllBtn.addEventListener('click', function() {
-        if (!searchTerm) return;
-        const type = tokenizeType.value;
-        addManualEntity(searchTerm, type, true);
-        searchInput.value = '';
-        searchTerm = '';
-        searchResults.classList.add('hidden');
-    });
-    
-    function updateManualEntitiesList() {
-        manualCount.textContent = manualEntities.length;
+        });
         
-        if (manualEntities.length > 0) {
-            manualSection.classList.remove('hidden');
-            manualList.innerHTML = manualEntities.map((e, idx) => `
-                <div class="flex items-center justify-between bg-red-50 rounded-xl p-3 border border-red-200">
-                    <div class="flex items-center space-x-3 flex-1 min-w-0">
-                        <span class="px-2 py-0.5 bg-red-100 text-apc-red rounded-lg text-xs font-medium shrink-0">${e.type}</span>
-                        <span class="text-apc-black-secondary font-medium truncate">${e.value}</span>
-                        <span class="text-apc-red font-mono text-sm shrink-0">${e.token}</span>
-                        ${e.replaceAll ? '<span class="text-xs text-apc-gray-text shrink-0">(todas)</span>' : '<span class="text-xs text-apc-gray-text shrink-0">(una vez)</span>'}
+        function addManualEntity(value, type) {
+            const existing = manualEntities.find(e => e.value === value);
+            if (existing) return;
+            
+            manualEntities.push({
+                type: type,
+                value: value,
+                candidates: [value],
+                confidence: 1.0,
+                source: 'manual'
+            });
+            
+            updateManualList();
+            updateFormData();
+        }
+        
+        function updateManualList() {
+            manualCountEl.textContent = manualEntities.length;
+            
+            if (manualEntities.length > 0) {
+                manualSection.classList.remove('hidden');
+                manualList.innerHTML = manualEntities.map((e, idx) => `
+                    <div class="flex items-center justify-between p-2 bg-red-50 rounded-lg border border-red-200">
+                        <div class="flex items-center flex-1 min-w-0">
+                            <span class="type-badge type-${e.type} mr-2">${e.type}</span>
+                            <span class="text-sm truncate">${e.value}</span>
+                        </div>
+                        <button type="button" class="remove-manual text-apc-red hover:text-apc-red-dark ml-2" data-idx="${idx}">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
-                    <button type="button" class="remove-manual text-apc-red hover:text-apc-red-dark ml-2 shrink-0" data-idx="${idx}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `).join('');
-            
-            document.querySelectorAll('.remove-manual').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const idx = parseInt(this.dataset.idx);
-                    manualEntities.splice(idx, 1);
-                    updateManualEntitiesList();
-                    manualInput.value = JSON.stringify(manualEntities);
-                    updatePreview();
+                `).join('');
+                
+                document.querySelectorAll('.remove-manual').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.idx);
+                        manualEntities.splice(idx, 1);
+                        updateManualList();
+                        updateFormData();
+                    });
                 });
-            });
-        } else {
-            manualSection.classList.add('hidden');
+            } else {
+                manualSection.classList.add('hidden');
+            }
         }
-    }
-});
-</script>
-{% endraw %}
-{% endblock %}
+        
+        applyForm.addEventListener('submit', function(e) {
+            updateFormData();
+            const selected = getSelectedEntities();
+            if (selected.length === 0) {
+                e.preventDefault();
+                alert('Selecciona al menos una entidad para anonimizar.');
+                return false;
+            }
+        });
+        
+        updateFormData();
+    });
+    </script>
+</body>
+</html>

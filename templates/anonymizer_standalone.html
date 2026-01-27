@@ -11,16 +11,12 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: {
-                        'inter': ['Inter', 'system-ui', 'sans-serif'],
-                    },
+                    fontFamily: { 'inter': ['Inter', 'system-ui', 'sans-serif'] },
                     colors: {
                         'apc': {
                             'red': '#B30000',
                             'red-dark': '#8B0000',
-                            'red-soft': '#D63A3A',
                             'black': '#0B0B0B',
-                            'black-secondary': '#141414',
                             'gray-bg': '#F2F2F2',
                             'gray-text': '#6F6F6F',
                             'gray-border': '#E5E5E5',
@@ -32,55 +28,30 @@
     </script>
     <style>
         body { font-family: 'Inter', system-ui, sans-serif; }
-        .drop-zone {
-            border: 2px dashed #E5E5E5;
-            transition: all 0.3s ease;
-        }
-        .drop-zone:hover {
-            border-color: #B30000;
-        }
-        .drop-zone.dragover {
-            border-color: #B30000;
-            background-color: #FEF2F2;
-        }
-        .progress-bar {
-            transition: width 0.5s ease;
-        }
-        .fade-in {
-            animation: fadeIn 0.4s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .btn-primary {
-            background-color: #B30000;
-            color: white;
-            transition: background-color 0.2s ease;
-        }
-        .btn-primary:hover {
-            background-color: #8B0000;
-        }
-        .btn-primary:disabled {
-            background-color: #E5E5E5;
-            color: #6F6F6F;
-        }
+        .drop-zone { border: 2px dashed #E5E5E5; transition: all 0.3s ease; }
+        .drop-zone:hover { border-color: #B30000; }
+        .drop-zone.dragover { border-color: #B30000; background-color: #FEF2F2; }
+        .btn-primary { background-color: #B30000; color: white; transition: background-color 0.2s; }
+        .btn-primary:hover:not(:disabled) { background-color: #8B0000; }
+        .btn-primary:disabled { background-color: #E5E5E5; color: #6F6F6F; cursor: not-allowed; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-apc-gray-bg min-h-screen flex flex-col">
     <header class="bg-apc-black shadow-sm">
         <div class="max-w-5xl mx-auto px-4 py-3">
             <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-5 -ml-4">
-                    <img src="/static/images/logo_apc_juridica.png" alt="APC Jurídica" class="h-16 w-auto">
+                <div class="flex items-center space-x-5">
+                    <div class="w-12 h-12 bg-apc-red rounded-lg flex items-center justify-center text-white font-bold text-lg">APC</div>
                     <div>
-                        <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
-                        <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información ni reescribir documentos</p>
+                        <h1 class="text-lg font-semibold text-white">Anonimizador Legal</h1>
+                        <p class="text-xs text-gray-400">Protege datos sensibles en documentos legales</p>
                     </div>
                 </div>
                 <div class="flex items-center space-x-2 text-sm text-gray-400">
                     <i class="fas fa-lock text-apc-red"></i>
-                    <span class="hidden sm:inline">Procesamiento seguro</span>
+                    <span class="hidden sm:inline">Sin almacenamiento</span>
                 </div>
             </div>
         </div>
@@ -96,12 +67,23 @@
         </div>
         {% endif %}
         
+        {% if not openai_available %}
+        <div class="mb-4 p-4 rounded-xl fade-in bg-amber-50 text-amber-700 border border-amber-200">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <div>
+                    <strong>Servicio no disponible</strong><br>
+                    <span class="text-sm">OPENAI_API_KEY no configurada. Contacte al administrador.</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
         <div class="space-y-6 fade-in">
             <div class="text-center mb-8">
-                <h2 class="text-2xl font-semibold text-apc-black mb-2">Anonimiza tus documentos legales</h2>
+                <h2 class="text-2xl font-semibold text-apc-black mb-2">Anonimiza documentos legales</h2>
                 <p class="text-apc-gray-text max-w-2xl mx-auto">
-                    Sube un documento DOCX o PDF y nuestro sistema identificará automáticamente 
-                    datos personales usando IA y reglas especializadas para documentos legales peruanos.
+                    Sube un documento y el sistema detectará automáticamente datos personales (DNI, nombres, emails, teléfonos, etc.) usando reglas especializadas para documentos legales peruanos.
                 </p>
             </div>
 
@@ -116,59 +98,28 @@
                                     <i class="fas fa-cloud-upload-alt text-4xl text-apc-red"></i>
                                 </div>
                                 <div>
-                                    <p class="text-lg font-medium text-apc-black-secondary">Arrastra tu archivo aquí</p>
+                                    <p class="text-lg font-medium text-apc-black">Arrastra tu archivo aquí</p>
                                     <p class="text-apc-gray-text">o haz clic para seleccionar</p>
                                 </div>
                                 <div class="flex items-center justify-center space-x-4 text-sm text-apc-gray-text">
-                                    <span class="flex items-center"><i class="far fa-file-word text-blue-600 mr-1"></i> DOC/DOCX</span>
+                                    <span class="flex items-center"><i class="far fa-file-word text-blue-600 mr-1"></i> DOCX</span>
                                     <span class="flex items-center"><i class="far fa-file-pdf text-apc-red mr-1"></i> PDF</span>
                                     <span class="flex items-center"><i class="far fa-file-alt text-gray-500 mr-1"></i> TXT</span>
                                 </div>
-                                <p class="text-xs text-apc-gray-text">Máximo 10 MB | PDF hasta 50 páginas</p>
+                                <p class="text-xs text-apc-gray-text">Máximo 10 MB</p>
                             </div>
 
                             <div id="file-selected" class="hidden space-y-4">
                                 <div class="w-16 h-16 mx-auto bg-green-50 rounded-full flex items-center justify-center">
-                                    <i class="fas fa-file-check text-3xl text-green-600"></i>
+                                    <i class="fas fa-check text-3xl text-green-600"></i>
                                 </div>
                                 <div>
-                                    <p id="selected-filename" class="text-lg font-medium text-apc-black-secondary"></p>
+                                    <p id="selected-filename" class="text-lg font-medium text-apc-black"></p>
                                     <p id="selected-filesize" class="text-sm text-apc-gray-text"></p>
                                 </div>
                                 <button type="button" id="change-file" class="text-apc-red hover:text-apc-red-dark text-sm font-medium">
                                     <i class="fas fa-exchange-alt mr-1"></i> Cambiar archivo
                                 </button>
-                            </div>
-                        </div>
-
-                        <div class="mt-6 p-6 bg-apc-gray-bg rounded-xl space-y-6">
-                            <h3 class="font-medium text-apc-black-secondary flex items-center">
-                                <i class="fas fa-cog text-apc-gray-text mr-2"></i>
-                                Opciones de anonimización
-                            </h3>
-
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                <div class="flex items-center justify-between sm:justify-start sm:space-x-4">
-                                    <div>
-                                        <label for="strict_mode" class="text-sm font-medium text-apc-black-secondary">Modo estricto</label>
-                                        <p class="text-xs text-apc-gray-text">Revisión manual de nombres dudosos</p>
-                                    </div>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" name="strict_mode" id="strict_mode" class="sr-only peer" checked>
-                                        <div class="w-11 h-6 bg-apc-gray-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-apc-red"></div>
-                                    </label>
-                                </div>
-                                
-                                <div class="flex items-center justify-between sm:justify-start sm:space-x-4">
-                                    <div>
-                                        <label for="generate_mapping" class="text-sm font-medium text-apc-black-secondary">Diccionario CSV</label>
-                                        <p class="text-xs text-apc-gray-text">Exportar tabla de mapeo</p>
-                                    </div>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" name="generate_mapping" id="generate_mapping" class="sr-only peer">
-                                        <div class="w-11 h-6 bg-apc-gray-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-apc-red"></div>
-                                    </label>
-                                </div>
                             </div>
                         </div>
 
@@ -178,16 +129,13 @@
                                     <div class="w-6 h-6 border-2 border-apc-red border-t-transparent rounded-full animate-spin"></div>
                                     <span class="text-apc-red font-medium">Procesando documento...</span>
                                 </div>
-                                <div class="w-full bg-red-100 rounded-full h-2">
-                                    <div id="progress-bar" class="progress-bar bg-apc-red h-2 rounded-full" style="width: 0%"></div>
-                                </div>
-                                <p class="text-sm text-apc-red-soft mt-2">Detectando datos personales con IA y reglas</p>
+                                <p class="text-sm text-apc-red">Detectando datos personales</p>
                             </div>
                         </div>
 
-                        <button type="submit" id="submit-btn" class="mt-6 w-full py-4 btn-primary font-medium rounded-xl transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <button type="submit" id="submit-btn" class="mt-6 w-full py-4 btn-primary font-medium rounded-xl flex items-center justify-center" {% if not openai_available %}disabled{% endif %}>
                             <i class="fas fa-shield-alt mr-2"></i>
-                            Anonimizar documento
+                            Analizar documento
                         </button>
                     </form>
                 </div>
@@ -196,29 +144,29 @@
             <div class="grid md:grid-cols-3 gap-6">
                 <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
                     <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
-                        <i class="fas fa-brain text-apc-red text-xl"></i>
+                        <i class="fas fa-shield-alt text-apc-red text-xl"></i>
                     </div>
-                    <h3 class="font-medium text-apc-black-secondary mb-2">Detección híbrida</h3>
-                    <p class="text-sm text-apc-gray-text">Combina IA (spaCy NER) con reglas especializadas para documentos legales peruanos.</p>
+                    <h3 class="font-medium text-apc-black mb-2">Confidencial</h3>
+                    <p class="text-sm text-apc-gray-text">Los archivos se procesan en memoria y se eliminan inmediatamente.</p>
                 </div>
                 <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
                     <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
                         <i class="fas fa-user-check text-apc-red text-xl"></i>
                     </div>
-                    <h3 class="font-medium text-apc-black-secondary mb-2">Modo estricto</h3>
-                    <p class="text-sm text-apc-gray-text">Revisa manualmente entidades dudosas antes de finalizar la anonimización.</p>
+                    <h3 class="font-medium text-apc-black mb-2">Revisión manual</h3>
+                    <p class="text-sm text-apc-gray-text">Revisa y selecciona qué datos tokenizar antes de aplicar.</p>
                 </div>
                 <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
                     <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
                         <i class="fas fa-code text-apc-red text-xl"></i>
                     </div>
-                    <h3 class="font-medium text-apc-black-secondary mb-2">Tokens determinísticos</h3>
-                    <p class="text-sm text-apc-gray-text">Reemplazo preciso con tokens como {{PERSONA_1}}, {{DNI_1}} para trazabilidad.</p>
+                    <h3 class="font-medium text-apc-black mb-2">Tokens claros</h3>
+                    <p class="text-sm text-apc-gray-text">Reemplazo con tokens como {{PERSONA_1}}, {{DNI_1}} para trazabilidad.</p>
                 </div>
             </div>
 
             <div class="bg-white rounded-xl p-6 border border-apc-gray-border shadow-sm">
-                <h3 class="font-medium text-apc-black-secondary mb-4 flex items-center">
+                <h3 class="font-medium text-apc-black mb-4 flex items-center">
                     <i class="fas fa-tags text-apc-gray-text mr-2"></i>
                     Tipos de datos detectados
                 </h3>
@@ -260,18 +208,8 @@
                         <span class="text-apc-gray-text">Juzgados</span>
                     </div>
                     <div class="flex items-center space-x-2 text-sm p-2 bg-apc-gray-bg rounded-lg">
-                        <span class="px-2 py-0.5 bg-teal-100 text-teal-600 rounded font-mono text-xs">NER</span>
-                        <span class="text-apc-gray-text">IA spaCy</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                <div class="flex items-start">
-                    <i class="fas fa-lightbulb text-amber-600 mt-1 mr-3"></i>
-                    <div class="text-sm text-amber-700">
-                        <p class="font-medium mb-1">Placeholders preservados</p>
-                        <p>Los marcadores existentes como <code class="bg-amber-100 px-1 rounded">{<!-- -->{FALTA_DATO}}</code> se mantienen sin modificar.</p>
+                        <span class="px-2 py-0.5 bg-teal-100 text-teal-600 rounded font-mono text-xs">CUENTA</span>
+                        <span class="text-apc-gray-text">Bancarias</span>
                     </div>
                 </div>
             </div>
@@ -282,7 +220,7 @@
         <div class="max-w-4xl mx-auto px-4">
             <div class="flex items-center justify-center space-x-2 mb-2">
                 <i class="fas fa-shield-alt text-apc-red"></i>
-                <span>Los documentos se procesan en memoria y se eliminan automáticamente</span>
+                <span>Procesamiento confidencial - sin almacenamiento permanente</span>
             </div>
             <p class="text-apc-gray-text">APC Jurídica</p>
         </div>
@@ -300,7 +238,6 @@
         const submitBtn = document.getElementById('submit-btn');
         const uploadForm = document.getElementById('upload-form');
         const processingSection = document.getElementById('processing-section');
-        const progressBar = document.getElementById('progress-bar');
 
         function formatFileSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
@@ -314,11 +251,11 @@
             const extension = '.' + file.name.split('.').pop().toLowerCase();
             
             if (!allowedTypes.includes(extension)) {
-                alert('Formato no permitido. Solo se aceptan archivos DOC, DOCX, PDF y TXT.');
+                alert('Formato no permitido. Solo DOC, DOCX, PDF y TXT.');
                 return false;
             }
             if (file.size > maxSize) {
-                alert('El archivo excede el tamaño máximo de 10 MB.');
+                alert('El archivo excede 10 MB.');
                 return false;
             }
             return true;
@@ -344,51 +281,32 @@
         }
 
         dropZone.addEventListener('click', () => fileInput.click());
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                fileInput.files = files;
-                showFileSelected(files[0]);
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                showFileSelected(e.dataTransfer.files[0]);
             }
         });
 
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                showFileSelected(e.target.files[0]);
-            }
+            if (e.target.files.length > 0) showFileSelected(e.target.files[0]);
         });
 
-        changeFileBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            resetForm();
-        });
+        changeFileBtn.addEventListener('click', (e) => { e.stopPropagation(); resetForm(); });
 
-        uploadForm.addEventListener('submit', function(e) {
+        uploadForm.addEventListener('submit', function() {
             submitBtn.disabled = true;
             dropZone.style.display = 'none';
             processingSection.classList.remove('hidden');
-            
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 15;
-                if (progress > 90) progress = 90;
-                progressBar.style.width = progress + '%';
-            }, 300);
-            
-            setTimeout(() => clearInterval(interval), 30000);
         });
+        
+        if (submitBtn && !document.querySelector('[data-openai-available="false"]')) {
+            submitBtn.disabled = true;
+        }
     });
     </script>
 </body>

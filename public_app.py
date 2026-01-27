@@ -1,16 +1,18 @@
 """
 Anonimizador Legal Público - App para Render + Blueprint para Replit
 =====================================================================
-Flujo simplificado: subir → revisar → descargar directo
-Sin almacenamiento persistente - todo en memoria/tmp con cleanup inmediato
+Flujo: SUBIR → PREVIEW COMPLETO → LISTA (seleccionar/deseleccionar) → APLICAR → DESCARGAR
+Confidencialidad real: solo archivos temporales en /tmp, borrados siempre en finally
 """
 
 import os
+import re
 import uuid
 import json
 import logging
 import tempfile
 import traceback
+import zipfile
 from io import BytesIO
 from flask import Flask, Blueprint, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
@@ -24,9 +26,18 @@ anonymizer_bp = Blueprint("anonymizer", __name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
 
 ALLOWED_EXTENSIONS = {'doc', 'docx', 'pdf', 'txt'}
+
+# ============================================================================
+# UTILIDADES
+# ============================================================================
+
+def check_openai_available():
+    """Verifica que OPENAI_API_KEY esté configurada. OBLIGATORIO por negocio."""
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    return bool(key and len(key) > 10)
 
 
 def safe_remove(path):
@@ -52,81 +63,145 @@ def get_extension(filename):
     return ''
 
 
-def entity_to_dict(e):
-    """Normaliza entidad a dict estándar."""
-    if isinstance(e, dict):
-        return {
-            'type': e.get('type') or e.get('entity_type') or 'UNKNOWN',
-            'value': e.get('value') or e.get('text') or '',
-            'text': e.get('text') or e.get('value') or '',
-            'start': e.get('start', 0),
-            'end': e.get('end', 0),
-            'confidence': e.get('confidence', 1.0),
-            'source': e.get('source', 'unknown')
-        }
-    
+def validate_file_format(file_path, ext):
+    """Valida formato real del archivo."""
     try:
-        text_val = getattr(e, 'value', None) or getattr(e, 'text', None) or str(e)
-        return {
-            'type': getattr(e, 'type', 'UNKNOWN'),
-            'value': text_val,
-            'text': text_val,
-            'start': getattr(e, 'start', 0),
-            'end': getattr(e, 'end', 0),
-            'confidence': getattr(e, 'confidence', 1.0),
-            'source': getattr(e, 'source', 'unknown')
-        }
-    except Exception as ex:
-        logger.error(f"ENTITY_CONVERT_FAIL | error={ex}")
+        with open(file_path, 'rb') as f:
+            header = f.read(16)
+        
+        if ext == 'pdf':
+            if not header.startswith(b'%PDF'):
+                return False, "El archivo no parece ser un PDF válido"
+        
+        if ext == 'docx':
+            if not zipfile.is_zipfile(file_path):
+                return False, "El archivo no parece ser un DOCX válido"
+        
+        return True, None
+    except Exception as e:
+        return False, f"Error validando archivo: {str(e)}"
+
+
+# ============================================================================
+# NORMALIZACIÓN DE ENTIDADES CON CANDIDATES
+# ============================================================================
+
+def normalize_entity(ent_dict):
+    """
+    Normaliza una entidad y genera candidates.
+    Returns dict con: value, candidates, type, confidence, source
+    """
+    value_base = ent_dict.get('value') or ent_dict.get('text') or ''
+    if not value_base:
         return None
+    
+    original = value_base
+    
+    # normalized: strip + reemplazar \r\n\t por espacio + colapsar espacios
+    normalized = value_base.strip()
+    normalized = re.sub(r'[\r\n\t]+', ' ', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized)
+    
+    # no_newlines: original con \n -> " " y colapsa espacios
+    no_newlines = re.sub(r'\n+', ' ', original)
+    no_newlines = re.sub(r'\s+', ' ', no_newlines).strip()
+    
+    # no_spaces: normalized sin espacios (solo si len >= 4)
+    no_spaces = normalized.replace(' ', '') if len(normalized) >= 4 else None
+    
+    # Construir lista de candidates única
+    candidates = []
+    seen_lower = set()
+    
+    for c in [original, normalized, no_newlines, no_spaces]:
+        if c and len(c) >= 4:
+            c_lower = c.lower()
+            if c_lower not in seen_lower:
+                seen_lower.add(c_lower)
+                candidates.append(c)
+    
+    if not candidates:
+        return None
+    
+    return {
+        'value': normalized,
+        'text': normalized,
+        'original': original,
+        'candidates': candidates,
+        'type': ent_dict.get('type') or ent_dict.get('entity_type') or 'UNKNOWN',
+        'confidence': float(ent_dict.get('confidence', 1.0)),
+        'source': ent_dict.get('source', 'detector'),
+        'start': ent_dict.get('start', 0),
+        'end': ent_dict.get('end', 0)
+    }
 
 
 def normalize_entities(items):
-    """Normaliza lista de entidades a dicts."""
+    """Normaliza lista de entidades, agrega candidates."""
     if not items:
         return []
     result = []
     for e in items:
-        d = entity_to_dict(e)
-        if d and (d.get('value') or d.get('text')):
-            result.append(d)
+        if isinstance(e, dict):
+            normalized = normalize_entity(e)
+        else:
+            # Objeto Entity
+            d = {
+                'type': getattr(e, 'type', 'UNKNOWN'),
+                'value': getattr(e, 'value', ''),
+                'start': getattr(e, 'start', 0),
+                'end': getattr(e, 'end', 0),
+                'confidence': getattr(e, 'confidence', 1.0),
+                'source': getattr(e, 'source', 'detector')
+            }
+            normalized = normalize_entity(d)
+        
+        if normalized:
+            result.append(normalized)
     return result
 
 
-def dicts_to_entity_objects(entity_dicts):
-    """Convierte dicts a objetos Entity, dividiendo entidades multi-línea."""
-    from detector_capas import Entity
-    entities = []
-    for d in entity_dicts:
-        value = d.get('value') or d.get('text', '')
-        if not value:
-            continue
-        
-        ent_type = d.get('type', 'UNKNOWN')
-        source = d.get('source', 'manual')
-        confidence = d.get('confidence', 1.0)
-        
-        if '\n' in value:
-            parts = [p.strip() for p in value.split('\n') if p.strip() and len(p.strip()) > 3]
-            for part in parts:
-                entities.append(Entity(
-                    type=ent_type,
-                    value=part,
-                    start=0,
-                    end=len(part),
-                    source=source,
-                    confidence=confidence
-                ))
-        else:
-            entities.append(Entity(
-                type=ent_type,
-                value=value,
-                start=d.get('start', 0),
-                end=d.get('end', 0),
-                source=source,
-                confidence=confidence
-            ))
-    return entities
+def deduplicate_entities(entities):
+    """Deduplica entidades por (type, value.lower())."""
+    seen = set()
+    result = []
+    for e in entities:
+        key = (e['type'].upper(), e['value'].lower())
+        if key not in seen:
+            seen.add(key)
+            result.append(e)
+    return result
+
+
+# ============================================================================
+# EXTRACCIÓN DE TEXTO
+# ============================================================================
+
+def extract_full_text_docx(doc):
+    """Extrae todo el texto del documento DOCX incluyendo tablas, headers, footers."""
+    text_parts = []
+    
+    for para in doc.paragraphs:
+        text_parts.append(para.text)
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    text_parts.append(para.text)
+    
+    try:
+        for section in doc.sections:
+            if section.header:
+                for para in section.header.paragraphs:
+                    text_parts.append(para.text)
+            if section.footer:
+                for para in section.footer.paragraphs:
+                    text_parts.append(para.text)
+    except:
+        pass
+    
+    return '\n'.join(text_parts)
 
 
 def extract_text(file_path, ext):
@@ -134,7 +209,7 @@ def extract_text(file_path, ext):
     if ext == 'docx':
         from docx import Document
         doc = Document(file_path)
-        return '\n'.join([p.text for p in doc.paragraphs])
+        return extract_full_text_docx(doc)
     
     elif ext == 'pdf':
         from processor_pdf import extract_text_pdf
@@ -148,155 +223,264 @@ def extract_text(file_path, ext):
             return f.read()
     
     elif ext == 'doc':
-        import subprocess
-        try:
-            result = subprocess.run(
-                ['antiword', file_path],
-                capture_output=True, text=True, timeout=30
-            )
-            if result.returncode == 0:
-                return result.stdout
-        except:
-            pass
-        raise ValueError("No se pudo procesar archivo DOC. Conviértalo a DOCX.")
+        raise ValueError("Formato DOC no soportado directamente. Por favor convierta a DOCX.")
     
     return ''
 
 
-def apply_anonymization(input_path, ext, entities):
-    """Aplica anonimización y retorna (output_bytes, output_ext, mapping)."""
-    from processor_docx import EntityMapping, process_docx_run_aware
-    from collections import defaultdict
+# ============================================================================
+# APLICACIÓN DE ANONIMIZACIÓN
+# ============================================================================
+
+def expand_entities_with_candidates(entity_dicts):
+    """
+    Expande entidades con todos sus candidates para reemplazo MUY ALTO.
+    Cada candidate genera una Entity separada.
+    """
+    from detector_capas import Entity
     
-    entity_objects = dicts_to_entity_objects(entities)
+    entities = []
+    seen = set()
     
-    if ext == 'docx':
-        from docx import Document
-        doc = Document(input_path)
-        mapping = EntityMapping()
-        stats = process_docx_run_aware(doc, entity_objects, mapping)
+    for d in entity_dicts:
+        ent_type = d.get('type', 'UNKNOWN')
+        confidence = d.get('confidence', 1.0)
+        source = d.get('source', 'detector')
         
-        output_buffer = BytesIO()
-        doc.save(output_buffer)
-        output_buffer.seek(0)
+        candidates = d.get('candidates', [])
+        value = d.get('value', '')
         
-        return output_buffer.getvalue(), 'docx', mapping.reverse_mappings
-    
-    elif ext in ('pdf', 'txt', 'doc'):
-        text = extract_text(input_path, ext)
+        # Agregar value principal si no está en candidates
+        all_values = set(candidates) if candidates else set()
+        if value and len(value) >= 4:
+            all_values.add(value)
         
-        counters = defaultdict(int)
-        mapping = {}
-        
-        sorted_entities = sorted(entities, key=lambda e: len(e.get('value', '')), reverse=True)
-        
-        for ent in sorted_entities:
-            value = ent.get('value') or ent.get('text', '')
-            ent_type = ent.get('type', 'UNKNOWN')
-            
-            if not value or value not in text:
+        for candidate in all_values:
+            if not candidate or len(candidate) < 4:
                 continue
             
+            key = (ent_type.lower(), candidate.lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            
+            entities.append(Entity(
+                type=ent_type,
+                value=candidate,
+                start=0,
+                end=len(candidate),
+                source=source,
+                confidence=confidence
+            ))
+    
+    return entities
+
+
+def apply_entities_to_docx(input_path, output_path, entity_dicts):
+    """Aplica anonimización a DOCX con candidates expandidos."""
+    from docx import Document
+    from processor_docx import EntityMapping, process_docx_run_aware
+    
+    doc = Document(input_path)
+    mapping = EntityMapping()
+    
+    # Expandir entidades con todos los candidates
+    expanded_entities = expand_entities_with_candidates(entity_dicts)
+    
+    stats = process_docx_run_aware(doc, expanded_entities, mapping)
+    doc.save(output_path)
+    
+    return stats['replacements'], mapping.reverse_mappings
+
+
+def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
+    """Aplica anonimización a texto plano."""
+    from collections import defaultdict
+    
+    text = extract_text(input_path, ext)
+    
+    counters = defaultdict(int)
+    mapping = {}
+    
+    # Expandir y ordenar por longitud descendente
+    all_replacements = []
+    for d in entity_dicts:
+        ent_type = d.get('type', 'UNKNOWN')
+        candidates = d.get('candidates', [])
+        value = d.get('value', '')
+        
+        values = set(candidates) if candidates else set()
+        if value:
+            values.add(value)
+        
+        for v in values:
+            if v and len(v) >= 4:
+                all_replacements.append((v, ent_type))
+    
+    # Ordenar por longitud descendente
+    all_replacements.sort(key=lambda x: len(x[0]), reverse=True)
+    
+    replaced_count = 0
+    for value, ent_type in all_replacements:
+        if value in text:
             if value not in [m.get('original') for m in mapping.values()]:
                 counters[ent_type] += 1
                 token = f"{{{{{ent_type}_{counters[ent_type]}}}}}"
                 mapping[token] = {'original': value, 'type': ent_type}
+                count = text.count(value)
                 text = text.replace(value, token)
-        
-        reverse_mapping = {k: v['original'][:20] + '...' if len(v['original']) > 20 else v['original'] 
-                          for k, v in mapping.items()}
-        
-        return text.encode('utf-8'), 'txt', reverse_mapping
+                replaced_count += count
     
-    raise ValueError(f"Extensión no soportada: {ext}")
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    
+    reverse_mapping = {k: v['original'][:20] + '...' if len(v['original']) > 20 else v['original'] 
+                       for k, v in mapping.items()}
+    
+    return replaced_count, reverse_mapping
 
+
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
 
 @anonymizer_bp.route("/health")
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok"})
+    """Health check endpoint."""
+    return "ok"
 
 
 @anonymizer_bp.route("/")
 @app.route("/")
 def index():
-    return render_template("anonymizer_standalone.html")
+    """Página principal de subida."""
+    openai_available = check_openai_available()
+    return render_template("anonymizer_standalone.html", 
+                           openai_available=openai_available)
 
 
 @anonymizer_bp.route("/anonymizer")
 @app.route("/anonymizer")
 def anonymizer_home():
-    return render_template("anonymizer_standalone.html")
+    """Alias para página principal."""
+    openai_available = check_openai_available()
+    return render_template("anonymizer_standalone.html",
+                           openai_available=openai_available)
 
 
 @anonymizer_bp.route("/anonymizer/process", methods=["POST"])
 @app.route("/anonymizer/process", methods=["POST"])
 def anonymizer_process():
-    """Procesa archivo y muestra página de revisión."""
+    """
+    Procesa archivo y muestra página de revisión.
+    Guarda archivo temporal que será borrado en /apply.
+    """
+    # Validar OPENAI_API_KEY (OBLIGATORIO por negocio)
+    if not check_openai_available():
+        return render_template("anonymizer_standalone.html",
+                               error="Servicio no disponible (OPENAI_API_KEY faltante)",
+                               openai_available=False), 503
+    
     if 'file' not in request.files:
-        return render_template("anonymizer_standalone.html", error="No se seleccionó ningún archivo")
+        return render_template("anonymizer_standalone.html", 
+                               error="No se seleccionó ningún archivo",
+                               openai_available=True)
     
     file = request.files['file']
     if not file or not file.filename:
-        return render_template("anonymizer_standalone.html", error="Archivo vacío")
+        return render_template("anonymizer_standalone.html", 
+                               error="Archivo vacío",
+                               openai_available=True)
     
     filename = secure_filename(file.filename)
     ext = get_extension(filename)
     
     if not allowed_file(filename):
         return render_template("anonymizer_standalone.html", 
-                               error=f"Formato no soportado: .{ext}. Use DOC, DOCX, PDF o TXT")
+                               error=f"Formato no soportado: .{ext}. Use DOC, DOCX, PDF o TXT",
+                               openai_available=True)
     
     job_id = str(uuid.uuid4())
     temp_input = os.path.join(tempfile.gettempdir(), f"in_{job_id}_{filename}")
     
     try:
         file.save(temp_input)
-        logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext}")
+        file_size = os.path.getsize(temp_input)
+        logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext} | size={file_size}")
         
-        text_content = extract_text(temp_input, ext)
-        
-        if not text_content or len(text_content.strip()) < 10:
+        # Validar formato real
+        valid, error_msg = validate_file_format(temp_input, ext)
+        if not valid:
             safe_remove(temp_input)
             return render_template("anonymizer_standalone.html", 
-                                   error="No se pudo extraer texto del documento")
+                                   error=error_msg,
+                                   openai_available=True)
         
-        from detector_capas import detect_all_pii, post_scan_final
-        entities, detect_meta = detect_all_pii(text_content)
+        # Extraer texto completo
+        full_text = extract_text(temp_input, ext)
+        
+        if not full_text or len(full_text.strip()) < 10:
+            safe_remove(temp_input)
+            return render_template("anonymizer_standalone.html", 
+                                   error="No se pudo extraer texto del documento",
+                                   openai_available=True)
+        
+        # Detectar PII
+        from detector_capas import detect_all_pii
+        entities, detect_meta = detect_all_pii(full_text)
         all_entities = normalize_entities(entities)
+        all_entities = deduplicate_entities(all_entities)
         
-        has_warning, warnings = post_scan_final(text_content)
-        text_preview = text_content[:3000] if text_content else ""
+        # Separar por confidence
+        confirmed = []
+        needs_review = []
         
-        logger.info(f"DETECT_OK | job={job_id} | entities={len(all_entities)}")
-        
-        pending_entities = []
         for i, ent in enumerate(all_entities):
-            start = ent.get('start', 0)
-            end = ent.get('end', 0)
-            context_start = max(0, start - 30)
-            context_end = min(len(text_content), end + 30)
-            context = text_content[context_start:context_end]
+            ent['index'] = i
+            conf = ent.get('confidence', 1.0)
             
-            pending_entities.append({
-                'index': i,
-                'type': ent.get('type', 'UNKNOWN'),
-                'value': ent.get('value', ''),
-                'confidence': ent.get('confidence', 1.0),
-                'context': context
-            })
+            if conf >= 0.80:
+                ent['status'] = 'confirmed'
+                confirmed.append(ent)
+            elif conf >= 0.50:
+                ent['status'] = 'needs_review'
+                needs_review.append(ent)
+            # Descartamos < 0.50
+        
+        entities_all = confirmed + needs_review
+        
+        # Agrupar por tipo para UI
+        confirmed_by_type = {}
+        needs_review_by_type = {}
+        
+        for e in confirmed:
+            t = e['type']
+            if t not in confirmed_by_type:
+                confirmed_by_type[t] = []
+            confirmed_by_type[t].append(e)
+        
+        for e in needs_review:
+            t = e['type']
+            if t not in needs_review_by_type:
+                needs_review_by_type[t] = []
+            needs_review_by_type[t].append(e)
+        
+        logger.info(f"DETECT_OK | job={job_id} | confirmed={len(confirmed)} | needs_review={len(needs_review)}")
         
         return render_template("anonymizer_review.html",
             temp_input_path=temp_input,
             ext=ext,
             original_filename=filename,
             job_id=job_id,
-            pending_count=len(pending_entities),
-            document_text=text_preview,
-            pending_entities=pending_entities,
-            confirmed_count=0,
-            entities_summary={},
-            all_entities_json=json.dumps(all_entities, ensure_ascii=False)
+            full_text=full_text,
+            confirmed=confirmed,
+            needs_review=needs_review,
+            confirmed_by_type=confirmed_by_type,
+            needs_review_by_type=needs_review_by_type,
+            entities_all=entities_all,
+            confirmed_count=len(confirmed),
+            needs_review_count=len(needs_review)
         )
         
     except Exception as e:
@@ -304,67 +488,72 @@ def anonymizer_process():
         logger.error(f"PROCESS_ERROR | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
         return render_template("anonymizer_standalone.html", 
-                               error=f"Error procesando documento: {str(e)[:100]}")
+                               error=f"Error procesando documento: {str(e)[:100]}",
+                               openai_available=True)
 
 
 @anonymizer_bp.route("/anonymizer/apply", methods=["POST"])
 @app.route("/anonymizer/apply", methods=["POST"])
 def anonymizer_apply():
-    """Aplica anonimización y devuelve archivo directamente."""
-    import html
+    """
+    Aplica anonimización y devuelve archivo directamente.
+    Borra archivos temporales SIEMPRE en finally.
+    """
+    import html as html_lib
+    
+    # Validar OPENAI_API_KEY (OBLIGATORIO)
+    if not check_openai_available():
+        return render_template("anonymizer_standalone.html",
+                               error="Servicio no disponible (OPENAI_API_KEY faltante)",
+                               openai_available=False), 503
     
     temp_input = request.form.get('temp_input_path', '')
     ext = request.form.get('ext', 'docx')
     original_filename = request.form.get('original_filename', 'documento')
-    all_entities_json = request.form.get('all_entities_json', '[]')
+    selected_entities_json = request.form.get('selected_entities_json', '[]')
     
     if not temp_input or not os.path.exists(temp_input):
         return render_template("anonymizer_standalone.html", 
-                               error="Sesión expirada. Suba el documento nuevamente.")
+                               error="Sesión expirada. Suba el documento nuevamente.",
+                               openai_available=True)
     
     job_id = str(uuid.uuid4())
+    temp_output = os.path.join(tempfile.gettempdir(), f"out_{job_id}.{ext if ext == 'docx' else 'txt'}")
     
     try:
-        all_entities_json = html.unescape(all_entities_json)
-        all_entities = json.loads(all_entities_json)
+        # Decodificar JSON (puede tener escapes HTML)
+        selected_entities_json = html_lib.unescape(selected_entities_json)
+        selected_entities = json.loads(selected_entities_json)
         
-        final_entities = []
-        for i, ent in enumerate(all_entities):
-            decision_key = f"decisions[pending_{i}]"
-            if request.form.get(decision_key) == 'true':
-                final_entities.append(ent)
+        if not selected_entities:
+            safe_remove(temp_input)
+            return render_template("anonymizer_standalone.html", 
+                                   error="No se seleccionaron entidades para anonimizar.",
+                                   openai_available=True)
         
-        manual_json = request.form.get('manual_entities', '[]')
-        try:
-            manual_entities = json.loads(manual_json)
-            for m in manual_entities:
-                final_entities.append({
-                    'type': m.get('type', 'CUSTOM'),
-                    'value': m.get('value', ''),
-                    'text': m.get('value', ''),
-                    'start': 0,
-                    'end': 0,
-                    'confidence': 1.0,
-                    'source': 'manual'
-                })
-        except json.JSONDecodeError:
-            pass
+        logger.info(f"APPLY | job={job_id} | entities={len(selected_entities)}")
         
-        logger.info(f"APPLY | job={job_id} | entities={len(final_entities)}")
-        
-        output_bytes, output_ext, mapping = apply_anonymization(temp_input, ext, final_entities)
+        # Aplicar según formato
+        if ext == 'docx':
+            replaced_count, mapping = apply_entities_to_docx(temp_input, temp_output, selected_entities)
+            output_ext = 'docx'
+            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        else:
+            # PDF, TXT, DOC -> salida como TXT
+            replaced_count, mapping = apply_entities_to_text(temp_input, temp_output, selected_entities, ext)
+            output_ext = 'txt'
+            mimetype = 'text/plain; charset=utf-8'
         
         base_name = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
         download_name = f"{base_name}_anonimizado.{output_ext}"
         
-        if output_ext == 'docx':
-            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        else:
-            mimetype = 'text/plain; charset=utf-8'
+        logger.info(f"APPLY_OK | job={job_id} | replaced={replaced_count}")
+        
+        # Leer archivo a memoria antes de borrarlo
+        with open(temp_output, 'rb') as f:
+            output_bytes = f.read()
         
         output_buffer = BytesIO(output_bytes)
-        
-        logger.info(f"APPLY_OK | job={job_id} | size={len(output_bytes)} | entities={len(final_entities)}")
         
         return send_file(
             output_buffer,
@@ -373,14 +562,22 @@ def anonymizer_apply():
             mimetype=mimetype
         )
         
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON_ERROR | job={job_id} | error={e}")
+        return render_template("anonymizer_standalone.html", 
+                               error="Error procesando selección de entidades.",
+                               openai_available=True)
+    
     except Exception as e:
         logger.error(f"APPLY_ERROR | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
         return render_template("anonymizer_standalone.html", 
-                               error=f"Error aplicando anonimización: {str(e)[:100]}")
+                               error=f"Error aplicando anonimización: {str(e)[:100]}",
+                               openai_available=True)
     
     finally:
         safe_remove(temp_input)
+        safe_remove(temp_output)
 
 
 app.register_blueprint(anonymizer_bp)
