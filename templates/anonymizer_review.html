@@ -48,70 +48,76 @@
     
     .type-badge {
       display: inline-block;
-      padding: 2px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
       cursor: pointer;
+      transition: all 0.15s;
     }
-    .type-PERSONA { background: #FECACA; color: #991B1B; }
-    .type-DNI { background: #FED7AA; color: #9A3412; }
-    .type-RUC { background: #FDE68A; color: #92400E; }
-    .type-DIRECCION { background: #D9F99D; color: #3F6212; }
-    .type-EMAIL { background: #A7F3D0; color: #065F46; }
-    .type-TELEFONO { background: #A5F3FC; color: #0E7490; }
-    .type-EXPEDIENTE { background: #C7D2FE; color: #3730A3; }
-    .type-ACTA { background: #DDD6FE; color: #5B21B6; }
-    .type-CASILLA { background: #FBCFE8; color: #9D174D; }
-    .type-ENTIDAD { background: #FED7AA; color: #9A3412; }
-    .type-CUENTA { background: #E5E7EB; color: #374151; }
-    .type-PLACA { background: #D1D5DB; color: #1F2937; }
-    .type-FIRMA { background: #FECDD3; color: #9F1239; }
-    .type-SELLO { background: #CCFBF1; color: #0F766E; }
-    .type-HUELLA { background: #FEE2E2; color: #B91C1C; }
-    .type-JUZGADO { background: #DBEAFE; color: #1E40AF; }
+    .type-badge:hover { opacity: 0.8; }
+    
+    .type-PERSONA { background: #E9D5FF; color: #7C3AED; }
+    .type-DNI { background: #FECACA; color: #DC2626; }
+    .type-RUC { background: #A7F3D0; color: #059669; }
+    .type-DIRECCION { background: #FED7AA; color: #EA580C; }
+    .type-EMAIL { background: #BFDBFE; color: #2563EB; }
+    .type-TELEFONO { background: #A5F3FC; color: #0891B2; }
+    .type-EXPEDIENTE { background: #FDE68A; color: #D97706; }
+    .type-ACTA { background: #C7D2FE; color: #4F46E5; }
+    .type-CASILLA { background: #FBCFE8; color: #DB2777; }
+    .type-ENTIDAD { background: #D1FAE5; color: #10B981; }
+    .type-CUENTA { background: #E5E7EB; color: #4B5563; }
+    .type-PLACA { background: #D1D5DB; color: #374151; }
+    .type-FIRMA { background: #FECDD3; color: #E11D48; }
+    .type-SELLO { background: #CCFBF1; color: #0D9488; }
+    .type-HUELLA { background: #FCE7F3; color: #BE185D; }
+    .type-JUZGADO { background: #DBEAFE; color: #1D4ED8; }
     
     .selection-popup {
       position: fixed;
       background: white;
       border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       border: 1px solid #E5E5E5;
       padding: 16px;
-      z-index: 9999;
-      max-width: 420px;
-      min-width: 320px;
-      display: none;
+      z-index: 99999;
+      max-width: 500px;
+      min-width: 380px;
     }
+    .selection-popup.hidden { display: none; }
     .selection-popup.visible { 
       display: block !important;
       animation: popupFadeIn 0.15s ease-out;
     }
     @keyframes popupFadeIn {
-      from { opacity: 0; transform: translateY(-5px); }
+      from { opacity: 0; transform: translateY(-8px); }
       to { opacity: 1; transform: translateY(0); }
     }
     
     .custom-checkbox {
-      width: 24px;
-      height: 24px;
-      border: 2px solid #E5E5E5;
+      width: 22px;
+      height: 22px;
+      border: 2px solid #D1D5DB;
       border-radius: 6px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s;
+      transition: all 0.15s;
       flex-shrink: 0;
+      background: white;
     }
+    .custom-checkbox:hover { border-color: #9CA3AF; }
     .custom-checkbox.checked {
       background: #3B82F6;
       border-color: #3B82F6;
     }
     .custom-checkbox.checked::after {
       content: '';
-      width: 6px;
-      height: 10px;
+      width: 5px;
+      height: 9px;
       border: solid white;
       border-width: 0 2px 2px 0;
       transform: rotate(45deg);
@@ -120,271 +126,290 @@
     .document-preview {
       font-family: 'Courier New', monospace;
       font-size: 14px;
-      line-height: 1.8;
+      line-height: 1.9;
       white-space: pre-wrap;
       word-wrap: break-word;
-      max-height: 500px;
+      padding: 32px;
+      background: #F9FAFB;
+      border-radius: 16px;
+      min-height: 400px;
+      max-height: 600px;
       overflow-y: auto;
-      padding: 24px;
-      background: white;
-      border: 1px solid #E5E5E5;
-      border-radius: 12px;
+      color: #1F2937;
+    }
+    
+    .entities-slider {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 8px 4px;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: #D1D5DB transparent;
+    }
+    .entities-slider::-webkit-scrollbar {
+      height: 6px;
+    }
+    .entities-slider::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .entities-slider::-webkit-scrollbar-thumb {
+      background: #D1D5DB;
+      border-radius: 3px;
     }
     
     .entity-card {
       background: white;
-      border: 1px solid #E5E5E5;
+      border: 1px solid #E5E7EB;
       border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-    }
-    
-    .search-results {
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    
-    .search-match {
-      padding: 8px 12px;
-      border-radius: 8px;
+      padding: 14px 16px;
+      min-width: 280px;
+      max-width: 320px;
+      flex-shrink: 0;
+      transition: all 0.15s;
       cursor: pointer;
-      transition: background 0.2s;
     }
-    .search-match:hover { background: #F3F4F6; }
+    .entity-card:hover {
+      border-color: #3B82F6;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    }
+    .entity-card.selected {
+      border-color: #3B82F6;
+      background: #EFF6FF;
+    }
+    
+    .manual-entity-card {
+      background: white;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     
     .processing-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.6);
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 9999;
+      z-index: 99999;
     }
     
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { animation: spin 1s linear infinite; }
   </style>
 </head>
-<body class="bg-apc-gray-bg min-h-screen">
+<body class="bg-white min-h-screen">
   
   <header class="bg-apc-black">
-    <div class="max-w-6xl mx-auto px-4 py-3">
+    <div class="max-w-7xl mx-auto px-6 py-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
-          <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-14 w-auto">
+          <img src="{{ url_for('static', filename='images/logo_apc_juridica.png') }}" alt="APC Jurídica" class="h-12 w-auto">
           <div>
             <h1 class="text-lg font-semibold text-white">Anonimizador de documentos legales</h1>
-            <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información</p>
+            <p class="text-xs text-gray-400">{{ (entities_all|length) }} entidades detectadas automáticamente</p>
           </div>
         </div>
-        <div class="flex items-center space-x-2 text-sm text-gray-400">
-          <i class="fas fa-lock text-apc-red"></i>
-          <span class="hidden sm:inline">Procesamiento seguro</span>
-        </div>
+        <a href="/anonymizer" class="text-gray-400 hover:text-white text-sm flex items-center gap-2">
+          <i class="fas fa-times"></i>
+          <span class="hidden sm:inline">Cancelar</span>
+        </a>
       </div>
     </div>
   </header>
 
-  <main class="py-6 px-4">
-    <div class="max-w-6xl mx-auto">
-      
-      <div class="bg-apc-black rounded-2xl p-6 mb-6 flex items-center gap-4">
-        <div class="w-14 h-14 bg-apc-red rounded-xl flex items-center justify-center flex-shrink-0">
-          <i class="fas fa-user-check text-white text-2xl"></i>
-        </div>
+  <main class="max-w-7xl mx-auto px-6 py-6">
+    
+    {% if strict_mode %}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+      <div class="flex items-start gap-3">
+        <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
         <div>
-          <h2 class="text-xl font-semibold text-white">Revisión interactiva</h2>
-          <p class="text-gray-400">{{ (entities_all|length) }} entidades detectadas</p>
+          <p class="font-medium text-amber-700">Modo estricto activado</p>
+          <p class="text-sm text-amber-600">Revisa las entidades detectadas, busca texto adicional y selecciona manualmente datos que no fueron detectados. Los cambios se aplican en vivo al preview.</p>
         </div>
       </div>
+    </div>
+    {% endif %}
 
-      {% if strict_mode %}
-      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-        <div class="flex items-start gap-3">
-          <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
-          <div>
-            <p class="font-medium text-amber-700">Modo estricto activado</p>
-            <p class="text-sm text-amber-600">Revisa las entidades, busca texto adicional o selecciona manualmente datos que no fueron detectados. El DOCX final reflejará todos los reemplazos.</p>
+    <!-- Search Bar -->
+    <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+      <div class="flex items-center gap-3">
+        <i class="fas fa-search text-gray-400"></i>
+        <span class="font-medium text-gray-700">Buscar en documento</span>
+      </div>
+      <div class="flex gap-3 mt-3">
+        <input type="text" id="searchInput" placeholder="Buscar texto..." 
+               class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-apc-red focus:border-transparent">
+        <button type="button" id="searchBtn" class="bg-apc-red text-white px-6 py-3 rounded-xl font-medium hover:bg-apc-red-dark flex items-center gap-2">
+          <i class="fas fa-search"></i>
+          Buscar
+        </button>
+      </div>
+      
+      <div id="searchResultsPanel" class="hidden mt-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-500"><span id="matchCount">0</span> coincidencias encontradas</span>
+          <button type="button" id="clearSearchBtn" class="text-sm text-apc-red hover:underline">Limpiar búsqueda</button>
+        </div>
+        <div class="flex gap-2 items-center">
+          <select id="tokenizeType" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            <option value="PERSONA">PERSONA</option>
+            <option value="DNI">DNI</option>
+            <option value="RUC">RUC</option>
+            <option value="DIRECCION">DIRECCION</option>
+            <option value="EMAIL">EMAIL</option>
+            <option value="TELEFONO">TELEFONO</option>
+            <option value="EXPEDIENTE">EXPEDIENTE</option>
+            <option value="ACTA">ACTA</option>
+            <option value="CASILLA">CASILLA</option>
+            <option value="ENTIDAD">ENTIDAD</option>
+            <option value="CUENTA">CUENTA</option>
+            <option value="PLACA">PLACA</option>
+            <option value="FIRMA">FIRMA</option>
+            <option value="SELLO">SELLO</option>
+            <option value="HUELLA">HUELLA</option>
+          </select>
+          <button type="button" id="tokenizeAllBtn" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 text-sm">
+            Tokenizar todas las coincidencias
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Document Preview - Full Width -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i class="fas fa-file-alt text-gray-400"></i>
+        <span class="font-medium text-gray-700">Vista previa del documento</span>
+        <span class="text-sm text-gray-400">(selecciona texto para tokenizar)</span>
+      </div>
+      <div class="document-preview" id="documentPreview">{{ preview_text }}</div>
+    </div>
+
+    <!-- Auto-detected Entities - Horizontal Slider -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-magic text-gray-400"></i>
+          <span class="font-medium text-gray-700">Entidades detectadas automáticamente</span>
+          <span class="text-sm text-gray-400">({{ entities_all|length }})</span>
+        </div>
+        <div class="flex items-center gap-4 text-sm">
+          <button type="button" id="selectAllBtn" class="text-blue-600 font-medium hover:underline flex items-center gap-1">
+            <i class="fas fa-check-double"></i>
+            Seleccionar todos
+          </button>
+          <button type="button" id="deselectAllBtn" class="text-gray-500 font-medium hover:underline flex items-center gap-1">
+            <i class="fas fa-times"></i>
+            Deseleccionar todos
+          </button>
+        </div>
+      </div>
+      
+      {% if entities_all %}
+      <div class="entities-slider" id="entitiesContainer">
+        {% for entity in entities_all %}
+        <div class="entity-card {{ 'selected' if entity.confidence >= 0.8 else '' }}" 
+             data-entity='{{ entity | tojson }}' 
+             data-selected="{{ 'true' if entity.confidence >= 0.8 else 'false' }}">
+          <div class="flex items-start gap-3">
+            <div class="custom-checkbox {{ 'checked' if entity.confidence >= 0.8 else '' }}" data-entity-id="{{ loop.index }}"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="type-badge type-{{ entity.type }}">{{ entity.type }}</span>
+                <span class="text-xs text-gray-400">Confianza: {{ (entity.confidence * 100)|round|int }}%</span>
+              </div>
+              <p class="font-medium text-gray-900 text-sm truncate" title="{{ entity.value }}">{{ entity.value[:50] }}{% if entity.value|length > 50 %}...{% endif %}</p>
+            </div>
           </div>
         </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-8 text-gray-400">
+        <i class="fas fa-search text-3xl mb-3 opacity-50"></i>
+        <p>No se detectaron entidades automáticamente</p>
+        <p class="text-sm">Usa el buscador o selecciona texto manualmente</p>
       </div>
       {% endif %}
-
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        <div>
-          <div class="bg-white rounded-2xl p-5 mb-6 border border-apc-gray-border">
-            <div class="flex items-center gap-2 mb-4">
-              <i class="fas fa-search text-apc-red"></i>
-              <span class="font-semibold text-gray-900">Buscar en documento</span>
-            </div>
-            <div class="flex gap-2 mb-3">
-              <input type="text" id="searchInput" placeholder="Buscar texto..." 
-                     class="flex-1 px-4 py-2 border border-apc-gray-border rounded-xl focus:outline-none focus:ring-2 focus:ring-apc-red focus:border-transparent text-sm">
-              <button type="button" id="searchBtn" class="bg-apc-red text-white px-4 py-2 rounded-xl font-medium hover:bg-apc-red-dark text-sm">
-                <i class="fas fa-search"></i>
-              </button>
-            </div>
-            
-            <div id="searchResultsPanel" class="hidden">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-apc-gray-text"><span id="matchCount">0</span> coincidencias</span>
-                <button type="button" id="clearSearchBtn" class="text-sm text-apc-red hover:underline">Limpiar</button>
-              </div>
-              
-              <div class="search-results border border-apc-gray-border rounded-xl p-2 mb-3" id="searchMatches"></div>
-              
-              <div class="flex items-center gap-2">
-                <select id="tokenizeType" class="flex-1 px-3 py-2 border border-apc-gray-border rounded-xl text-sm">
-                  <option value="PERSONA">PERSONA</option>
-                  <option value="DNI">DNI</option>
-                  <option value="RUC">RUC</option>
-                  <option value="DIRECCION">DIRECCION</option>
-                  <option value="EMAIL">EMAIL</option>
-                  <option value="TELEFONO">TELEFONO</option>
-                  <option value="EXPEDIENTE">EXPEDIENTE</option>
-                  <option value="ACTA">ACTA</option>
-                  <option value="CASILLA">CASILLA</option>
-                  <option value="ENTIDAD">ENTIDAD</option>
-                  <option value="CUENTA">CUENTA</option>
-                  <option value="PLACA">PLACA</option>
-                  <option value="FIRMA">FIRMA</option>
-                  <option value="SELLO">SELLO</option>
-                  <option value="HUELLA">HUELLA</option>
-                </select>
-                <button type="button" id="tokenizeAllBtn" class="bg-apc-black text-white px-4 py-2 rounded-xl font-medium hover:bg-gray-800 text-sm whitespace-nowrap">
-                  <i class="fas fa-magic mr-1"></i>Tokenizar todas
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-5 border border-apc-gray-border">
-            <div class="flex items-center gap-2 mb-3">
-              <i class="fas fa-file-alt text-apc-gray-text"></i>
-              <span class="font-semibold text-gray-900">Vista previa</span>
-              <span class="text-xs text-apc-gray-text">(selecciona texto para tokenizar)</span>
-            </div>
-            <div class="document-preview" id="documentPreview">{{ preview_text }}</div>
-          </div>
-        </div>
-
-        <div>
-          <div class="mb-6">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="font-semibold text-gray-900">Entidades detectadas (<span id="autoCount">{{ entities_all|length }}</span>)</h3>
-              <div class="flex items-center gap-3 text-sm">
-                <button type="button" id="selectAllBtn" class="text-apc-red font-medium hover:underline">
-                  <i class="fas fa-check-double mr-1"></i>Todos
-                </button>
-                <button type="button" id="deselectAllBtn" class="text-apc-gray-text font-medium hover:underline">
-                  <i class="fas fa-times mr-1"></i>Ninguno
-                </button>
-              </div>
-            </div>
-
-            <div id="entitiesWidget" class="relative">
-              <div id="entitiesContainer" class="max-h-[320px] overflow-hidden transition-all duration-300">
-                {% for entity in entities_all %}
-                <div class="entity-card" data-entity='{{ entity | tojson }}' data-selected="{{ 'true' if entity.confidence >= 0.8 else 'false' }}">
-                  <div class="flex items-start gap-3">
-                    <div class="custom-checkbox {{ 'checked' if entity.confidence >= 0.8 else '' }}" data-entity-id="{{ loop.index }}"></div>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="type-badge type-{{ entity.type }}">{{ entity.type }}</span>
-                        <span class="text-xs text-apc-gray-text">{{ (entity.confidence * 100)|round|int }}%</span>
-                      </div>
-                      <p class="font-medium text-gray-900 text-sm truncate">{{ entity.value }}</p>
-                    </div>
-                  </div>
-                </div>
-                {% endfor %}
-
-                {% if not entities_all %}
-                <div class="text-center py-8 text-apc-gray-text">
-                  <i class="fas fa-search text-3xl mb-3 opacity-50"></i>
-                  <p>No se detectaron entidades</p>
-                  <p class="text-sm">Usa el buscador o selecciona texto manualmente</p>
-                </div>
-                {% endif %}
-              </div>
-              
-              {% if entities_all|length > 3 %}
-              <div id="fadeOverlay" class="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-apc-gray-bg to-transparent pointer-events-none"></div>
-              <button type="button" id="showMoreBtn" class="w-full py-2 text-center text-apc-red font-medium hover:bg-red-50 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2 text-sm">
-                <span id="showMoreText">Ver {{ entities_all|length - 3 }} más</span>
-                <i id="showMoreIcon" class="fas fa-chevron-down"></i>
-              </button>
-              {% endif %}
-            </div>
-          </div>
-
-          <div id="manualSection" class="mb-6">
-            <div class="flex items-center gap-2 mb-3">
-              <i class="fas fa-hand-pointer text-apc-red"></i>
-              <h3 class="font-semibold text-gray-900">Entidades manuales (<span id="manualCount">0</span>)</h3>
-            </div>
-            <div id="manualCards"></div>
-            <div id="manualEmpty" class="bg-white border border-dashed border-apc-gray-border rounded-xl p-4 text-center">
-              <i class="fas fa-mouse-pointer text-apc-gray-text text-xl mb-1"></i>
-              <p class="text-apc-gray-text text-sm">Selecciona texto en el documento para marcarlo</p>
-            </div>
-          </div>
-
-          <form id="applyForm" action="/anonymizer/apply" method="POST">
-            <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
-            <input type="hidden" name="ext" value="{{ ext }}">
-            <input type="hidden" name="original_filename" value="{{ original_filename }}">
-            <input type="hidden" name="selected_entities_json" id="selectedEntitiesJson" value="[]">
-            <input type="hidden" name="export_csv" value="{{ export_csv }}">
-
-            <div class="flex gap-3">
-              <button type="submit" id="applyBtn" class="flex-1 bg-apc-red text-white py-3 rounded-xl font-medium hover:bg-apc-red-dark flex items-center justify-center gap-2">
-                <i class="fas fa-shield-alt"></i>
-                <span id="applyText">Aplicar anonimización</span>
-              </button>
-              <a href="/anonymizer" class="px-6 py-3 border border-apc-gray-border rounded-xl font-medium text-gray-600 hover:bg-gray-50 text-center">
-                Cancelar
-              </a>
-            </div>
-          </form>
-        </div>
-      </div>
-
     </div>
+
+    <!-- Manual Entities -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i class="fas fa-hand-pointer text-apc-red"></i>
+        <span class="font-medium text-gray-700">Entidades marcadas manualmente</span>
+        <span class="text-sm text-gray-400" id="manualCountWrapper">(<span id="manualCount">0</span>)</span>
+      </div>
+      <div id="manualCards" class="space-y-2"></div>
+      <div id="manualEmpty" class="text-center py-6 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+        <i class="fas fa-mouse-pointer text-2xl mb-2 opacity-50"></i>
+        <p class="text-sm">Selecciona texto en el documento para marcarlo como entidad</p>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <form id="applyForm" action="/anonymizer/apply" method="POST">
+      <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
+      <input type="hidden" name="ext" value="{{ ext }}">
+      <input type="hidden" name="original_filename" value="{{ original_filename }}">
+      <input type="hidden" name="selected_entities_json" id="selectedEntitiesJson" value="[]">
+      <input type="hidden" name="export_csv" value="{{ export_csv }}">
+
+      <div class="flex gap-4">
+        <button type="submit" id="applyBtn" class="flex-1 bg-apc-red text-white py-4 rounded-xl font-semibold hover:bg-apc-red-dark flex items-center justify-center gap-2 text-lg">
+          <i class="fas fa-shield-alt"></i>
+          Aplicar anonimización
+        </button>
+        <a href="/anonymizer" class="px-8 py-4 border-2 border-gray-200 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 text-center">
+          Cancelar
+        </a>
+      </div>
+    </form>
+
   </main>
 
-  <div id="selectionPopup" class="selection-popup">
-    <p class="text-sm text-apc-gray-text mb-3">Marcar "<span id="selectedTextDisplay" class="font-medium text-gray-900"></span>" como:</p>
-    <div class="grid grid-cols-5 gap-2 mb-3" id="typeButtons">
-      <button type="button" class="type-badge type-PERSONA hover:opacity-80" data-type="PERSONA">PERSONA</button>
-      <button type="button" class="type-badge type-DNI hover:opacity-80" data-type="DNI">DNI</button>
-      <button type="button" class="type-badge type-RUC hover:opacity-80" data-type="RUC">RUC</button>
-      <button type="button" class="type-badge type-DIRECCION hover:opacity-80" data-type="DIRECCION">DIR</button>
-      <button type="button" class="type-badge type-EMAIL hover:opacity-80" data-type="EMAIL">EMAIL</button>
-      <button type="button" class="type-badge type-TELEFONO hover:opacity-80" data-type="TELEFONO">TEL</button>
-      <button type="button" class="type-badge type-EXPEDIENTE hover:opacity-80" data-type="EXPEDIENTE">EXP</button>
-      <button type="button" class="type-badge type-ACTA hover:opacity-80" data-type="ACTA">ACTA</button>
-      <button type="button" class="type-badge type-CASILLA hover:opacity-80" data-type="CASILLA">CAS</button>
-      <button type="button" class="type-badge type-ENTIDAD hover:opacity-80" data-type="ENTIDAD">ENT</button>
-      <button type="button" class="type-badge type-CUENTA hover:opacity-80" data-type="CUENTA">CTA</button>
-      <button type="button" class="type-badge type-PLACA hover:opacity-80" data-type="PLACA">PLACA</button>
-      <button type="button" class="type-badge type-FIRMA hover:opacity-80" data-type="FIRMA">FIRMA</button>
-      <button type="button" class="type-badge type-SELLO hover:opacity-80" data-type="SELLO">SELLO</button>
-      <button type="button" class="type-badge type-HUELLA hover:opacity-80" data-type="HUELLA">HUELLA</button>
+  <!-- Selection Popup -->
+  <div id="selectionPopup" class="selection-popup hidden">
+    <div class="mb-3">
+      <p class="text-sm text-gray-500 mb-1">Marcar como:</p>
+      <p class="font-semibold text-gray-900 text-lg" id="selectedTextDisplay"></p>
+    </div>
+    <div class="grid grid-cols-4 gap-2 mb-4" id="typeButtons">
+      <button type="button" class="type-badge type-PERSONA" data-type="PERSONA">PERSONA</button>
+      <button type="button" class="type-badge type-DNI" data-type="DNI">DNI</button>
+      <button type="button" class="type-badge type-RUC" data-type="RUC">RUC</button>
+      <button type="button" class="type-badge type-DIRECCION" data-type="DIRECCION">DIRECCION</button>
+      <button type="button" class="type-badge type-EMAIL" data-type="EMAIL">EMAIL</button>
+      <button type="button" class="type-badge type-TELEFONO" data-type="TELEFONO">TELEFONO</button>
+      <button type="button" class="type-badge type-EXPEDIENTE" data-type="EXPEDIENTE">EXPEDIENTE</button>
+      <button type="button" class="type-badge type-ACTA" data-type="ACTA">ACTA</button>
+      <button type="button" class="type-badge type-CASILLA" data-type="CASILLA">CASILLA</button>
+      <button type="button" class="type-badge type-ENTIDAD" data-type="ENTIDAD">ENTIDAD</button>
+      <button type="button" class="type-badge type-CUENTA" data-type="CUENTA">CUENTA</button>
+      <button type="button" class="type-badge type-PLACA" data-type="PLACA">PLACA</button>
+      <button type="button" class="type-badge type-FIRMA" data-type="FIRMA">FIRMA</button>
+      <button type="button" class="type-badge type-SELLO" data-type="SELLO">SELLO</button>
+      <button type="button" class="type-badge type-HUELLA" data-type="HUELLA">HUELLA</button>
+      <button type="button" class="type-badge type-JUZGADO" data-type="JUZGADO">JUZGADO</button>
     </div>
     <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-      <input type="checkbox" id="replaceAllCheckbox" checked class="w-4 h-4 text-apc-red rounded">
+      <input type="checkbox" id="replaceAllCheckbox" checked class="w-4 h-4 text-blue-600 rounded border-gray-300">
       Reemplazar todas las ocurrencias
     </label>
   </div>
 
+  <!-- Processing Overlay -->
   <div id="processingOverlay" class="processing-overlay" style="display: none;">
-    <div class="bg-white rounded-2xl p-8 text-center">
-      <i class="fas fa-circle-notch spinner text-apc-red text-4xl mb-4"></i>
-      <p class="font-medium text-gray-800">Anonimizando documento...</p>
-      <p class="text-sm text-apc-gray-text mt-2">Aplicando tokens al DOCX final</p>
+    <div class="bg-white rounded-2xl p-8 text-center shadow-2xl">
+      <i class="fas fa-circle-notch spinner text-apc-red text-5xl mb-4"></i>
+      <p class="font-semibold text-gray-800 text-lg">Anonimizando documento...</p>
+      <p class="text-sm text-gray-500 mt-2">Aplicando tokens al archivo final</p>
     </div>
   </div>
 
@@ -405,97 +430,85 @@
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const searchResultsPanel = document.getElementById('searchResultsPanel');
-    const searchMatches = document.getElementById('searchMatches');
     const matchCount = document.getElementById('matchCount');
     const clearSearchBtn = document.getElementById('clearSearchBtn');
     const tokenizeAllBtn = document.getElementById('tokenizeAllBtn');
     const tokenizeType = document.getElementById('tokenizeType');
     const processingOverlay = document.getElementById('processingOverlay');
     const entitiesContainer = document.getElementById('entitiesContainer');
-    const showMoreBtn = document.getElementById('showMoreBtn');
-    const showMoreText = document.getElementById('showMoreText');
-    const showMoreIcon = document.getElementById('showMoreIcon');
-    const fadeOverlay = document.getElementById('fadeOverlay');
 
     let selectedText = '';
     let manualEntities = [];
     let originalText = {{ full_text | tojson }};
-    let entitiesExpanded = false;
     let currentSearchQuery = '';
-    
-    const autoDetectedCount = entitiesContainer ? entitiesContainer.querySelectorAll('.entity-card').length : 0;
     
     const entityTypeCounters = {};
     const globalValueToToken = {};
 
-    if (showMoreBtn) {
-      showMoreBtn.addEventListener('click', function() {
-        entitiesExpanded = !entitiesExpanded;
-        if (entitiesExpanded) {
-          entitiesContainer.style.maxHeight = 'none';
-          if (fadeOverlay) fadeOverlay.style.display = 'none';
-          showMoreText.textContent = 'Ver menos';
-          showMoreIcon.className = 'fas fa-chevron-up';
-        } else {
-          entitiesContainer.style.maxHeight = '320px';
-          if (fadeOverlay) fadeOverlay.style.display = 'block';
-          showMoreText.textContent = `Ver ${autoDetectedCount - 3} más`;
-          showMoreIcon.className = 'fas fa-chevron-down';
-        }
+    // Entity card click handling
+    if (entitiesContainer) {
+      entitiesContainer.querySelectorAll('.entity-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+          if (e.target.classList.contains('custom-checkbox') || e.target.closest('.custom-checkbox')) {
+            const checkbox = this.querySelector('.custom-checkbox');
+            checkbox.classList.toggle('checked');
+            this.classList.toggle('selected');
+            this.dataset.selected = checkbox.classList.contains('checked') ? 'true' : 'false';
+            updatePreview();
+          } else {
+            const checkbox = this.querySelector('.custom-checkbox');
+            checkbox.classList.toggle('checked');
+            this.classList.toggle('selected');
+            this.dataset.selected = checkbox.classList.contains('checked') ? 'true' : 'false';
+            updatePreview();
+          }
+        });
       });
     }
 
-    document.querySelectorAll('.custom-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('click', function() {
-        this.classList.toggle('checked');
-        const card = this.closest('.entity-card');
-        card.dataset.selected = this.classList.contains('checked') ? 'true' : 'false';
-        updatePreview();
-      });
-    });
-
     selectAllBtn.addEventListener('click', function() {
-      document.querySelectorAll('#entitiesContainer .custom-checkbox').forEach(cb => {
-        cb.classList.add('checked');
-        cb.closest('.entity-card').dataset.selected = 'true';
+      document.querySelectorAll('#entitiesContainer .entity-card').forEach(card => {
+        card.classList.add('selected');
+        card.dataset.selected = 'true';
+        card.querySelector('.custom-checkbox').classList.add('checked');
       });
       updatePreview();
     });
 
     deselectAllBtn.addEventListener('click', function() {
-      document.querySelectorAll('#entitiesContainer .custom-checkbox').forEach(cb => {
-        cb.classList.remove('checked');
-        cb.closest('.entity-card').dataset.selected = 'false';
+      document.querySelectorAll('#entitiesContainer .entity-card').forEach(card => {
+        card.classList.remove('selected');
+        card.dataset.selected = 'false';
+        card.querySelector('.custom-checkbox').classList.remove('checked');
       });
       updatePreview();
     });
 
+    // Text selection handling
     documentPreview.addEventListener('mouseup', function(e) {
       setTimeout(function() {
         const selection = window.getSelection();
         const text = selection.toString().trim();
         
-        console.log('Selection detected:', text.length, 'chars');
-        
-        if (text.length > 1 && text.length < 300) {
+        if (text.length >= 1 && text.length < 500) {
           selectedText = text;
-          selectedTextDisplay.textContent = text.length > 40 ? text.substring(0, 40) + '...' : text;
+          selectedTextDisplay.textContent = text.length > 60 ? '"' + text.substring(0, 60) + '..."' : '"' + text + '"';
           
           const rect = selection.getRangeAt(0).getBoundingClientRect();
-          const left = Math.max(10, Math.min(rect.left, window.innerWidth - 350));
-          const top = rect.bottom + window.scrollY + 10;
+          const left = Math.max(20, Math.min(rect.left, window.innerWidth - 420));
+          const top = rect.bottom + window.scrollY + 12;
           
           selectionPopup.style.left = left + 'px';
           selectionPopup.style.top = top + 'px';
+          selectionPopup.classList.remove('hidden');
           selectionPopup.classList.add('visible');
-          
-          console.log('Popup shown at:', left, top);
         }
       }, 10);
     });
 
-    document.addEventListener('click', function(e) {
+    document.addEventListener('mousedown', function(e) {
       if (!selectionPopup.contains(e.target) && !documentPreview.contains(e.target)) {
+        selectionPopup.classList.add('hidden');
         selectionPopup.classList.remove('visible');
       }
     });
@@ -504,6 +517,7 @@
       btn.addEventListener('click', function() {
         const type = this.dataset.type;
         addManualEntity(selectedText, type, replaceAllCheckbox.checked);
+        selectionPopup.classList.add('hidden');
         selectionPopup.classList.remove('visible');
         window.getSelection().removeAllRanges();
       });
@@ -557,13 +571,13 @@
       manualEmpty.style.display = 'none';
       
       manualCards.innerHTML = manualEntities.map((entity, idx) => `
-        <div class="bg-white border border-apc-gray-border rounded-xl p-3 mb-2 flex items-center gap-3">
+        <div class="manual-entity-card">
           <span class="type-badge type-${entity.type}">${entity.type}</span>
-          <span class="font-medium text-gray-900 flex-1 text-sm truncate">${entity.value}</span>
-          <span class="text-xs text-apc-gray-text font-mono">${entity.token}</span>
-          <span class="text-xs text-apc-gray-text">${entity.replace_all ? '(todas)' : '(1)'}</span>
-          <button type="button" class="text-gray-400 hover:text-apc-red" onclick="window.removeManualEntity(${idx})">
-            <i class="fas fa-times"></i>
+          <span class="font-medium text-gray-800 flex-1 truncate">${entity.value}</span>
+          <span class="text-xs text-gray-400 font-mono bg-gray-100 px-2 py-1 rounded">${entity.token}</span>
+          <span class="text-xs text-gray-400">${entity.replace_all ? '(todas)' : '(1)'}</span>
+          <button type="button" class="text-gray-400 hover:text-red-500 p-1" onclick="window.removeManualEntity(${idx})">
+            <i class="fas fa-trash-alt"></i>
           </button>
         </div>
       `).join('');
@@ -575,6 +589,7 @@
       updatePreview();
     };
 
+    // Search functionality
     searchBtn.addEventListener('click', performSearch);
     searchInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') performSearch();
@@ -595,47 +610,17 @@
       
       const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(escapedQuery, 'gi');
-      const matches = [];
+      let count = 0;
       let match;
       
       while ((match = regex.exec(originalText)) !== null) {
-        const start = Math.max(0, match.index - 30);
-        const end = Math.min(originalText.length, match.index + query.length + 30);
-        let context = originalText.substring(start, end);
-        if (start > 0) context = '...' + context;
-        if (end < originalText.length) context = context + '...';
-        
-        matches.push({
-          text: match[0],
-          index: match.index,
-          context: context
-        });
+        count++;
       }
       
-      matchCount.textContent = matches.length;
+      matchCount.textContent = count;
       searchResultsPanel.classList.remove('hidden');
-      
-      if (matches.length === 0) {
-        searchMatches.innerHTML = '<p class="text-sm text-apc-gray-text text-center py-4">No se encontraron coincidencias</p>';
-      } else {
-        searchMatches.innerHTML = matches.slice(0, 20).map((m, i) => `
-          <div class="search-match text-sm" onclick="window.scrollToMatch(${m.index})">
-            <span class="font-medium text-apc-red">${m.text}</span>
-            <span class="text-apc-gray-text ml-2">${m.context.replace(new RegExp(escapedQuery, 'gi'), '<mark class="bg-yellow-200">$&</mark>')}</span>
-          </div>
-        `).join('');
-        
-        if (matches.length > 20) {
-          searchMatches.innerHTML += `<p class="text-xs text-apc-gray-text text-center py-2">...y ${matches.length - 20} más</p>`;
-        }
-      }
-      
       updatePreview();
     }
-
-    window.scrollToMatch = function(index) {
-      updatePreview();
-    };
 
     tokenizeAllBtn.addEventListener('click', function() {
       const query = currentSearchQuery;
@@ -686,12 +671,12 @@
         const escapedValue = r.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const escapedHtmlValue = escapeHtml(r.value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = r.replaceAll !== false ? new RegExp(escapedHtmlValue, 'g') : new RegExp(escapedHtmlValue);
-        htmlText = htmlText.replace(regex, `<span class="token-highlight">${r.token}</span>`);
+        htmlText = htmlText.replace(regex, '<span class="token-highlight">' + r.token + '</span>');
       });
       
       if (currentSearchQuery) {
         const escapedQuery = escapeHtml(currentSearchQuery).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const searchRegex = new RegExp(`(${escapedQuery})`, 'gi');
+        const searchRegex = new RegExp('(' + escapedQuery + ')', 'gi');
         htmlText = htmlText.replace(searchRegex, '<mark class="search-highlight">$1</mark>');
       }
       
