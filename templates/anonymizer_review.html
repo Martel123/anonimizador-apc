@@ -484,32 +484,88 @@
       updatePreview();
     });
 
-    // Text selection handling
-    documentPreview.addEventListener('mouseup', function(e) {
-      setTimeout(function() {
-        const selection = window.getSelection();
-        const text = selection.toString().trim();
-        
-        if (text.length >= 1 && text.length < 500) {
-          selectedText = text;
-          selectedTextDisplay.textContent = text.length > 60 ? '"' + text.substring(0, 60) + '..."' : '"' + text + '"';
-          
-          const rect = selection.getRangeAt(0).getBoundingClientRect();
-          const left = Math.max(20, Math.min(rect.left, window.innerWidth - 420));
-          const top = rect.bottom + window.scrollY + 12;
-          
-          selectionPopup.style.left = left + 'px';
-          selectionPopup.style.top = top + 'px';
-          selectionPopup.classList.remove('hidden');
-          selectionPopup.classList.add('visible');
+    // Robust text selection handling
+    let isSelecting = false;
+    let selectionTimeout = null;
+    
+    function showSelectionPopup(text, rect) {
+      selectedText = text;
+      const displayText = text.length > 50 ? '"' + text.substring(0, 50) + '..."' : '"' + text + '"';
+      selectedTextDisplay.textContent = displayText;
+      
+      const popupWidth = 420;
+      const popupHeight = 280;
+      
+      let left = rect.left + (rect.width / 2) - (popupWidth / 2);
+      left = Math.max(10, Math.min(left, window.innerWidth - popupWidth - 10));
+      
+      let top = rect.bottom + window.scrollY + 10;
+      if (top + popupHeight > window.innerHeight + window.scrollY) {
+        top = rect.top + window.scrollY - popupHeight - 10;
+      }
+      top = Math.max(window.scrollY + 10, top);
+      
+      selectionPopup.style.left = left + 'px';
+      selectionPopup.style.top = top + 'px';
+      selectionPopup.classList.remove('hidden');
+      selectionPopup.classList.add('visible');
+    }
+    
+    function hideSelectionPopup() {
+      selectionPopup.classList.add('hidden');
+      selectionPopup.classList.remove('visible');
+    }
+    
+    function checkSelection() {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      const text = selection.toString();
+      if (text.length === 0) return;
+      
+      const range = selection.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      
+      const isInPreview = documentPreview.contains(container) || 
+                          container === documentPreview ||
+                          (container.parentNode && documentPreview.contains(container.parentNode));
+      
+      if (isInPreview && text.length >= 1 && text.length < 1000) {
+        const rect = range.getBoundingClientRect();
+        if (rect.width > 0 || rect.height > 0) {
+          showSelectionPopup(text, rect);
         }
-      }, 10);
+      }
+    }
+    
+    documentPreview.addEventListener('mousedown', function() {
+      isSelecting = true;
+      hideSelectionPopup();
     });
-
-    document.addEventListener('mousedown', function(e) {
+    
+    document.addEventListener('mouseup', function(e) {
+      if (!isSelecting) return;
+      isSelecting = false;
+      
+      if (selectionTimeout) clearTimeout(selectionTimeout);
+      selectionTimeout = setTimeout(checkSelection, 20);
+    });
+    
+    documentPreview.addEventListener('touchend', function() {
+      if (selectionTimeout) clearTimeout(selectionTimeout);
+      selectionTimeout = setTimeout(checkSelection, 100);
+    });
+    
+    document.addEventListener('click', function(e) {
       if (!selectionPopup.contains(e.target) && !documentPreview.contains(e.target)) {
-        selectionPopup.classList.add('hidden');
-        selectionPopup.classList.remove('visible');
+        hideSelectionPopup();
+      }
+    });
+    
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        hideSelectionPopup();
+        window.getSelection().removeAllRanges();
       }
     });
 
