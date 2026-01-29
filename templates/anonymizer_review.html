@@ -141,15 +141,17 @@
     
     .entities-slider {
       display: flex;
-      gap: 12px;
-      overflow-x: auto;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      max-height: 280px;
       padding: 8px 4px;
       scroll-behavior: smooth;
       scrollbar-width: thin;
       scrollbar-color: #D1D5DB transparent;
     }
     .entities-slider::-webkit-scrollbar {
-      height: 6px;
+      width: 6px;
     }
     .entities-slider::-webkit-scrollbar-track {
       background: transparent;
@@ -164,8 +166,7 @@
       border: 1px solid #E5E7EB;
       border-radius: 12px;
       padding: 14px 16px;
-      min-width: 280px;
-      max-width: 320px;
+      width: 100%;
       flex-shrink: 0;
       transition: all 0.15s;
       cursor: pointer;
