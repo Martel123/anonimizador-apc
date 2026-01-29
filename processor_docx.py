@@ -79,79 +79,91 @@ def replace_in_runs_aware(paragraph, replacements: List[Tuple[str, str]]) -> int
         Número de reemplazos realizados
     """
     count = 0
+    MAX_ITERATIONS = 100
     
-    # Obtener texto completo del párrafo
-    full_text = paragraph.text
+    try:
+        full_text = paragraph.text
+        if not full_text:
+            return 0
+    except Exception:
+        return 0
     
     for original, token in replacements:
-        if original in full_text:
-            # Construir mapa de posiciones de runs
-            run_map = []  # [(start, end, run_idx, run)]
-            pos = 0
-            for idx, run in enumerate(paragraph.runs):
-                run_text = run.text
-                run_map.append((pos, pos + len(run_text), idx, run))
-                pos += len(run_text)
+        if not original or original not in full_text:
+            continue
+        
+        iterations = 0
+        # Construir mapa de posiciones de runs
+        run_map = []  # [(start, end, run_idx, run)]
+        pos = 0
+        for idx, run in enumerate(paragraph.runs):
+            try:
+                run_text = run.text or ''
+            except Exception:
+                run_text = ''
+            run_map.append((pos, pos + len(run_text), idx, run))
+            pos += len(run_text)
+        
+        # Buscar todas las ocurrencias
+        start = 0
+        while iterations < MAX_ITERATIONS:
+            iterations += 1
+            idx = full_text.find(original, start)
+            if idx == -1:
+                break
             
-            # Buscar todas las ocurrencias
+            end_idx = idx + len(original)
+            
+            # Encontrar runs afectados
+            affected_runs = []
+            for run_start, run_end, run_idx, run in run_map:
+                if run_start < end_idx and run_end > idx:
+                    affected_runs.append((run_start, run_end, run_idx, run))
+            
+            if affected_runs:
+                # Calcular la porción a reemplazar en cada run
+                first_run = affected_runs[0]
+                last_run = affected_runs[-1]
+                
+                first_run_start = first_run[0]
+                first_run_obj = first_run[3]
+                local_start = idx - first_run_start
+                
+                if len(affected_runs) == 1:
+                    local_end = local_start + len(original)
+                    old_text = first_run_obj.text or ''
+                    first_run_obj.text = old_text[:local_start] + token + old_text[local_end:]
+                else:
+                    old_text = first_run_obj.text or ''
+                    first_run_obj.text = old_text[:local_start] + token
+                    
+                    for _, _, _, run in affected_runs[1:-1]:
+                        run.text = ''
+                    
+                    last_run_obj = last_run[3]
+                    last_run_start = last_run[0]
+                    local_end_in_last = end_idx - last_run_start
+                    last_text = last_run_obj.text or ''
+                    last_run_obj.text = last_text[local_end_in_last:]
+                
+                count += 1
+            
+            # Actualizar texto completo y mapa para siguiente iteración
+            try:
+                full_text = paragraph.text or ''
+            except Exception:
+                break
+            run_map = []
+            pos = 0
+            for r_idx, run in enumerate(paragraph.runs):
+                try:
+                    rt = run.text or ''
+                except Exception:
+                    rt = ''
+                run_map.append((pos, pos + len(rt), r_idx, run))
+                pos += len(rt)
+            
             start = 0
-            while True:
-                idx = full_text.find(original, start)
-                if idx == -1:
-                    break
-                
-                end_idx = idx + len(original)
-                
-                # Encontrar runs afectados
-                affected_runs = []
-                for run_start, run_end, run_idx, run in run_map:
-                    if run_start < end_idx and run_end > idx:
-                        affected_runs.append((run_start, run_end, run_idx, run))
-                
-                if affected_runs:
-                    # Calcular la porción a reemplazar en cada run
-                    first_run = affected_runs[0]
-                    last_run = affected_runs[-1]
-                    
-                    # Para el primer run: desde idx hasta el final del run o fin de original
-                    first_run_start = first_run[0]
-                    first_run_obj = first_run[3]
-                    
-                    # Posición dentro del primer run donde empieza el texto
-                    local_start = idx - first_run_start
-                    
-                    if len(affected_runs) == 1:
-                        # Todo en un solo run
-                        local_end = local_start + len(original)
-                        old_text = first_run_obj.text
-                        first_run_obj.text = old_text[:local_start] + token + old_text[local_end:]
-                    else:
-                        # Texto partido en múltiples runs
-                        # Primer run: quitar desde local_start hasta el final y poner token
-                        old_text = first_run_obj.text
-                        first_run_obj.text = old_text[:local_start] + token
-                        
-                        # Runs intermedios: vaciar
-                        for _, _, _, run in affected_runs[1:-1]:
-                            run.text = ''
-                        
-                        # Último run: quitar desde inicio hasta donde termina el texto
-                        last_run_obj = last_run[3]
-                        last_run_start = last_run[0]
-                        local_end_in_last = end_idx - last_run_start
-                        last_run_obj.text = last_run_obj.text[local_end_in_last:]
-                    
-                    count += 1
-                
-                # Actualizar texto completo y mapa para siguiente iteración
-                full_text = paragraph.text
-                run_map = []
-                pos = 0
-                for r_idx, run in enumerate(paragraph.runs):
-                    run_map.append((pos, pos + len(run.text), r_idx, run))
-                    pos += len(run.text)
-                
-                start = 0  # Reiniciar búsqueda desde el principio del nuevo texto
     
     return count
 
