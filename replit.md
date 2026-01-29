@@ -8,11 +8,28 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 ## Legal Anonymizer (Main Feature)
 - **URL**: `/` (home page) or `/anonymizer`
 - **Supported formats**: DOCX and PDF (text-based)
-- **PII Detection**: DNI, RUC, emails, phones, addresses, names, expedientes, casillas, juzgados
+- **PII Detection**: 15 entity categories including DNI, RUC, emails, phones, addresses, names, expedientes, casillas, juzgados, FIRMA, SELLO, HUELLA, PLACA, ACTA, CUENTA
 - **Placeholders**: `{{DNI_1}}`, `{{PERSONA_1}}`, `{{EMAIL_1}}`, etc.
 - **Output**: Anonymized document + detailed report (JSON/TXT)
 - **Privacy**: Files processed in memory, auto-deleted after 30 minutes
 - **No paid services**: Pure regex/rule-based detection
+
+### Detection Pipeline (8 Stages)
+1. **Preprocesamiento**: Text extraction preserving structure
+2. **Regex Determinístico**: Email, phone, DNI, addresses (mandatory, cannot fail)
+3. **Secciones Obligatorias**: Forced PII extraction in DATOS DEL DEMANDANTE sections
+4. **Contexto Legal**: Trigger words (doña, don, identificado, etc.)
+5. **NER**: spaCy support for recall (not authoritative)
+6. **Filtro Anti-Sobreanonimización**: Legal whitelist with 200+ phrases
+7. **Merge y Consistencia**: Token deduplication
+8. **Auditor Final**: 0-leak guarantee with auto-fix
+
+### Key Modules
+- `detector_capas.py`: 8-stage detection pipeline
+- `legal_filters.py`: Anti-over-anonymization with legal whitelist
+- `final_auditor.py`: Final audit with auto-fix for leaked PII
+- `processor_docx.py`: Run-aware DOCX replacement (preserves formatting)
+- `test_legal_filters.py`: 22 unit tests for legal filtering
 
 ## Original Platform Overview
 This project is a multi-tenant SaaS web platform built with Flask, designed for Conciliation Centers. It enables multiple centers to register, each operating with isolated data, including templates, users, documents, and styles. Each tenant benefits from customizable branding (logo, contact information) and the system supports three distinct user roles, along with a subscription-based plan system (Basic, Medium, Advanced) that gates access to features like user count, document limits, and AI argumentation. The platform aims to streamline document generation, improve legal argumentation with AI, and provide a comprehensive management system for conciliation processes.

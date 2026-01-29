@@ -322,8 +322,85 @@ def detect_layer1_regex(text: str) -> List[Entity]:
 
 
 # ============================================================================
-# CAPA 2: HEURÍSTICA LEGAL PERÚ (CONTEXTO)
+# CAPA 2: HEURÍSTICA LEGAL PERÚ (CONTEXTO ESTRUCTURAL)
 # ============================================================================
+
+# Secciones obligatorias donde SIEMPRE hay PII
+PII_SECTIONS = [
+    'DATOS DEL DEMANDANTE',
+    'DATOS DE LA DEMANDANTE',
+    'DATOS DEL DEMANDADO',
+    'DATOS DE LA DEMANDADA',
+    'DATOS DE LOS SOLICITANTES',
+    'DATOS DE LAS SOLICITANTES',
+    'DATOS DEL SOLICITANTE',
+    'DATOS DE LA SOLICITANTE',
+    'DATOS DEL INVITADO',
+    'DATOS DE LA INVITADA',
+    'DATOS PERSONALES',
+    'DATOS GENERALES',
+    'I. DATOS DEL DEMANDANTE',
+    'II. DATOS DEL DEMANDADO',
+]
+
+TRIGGER_WORDS_PERSONA = [
+    'doña', 'don', 'señor', 'señora', 'sr.', 'sra.',
+    'identificado', 'identificada', 'identificados', 'identificadas',
+    'el demandante', 'la demandante', 'el demandado', 'la demandada',
+    'el solicitante', 'la solicitante', 'el invitado', 'la invitada',
+    'menor de edad', 'los menores', 'las menores',
+    'el padre', 'la madre', 'el cónyuge', 'la cónyuge',
+    'el abogado', 'la abogada', 'el letrado', 'la letrada',
+]
+
+
+def detect_pii_in_sections(text: str) -> List['Entity']:
+    """
+    Detección forzada de PII en secciones obligatorias.
+    Cuando encontramos una sección como "DATOS DEL DEMANDANTE",
+    extraemos agresivamente nombres, DNI, direcciones.
+    """
+    entities = []
+    
+    for section in PII_SECTIONS:
+        pattern = re.compile(
+            re.escape(section) + r'[:\s]*(.{50,500}?)(?=\n\n|\n[A-Z]{2,}|\nI{1,3}\.|\n\d+[.)-])',
+            re.IGNORECASE | re.DOTALL
+        )
+        
+        for match in pattern.finditer(text):
+            section_text = match.group(1)
+            section_start = match.start(1)
+            
+            name_in_section = re.compile(
+                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})',
+                re.UNICODE
+            )
+            for name_match in name_in_section.finditer(section_text):
+                value = name_match.group(1)
+                if not is_excluded_word(value) and len(value.split()) >= 2:
+                    entities.append(Entity(
+                        type='PERSONA',
+                        value=value,
+                        start=section_start + name_match.start(1),
+                        end=section_start + name_match.end(1),
+                        source='section',
+                        confidence=0.95
+                    ))
+            
+            dni_in_section = re.compile(r'\b(\d{8})\b')
+            for dni_match in dni_in_section.finditer(section_text):
+                entities.append(Entity(
+                    type='DNI',
+                    value=dni_match.group(1),
+                    start=section_start + dni_match.start(1),
+                    end=section_start + dni_match.end(1),
+                    source='section',
+                    confidence=1.0
+                ))
+    
+    return entities
+
 
 # Patrones de domicilio
 DOMICILIO_PATTERNS = [
@@ -842,20 +919,29 @@ def apply_legal_filters(entities: List[Entity]) -> Tuple[List[Entity], Dict[str,
 
 def detect_all_pii(text: str, apply_filters: bool = True) -> Tuple[List[Entity], Dict[str, Any]]:
     """
-    Pipeline completo de detección de PII.
-    Ejecuta las 4 capas en orden y devuelve entidades mergeadas.
+    Pipeline completo de detección de PII (8 etapas).
+    
+    ETAPA 1: Preprocesamiento (implícito)
+    ETAPA 2: Regex determinístico (email, DNI, teléfono, direcciones)
+    ETAPA 3: Contexto estructural (secciones DATOS DEL DEMANDANTE, etc.)
+    ETAPA 4: Contexto legal (palabras gatillo)
+    ETAPA 5: NER (apoyo para recall)
+    ETAPA 6: Filtro anti-sobreanonimización
+    ETAPA 7: Merge y consistencia
+    ETAPA 8: Auditor final (en public_app.py)
     
     Args:
         text: Texto a analizar
-        apply_filters: Si True, aplica filtros anti-sobreanonimización (Capa 5)
+        apply_filters: Si True, aplica filtros anti-sobreanonimización
     
     Returns:
         Tuple de (lista de entidades, metadata del proceso)
     """
     metadata = {
-        'layer1_count': 0,
-        'layer2_count': 0,
-        'layer3_count': 0,
+        'layer1_regex_count': 0,
+        'layer2_sections_count': 0,
+        'layer2_context_count': 0,
+        'layer3_personas_count': 0,
         'total_before_merge': 0,
         'total_after_merge': 0,
         'total_after_filter': 0,
@@ -866,26 +952,34 @@ def detect_all_pii(text: str, apply_filters: bool = True) -> Tuple[List[Entity],
     
     all_entities = []
     
-    # CAPA 1: Regex determinístico (alta precisión)
+    # ETAPA 2: Regex determinístico (PRIORIDAD MÁXIMA - no puede fallar)
     try:
         layer1 = detect_layer1_regex(text)
-        metadata['layer1_count'] = len(layer1)
+        metadata['layer1_regex_count'] = len(layer1)
         all_entities.extend(layer1)
     except Exception as e:
-        logging.warning(f"Layer 1 failed: {e}")
+        logging.warning(f"Layer 1 (regex) failed: {e}")
     
-    # CAPA 2: Heurística legal (contexto)
+    # ETAPA 3: Detección en secciones obligatorias (DATOS DEL DEMANDANTE, etc.)
+    try:
+        section_entities = detect_pii_in_sections(text)
+        metadata['layer2_sections_count'] = len(section_entities)
+        all_entities.extend(section_entities)
+    except Exception as e:
+        logging.warning(f"Section detection failed: {e}")
+    
+    # ETAPA 4: Heurística legal (contexto con palabras gatillo)
     try:
         layer2 = detect_layer2_context(text)
-        metadata['layer2_count'] = len(layer2)
+        metadata['layer2_context_count'] = len(layer2)
         all_entities.extend(layer2)
     except Exception as e:
-        logging.warning(f"Layer 2 failed: {e}")
+        logging.warning(f"Layer 2 (context) failed: {e}")
     
-    # CAPA 3: Personas (spaCy + fallback)
+    # ETAPA 5: NER para personas (SOLO PARA RECALL, no es autoritativo)
     try:
         layer3 = detect_layer3_personas(text)
-        metadata['layer3_count'] = len(layer3)
+        metadata['layer3_personas_count'] = len(layer3)
         all_entities.extend(layer3)
         
         spacy_used = any(e.source == 'spacy' for e in layer3)

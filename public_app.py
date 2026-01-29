@@ -22,6 +22,14 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import final auditor for 0-leak guarantee
+try:
+    from final_auditor import audit_document, log_audit_result
+    FINAL_AUDITOR_AVAILABLE = True
+except ImportError:
+    FINAL_AUDITOR_AVAILABLE = False
+    logger.warning("Final auditor not available")
+
 anonymizer_bp = Blueprint("anonymizer", __name__)
 
 app = Flask(__name__)
@@ -737,9 +745,7 @@ def anonymizer_apply():
         
         logger.info(f"APPLY_DONE | job={job_id} | replaced={replaced_count} | output_size={output_size}")
         
-        # POST-SCAN OBLIGATORIO: Verificar que no quede PII residual
-        from detector_capas import post_scan_final
-        
+        # ETAPA 8: AUDITOR FINAL OBLIGATORIO - Garantizar 0 fugas
         post_scan_text = ""
         if output_ext == 'docx':
             from docx import Document
@@ -749,32 +755,103 @@ def anonymizer_apply():
             with open(temp_output, 'r', encoding='utf-8', errors='ignore') as f:
                 post_scan_text = f.read()
         
-        pii_remains, residual_pii = post_scan_final(post_scan_text)
-        
-        # Filtrar tokens ya reemplazados ({{TIPO_N}}) del texto para re-scan
-        text_without_tokens = re.sub(r'\{\{[A-Z]+_\d+\}\}', '', post_scan_text)
-        _, residual_pii_clean = post_scan_final(text_without_tokens)
-        
         residual_warning = None
-        strict_mode = False  # Deshabilitado - solo warning, no bloqueo
         
-        if residual_pii_clean:
-            real_residual = [r for r in residual_pii_clean if r['count'] > 0]
-            if real_residual:
-                logger.warning(f"POST_SCAN | job={job_id} | residual_pii={real_residual}")
+        if FINAL_AUDITOR_AVAILABLE:
+            # Usar auditor con auto-corrección
+            existing_counters = {}
+            for token in mapping.keys():
+                match = re.match(r'\{\{([A-Z]+)_(\d+)\}\}', token)
+                if match:
+                    etype, num = match.groups()
+                    existing_counters[etype] = max(existing_counters.get(etype, 0), int(num))
+            
+            audit_result = audit_document(post_scan_text, auto_fix=True, existing_counters=existing_counters)
+            log_audit_result(audit_result)
+            
+            if audit_result.leaks_found:
+                logger.warning(f"AUDIT | job={job_id} | leaks_found={len(audit_result.leaks_found)} | auto_fixed={audit_result.leaks_auto_fixed}")
+            
+            # PERSISTIR AUTO-FIXES: Escribir texto corregido al archivo de salida
+            if audit_result.leaks_auto_fixed > 0 and audit_result.replacements:
+                logger.info(f"AUDIT_AUTOFIX | job={job_id} | applying {audit_result.leaks_auto_fixed} auto-fixes using {len(audit_result.replacements)} replacement pairs")
                 
-                if strict_mode:
-                    # MODO ESTRICTO: Bloquear descarga y mostrar qué queda
-                    safe_remove(temp_output)
-                    types_list = [f"{r['type']} ({r['count']} ocurrencias)" for r in real_residual]
+                if output_ext == 'docx':
+                    # Para DOCX: usar los reemplazos exactos del auditor
+                    from docx import Document
+                    from processor_docx import replace_in_runs_aware
                     
-                    return render_template("anonymizer_blocked.html",
-                        residual_types=types_list,
-                        total_residual=sum(r['count'] for r in real_residual),
-                        original_filename=original_filename
-                    )
+                    doc_fix = Document(temp_output)
+                    
+                    # Aplicar los reemplazos exactos del auditor
+                    for para in doc_fix.paragraphs:
+                        replace_in_runs_aware(para, audit_result.replacements)
+                    for table in doc_fix.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                for para in cell.paragraphs:
+                                    replace_in_runs_aware(para, audit_result.replacements)
+                    
+                    # Procesar headers y footers también
+                    for section in doc_fix.sections:
+                        for header in [section.header, section.first_page_header, section.even_page_header]:
+                            if header:
+                                for para in header.paragraphs:
+                                    replace_in_runs_aware(para, audit_result.replacements)
+                        for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
+                            if footer:
+                                for para in footer.paragraphs:
+                                    replace_in_runs_aware(para, audit_result.replacements)
+                    
+                    doc_fix.save(temp_output)
+                    logger.info(f"AUDIT_AUTOFIX_DOCX | job={job_id} | saved corrected docx")
+                    
+                    # RE-AUDITAR: Verificar que no quedan fugas en el DOCX corregido
+                    doc_recheck = Document(temp_output)
+                    recheck_text = extract_full_text_docx(doc_recheck)
+                    recheck_result = audit_document(recheck_text, auto_fix=False)
+                    
+                    if not recheck_result.is_safe:
+                        logger.error(f"AUDIT_RECHECK_FAILED | job={job_id} | remaining={recheck_result.remaining_leaks}")
+                        # Actualizar resultado para bloquear descarga
+                        audit_result = recheck_result
+                    else:
+                        logger.info(f"AUDIT_RECHECK_PASSED | job={job_id} | document is safe")
                 else:
-                    # Modo permisivo: warning pero permite descarga
+                    # Para TXT/PDF: escribir el texto corregido directamente
+                    if audit_result.fixed_text:
+                        with open(temp_output, 'w', encoding='utf-8') as f:
+                            f.write(audit_result.fixed_text)
+                        logger.info(f"AUDIT_AUTOFIX_TXT | job={job_id} | saved corrected text")
+            
+            if not audit_result.is_safe:
+                # Documento no seguro - bloquear descarga INCONDICIONALMENTE
+                logger.error(f"AUDIT_UNSAFE | job={job_id} | remaining_leaks={audit_result.remaining_leaks}")
+                safe_remove(temp_output)
+                
+                leak_types = list(set(l['type'] for l in audit_result.leaks_found))
+                types_list = [f"{t} (posibles fugas)" for t in leak_types]
+                
+                return render_template("anonymizer_blocked.html",
+                    residual_types=types_list,
+                    total_residual=audit_result.remaining_leaks,
+                    original_filename=original_filename
+                )
+            
+            # Si hubo auto-correcciones exitosas, advertir al usuario
+            if audit_result.leaks_auto_fixed > 0:
+                residual_warning = f"NOTA: El auditor detectó y corrigió automáticamente {audit_result.leaks_auto_fixed} posibles fugas de PII adicionales."
+        
+        else:
+            # Fallback: usar post_scan_final si el auditor no está disponible
+            from detector_capas import post_scan_final
+            text_without_tokens = re.sub(r'\{\{[A-Z]+_\d+\}\}', '', post_scan_text)
+            _, residual_pii_clean = post_scan_final(text_without_tokens)
+            
+            if residual_pii_clean:
+                real_residual = [r for r in residual_pii_clean if r['count'] > 0]
+                if real_residual:
+                    logger.warning(f"POST_SCAN | job={job_id} | residual_pii={real_residual}")
                     types_found = ', '.join([f"{r['type']} ({r['count']})" for r in real_residual])
                     residual_warning = f"ATENCIÓN: Se detectó posible PII residual en el documento: {types_found}. Revise el documento antes de compartirlo."
         

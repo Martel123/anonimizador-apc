@@ -1,0 +1,152 @@
+ACTÚA COMO:
+Senior Legal-Privacy Engineer + NLP Engineer especializado en Derecho de Familia, Conciliación y Procesal Peruano.
+
+OBJETIVO ÚNICO:
+Mejorar el SISTEMA DE ANONIMIZACIÓN LEGAL para que anonimice SOLO INFORMACIÓN SENSIBLE REAL (PII), con una efectividad cercana al 100%, sin destruir el texto jurídico, sin tocar diseño, UI ni estructura del documento.
+
+----------------------------------------------------------------
+REGLAS ABSOLUTAS (NO NEGOCIABLES)
+----------------------------------------------------------------
+1. NO modificar:
+   - HTML, CSS, UI, diseño visual
+   - Estructura del documento (títulos, numeración, párrafos)
+   - Flujo del sistema (subida → procesamiento → revisión → descarga)
+2. NO reescribir texto jurídico.
+3. NO almacenar documentos ni texto sensible.
+4. SALIDA EXCLUSIVA POR TOKENS ({{PERSONA_1}}, {{DNI_1}}, etc.).
+5. MODO ESTRICTO SIEMPRE ACTIVADO.
+6. Ante duda → NO anonimizar automáticamente, pero marcar para revisión.
+
+----------------------------------------------------------------
+QUÉ SÍ DEBE ANONIMIZARSE (LISTA NEGRA OBLIGATORIA)
+----------------------------------------------------------------
+Anonimizar SIEMPRE:
+
+A) Identidad personal
+- Nombres y apellidos (adultos y menores)
+- Firmas
+- Alias identificables
+
+B) Identificadores
+- DNI / D.N.I (8 dígitos)
+- CE / Pasaporte
+- RUC (si aplica)
+- Placas vehiculares
+- CMP (médicos)
+- Casillas electrónicas personales
+- Números de póliza, actas, expedientes vinculados a persona
+
+C) Contacto
+- Correos electrónicos (cualquier dominio)
+- Teléfonos / celulares / WhatsApp
+
+D) Direcciones físicas
+- Calle / Jr. / Av. / Psje
+- Número, Dpto, Mz, Lote, Torre
+- Urb., Condominio
+- Domicilio real y procesal
+
+E) Información médica sensible
+- Diagnósticos
+- Historial médico individual
+- Tratamientos vinculados a una persona
+
+F) Información de menores
+- Nombre
+- Edad exacta
+- Centro educativo
+- Domicilio y régimen de visitas
+
+----------------------------------------------------------------
+QUÉ NUNCA DEBE ANONIMIZARSE (LISTA BLANCA CRÍTICA)
+----------------------------------------------------------------
+PROHIBIDO anonimizar:
+
+- Texto jurídico estándar:
+  “Interpongo demanda”, “Amparo mi demanda”, “Por lo expuesto”,
+  “Fundamentos de hecho / derecho”, “Señor Juez”, “PRIMERO / SEGUNDO / TERCERO”
+- Verbos jurídicos y conectores procesales.
+- Encabezados y títulos.
+- Artículos de ley, códigos, jurisprudencia.
+- Entidades públicas:
+  Poder Judicial, RENIEC, SUNAT, AFP, ONP, PNP, Ministerios, Municipalidades.
+- Montos, porcentajes y fechas cuando NO identifican directamente a una persona.
+
+----------------------------------------------------------------
+PIPELINE OBLIGATORIO (ORDEN ESTRICTO)
+----------------------------------------------------------------
+
+ETAPA 1 – PREPROCESAMIENTO
+- Extraer texto preservando estructura.
+- Normalizar espacios SIN reescribir contenido.
+
+ETAPA 2 – DETECCIÓN POR REGLAS (PRIORIDAD MÁXIMA)
+- Regex obligatorios para:
+  Email, Teléfono, DNI, Direcciones, Placas, CMP.
+- Estas detecciones NO dependen de IA y NO pueden fallar.
+
+ETAPA 3 – DETECCIÓN POR CONTEXTO ESTRUCTURAL
+- Forzar detección de PERSONA y PII en secciones como:
+  “DATOS DEL DEMANDANTE”, “DATOS DE LA DEMANDADA”,
+  “DATOS DE LOS SOLICITANTES”, “IDENTIFICADO(A) CON…”
+- Uso de palabras gatillo: “doña”, “don”, “identificado”, “DNI”, “domicilio”.
+
+ETAPA 4 – APOYO NER (SOLO PARA RECALL)
+- Usar NER únicamente como apoyo.
+- NER NUNCA tiene la última palabra.
+
+ETAPA 5 – FILTRO LEGAL ANTI-SOBREANONIMIZACIÓN
+Descartar cualquier entidad si:
+- Contiene verbos jurídicos (“interpongo”, “amparo”, “solicito”, “declaro”).
+- Es encabezado, título o numeración.
+- Es frase larga sin forma de nombre propio.
+- Está incluida en la LISTA BLANCA LEGAL.
+
+ETAPA 6 – CONSISTENCIA DE TOKENS
+- El mismo dato → el mismo token SIEMPRE.
+- Diccionario por documento:
+  normalized_value → token fijo.
+
+ETAPA 7 – REEMPLAZO SEGURO
+- Reemplazo completo del span (nunca parcial).
+- No romper palabras ni runs DOCX.
+- El texto original sensible NO debe quedar visible en ningún caso.
+
+ETAPA 8 – AUDITOR FINAL (OBLIGATORIO)
+- Escanear el documento final.
+- Si queda:
+  • algún email real
+  • algún DNI (8 dígitos)
+  • algún teléfono
+→ reemplazar automáticamente.
+- Si no puede corregirse → marcar como NO SEGURO.
+
+----------------------------------------------------------------
+CRITERIOS DE CALIDAD Y MÉTRICAS
+----------------------------------------------------------------
+- Privacy Recall ≥ 99%
+- Precision (no tocar texto jurídico) ≥ 98%
+- 0 fugas de email / DNI / teléfono
+
+Si existe una sola fuga → el documento NO cumple.
+
+----------------------------------------------------------------
+APRENDIZAJE SEGURO (SIN DATOS)
+----------------------------------------------------------------
+- NO guardar texto real.
+- SOLO guardar patrones abstractos:
+  • decisiones de whitelist
+  • reglas estructurales
+  • correcciones de clasificación
+- El sistema mejora por reglas, no por documentos.
+
+----------------------------------------------------------------
+ENTREGABLE FINAL
+----------------------------------------------------------------
+- Documento visualmente idéntico al original.
+- SOLO los datos sensibles reemplazados por tokens.
+- Texto jurídico intacto.
+- Privacidad garantizada.
+
+COMIENZA AHORA:
+Analiza el pipeline existente, aplica estas reglas en orden estricto y ajusta únicamente la detección y clasificación. NO toques diseño ni flujo.
