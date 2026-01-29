@@ -489,6 +489,51 @@ EXCLUDED_WORDS = {
     'OTROSÍ', 'OTROSI', 'DECRETO', 'LEGISLATIVO', 'SUPREMO', 'URGENCIA',
     'DATOS', 'DOMICILIO', 'GENERALES', 'PERSONALES', 'PETITORIO', 'DEMANDA',
     'INVOCANDO', 'INTERÉS', 'INTERES', 'LEGITIMIDAD', 'OBRAR',
+    'AMPARO', 'INTERPONGO', 'FORMULO', 'DEDUZCO', 'SOLICITO', 'DECLARO',
+    'MANIFIESTO', 'EXPONGO', 'ACREDITO', 'ADJUNTO', 'OFREZCO', 'PRESENTO',
+    'ANTECEDENTES', 'CONSIDERANDO', 'RESUELVE', 'FALLO', 'DISPONE', 'ORDENA',
+    'ALIMENTOS', 'DIVORCIO', 'TENENCIA', 'REGIMEN', 'RÉGIMEN', 'VISITAS',
+    'FILIACION', 'FILIACIÓN', 'ADOPCION', 'ADOPCIÓN', 'SUCESION', 'SUCESIÓN',
+    'OBLIGACION', 'OBLIGACIÓN', 'CONTRATO', 'INCUMPLIMIENTO',
+    'INDEMNIZACION', 'INDEMNIZACIÓN', 'DAÑOS', 'PERJUICIOS', 'EMERGENTE',
+    'LUCRO', 'CESANTE', 'MORAL', 'FECHA', 'VIGENTE', 'CONFORME', 'VIRTUD',
+    'CONSECUENCIA', 'EMBARGO', 'TANTO', 'ELLO', 'ASIMISMO', 'ADEMÁS', 'ADEMAS',
+    'SEXTO', 'SEPTIMO', 'SÉPTIMO', 'OCTAVO', 'NOVENO', 'DECIMO', 'DÉCIMO',
+    'NOTIFIQUESE', 'NOTIFÍQUESE', 'CUMPLASE', 'CÚMPLASE', 'HAGASE', 'HÁGASE',
+    'AREQUIPA', 'TRUJILLO', 'CHICLAYO', 'PIURA', 'CUSCO', 'TACNA', 'ICA',
+    'HUANCAYO', 'PUNO', 'IQUITOS', 'MOQUEGUA', 'TUMBES', 'ANCASH', 'JUNIN',
+    'LAMBAYEQUE', 'LORETO', 'PASCO', 'UCAYALI', 'AMAZONAS', 'AYACUCHO',
+    'CAJAMARCA', 'HUANUCO', 'HUANCAVELICA', 'APURIMAC', 'MADRE', 'DIOS',
+    'MARTIN', 'SAN', 'DOCTOR', 'DOCTORA', 'ABOGADO', 'ABOGADA',
+    'MENOR', 'MENORES', 'HIJOS', 'HIJAS', 'PADRE', 'MADRE', 'CONYUGE',
+    'ESPOSO', 'ESPOSA', 'CONVIVIENTE', 'HEREDERO', 'HEREDEROS',
+}
+
+EXCLUDED_PHRASES = {
+    'FUNDAMENTOS DE HECHO', 'FUNDAMENTOS DE DERECHO', 'MEDIOS PROBATORIOS',
+    'AMPARO MI DEMANDA', 'INTERPONGO DEMANDA', 'FORMULO DEMANDA',
+    'POR LO EXPUESTO', 'A USTED PIDO', 'A UD PIDO', 'EN CONSECUENCIA',
+    'SIN EMBARGO', 'NO OBSTANTE', 'POR TANTO', 'POR ELLO', 'ASIMISMO',
+    'DEL MISMO MODO', 'EN ESTE SENTIDO', 'EN TAL SENTIDO', 'CABE SEÑALAR',
+    'ES PRECISO', 'RESULTA NECESARIO', 'ES DE VERSE', 'A LA FECHA',
+    'AL RESPECTO', 'POR LO QUE', 'SIENDO ASI', 'SIENDO ASÍ', 'ESTANDO A',
+    'EN MERITO A', 'EN MÉRITO A', 'CONFORME A', 'DE CONFORMIDAD CON',
+    'EN VIRTUD DE', 'SEÑOR JUEZ', 'SEÑORA JUEZA', 'CUADERNO PRINCIPAL',
+    'CUADERNO CAUTELAR', 'OTROSI DIGO', 'OTROSÍ DIGO', 'PODER JUDICIAL',
+    'CORTE SUPREMA', 'CORTE SUPERIOR', 'TRIBUNAL CONSTITUCIONAL',
+    'MINISTERIO PUBLICO', 'MINISTERIO PÚBLICO', 'DEFENSORIA DEL PUEBLO',
+    'DEFENSORÍA DEL PUEBLO', 'CODIGO CIVIL', 'CÓDIGO CIVIL',
+    'CODIGO PROCESAL CIVIL', 'CÓDIGO PROCESAL CIVIL', 'CODIGO PENAL',
+    'CÓDIGO PENAL', 'CONSTITUCION POLITICA', 'CONSTITUCIÓN POLÍTICA',
+    'DECRETO SUPREMO', 'DECRETO LEGISLATIVO', 'DECRETO DE URGENCIA',
+    'LEY ORGANICA', 'LEY ORGÁNICA', 'LEY GENERAL', 'TEXTO UNICO ORDENADO',
+    'TEXTO ÚNICO ORDENADO', 'PRECEDENTE VINCULANTE', 'ACUERDO PLENARIO',
+    'EL DEMANDANTE', 'LA DEMANDANTE', 'EL DEMANDADO', 'LA DEMANDADA',
+    'LOS DEMANDANTES', 'LAS DEMANDANTES', 'LOS DEMANDADOS', 'LAS DEMANDADAS',
+    'EL RECURRENTE', 'LA RECURRENTE', 'EL SOLICITANTE', 'LA SOLICITANTE',
+    'PARTE ACTORA', 'PARTE DEMANDADA', 'INVOCANDO INTERÉS', 'INVOCANDO INTERES',
+    'DATOS DEL DEMANDADO', 'DATOS DEL DEMANDANTE', 'DATOS DE LA DEMANDADA',
+    'DATOS Y DOMICILIO', 'DOMICILIO PROCESAL', 'DOMICILIO REAL',
 }
 
 # Disparadores de contexto para personas
@@ -510,18 +555,31 @@ PERSON_TRIGGERS = {
 }
 
 
-def is_excluded_word(word: str) -> bool:
-    """Verifica si una palabra está en la lista de exclusión."""
-    normalized = word.upper().strip()
+def is_excluded_word(text: str) -> bool:
+    """
+    Verifica si un texto está en la lista de exclusión.
+    Incluye palabras individuales y frases jurídicas completas.
+    """
+    normalized = ' '.join(text.upper().split())
+    
+    if normalized in EXCLUDED_PHRASES:
+        return True
+    
     words = normalized.split()
     
-    # Si es una sola palabra, verificar directamente
     if len(words) == 1:
         return words[0] in EXCLUDED_WORDS
     
-    # Si son múltiples palabras, verificar si todas son excluidas
-    excluded_count = sum(1 for w in words if w in EXCLUDED_WORDS)
-    return excluded_count == len(words)
+    if len(words) <= 4:
+        excluded_count = sum(1 for w in words if w in EXCLUDED_WORDS)
+        if excluded_count == len(words):
+            return True
+    
+    for phrase in EXCLUDED_PHRASES:
+        if phrase in normalized:
+            return True
+    
+    return False
 
 
 def has_trigger_nearby(text: str, start: int, window: int = 100) -> bool:
@@ -746,10 +804,50 @@ def merge_entities(all_entities: List[Entity]) -> List[Entity]:
 # PIPELINE PRINCIPAL
 # ============================================================================
 
-def detect_all_pii(text: str) -> Tuple[List[Entity], Dict[str, Any]]:
+def apply_legal_filters(entities: List[Entity]) -> Tuple[List[Entity], Dict[str, Any]]:
+    """
+    CAPA 5: Aplica filtros anti-sobreanonimización.
+    Filtra entidades que son texto jurídico, no PII real.
+    """
+    try:
+        from legal_filters import should_anonymize_span, FilterResult
+    except ImportError:
+        logging.warning("legal_filters module not available, skipping filtering")
+        return entities, {'filter_available': False}
+    
+    filtered = []
+    filter_stats = {
+        'filter_available': True,
+        'total_input': len(entities),
+        'accepted': 0,
+        'rejected': 0,
+        'rejected_reasons': {}
+    }
+    
+    for entity in entities:
+        should_keep, reason = should_anonymize_span(entity.value, entity.type)
+        
+        if should_keep:
+            if reason == "possible_name":
+                entity.confidence = min(entity.confidence, 0.7)
+            filtered.append(entity)
+            filter_stats['accepted'] += 1
+        else:
+            filter_stats['rejected'] += 1
+            filter_stats['rejected_reasons'][reason] = filter_stats['rejected_reasons'].get(reason, 0) + 1
+            logging.debug(f"Filtered out: '{entity.value[:40]}' ({entity.type}) - {reason}")
+    
+    return filtered, filter_stats
+
+
+def detect_all_pii(text: str, apply_filters: bool = True) -> Tuple[List[Entity], Dict[str, Any]]:
     """
     Pipeline completo de detección de PII.
     Ejecuta las 4 capas en orden y devuelve entidades mergeadas.
+    
+    Args:
+        text: Texto a analizar
+        apply_filters: Si True, aplica filtros anti-sobreanonimización (Capa 5)
     
     Returns:
         Tuple de (lista de entidades, metadata del proceso)
@@ -760,13 +858,15 @@ def detect_all_pii(text: str) -> Tuple[List[Entity], Dict[str, Any]]:
         'layer3_count': 0,
         'total_before_merge': 0,
         'total_after_merge': 0,
+        'total_after_filter': 0,
         'spacy_used': False,
         'fallback_used': False,
+        'filter_stats': {}
     }
     
     all_entities = []
     
-    # CAPA 1: Regex determinístico
+    # CAPA 1: Regex determinístico (alta precisión)
     try:
         layer1 = detect_layer1_regex(text)
         metadata['layer1_count'] = len(layer1)
@@ -774,7 +874,7 @@ def detect_all_pii(text: str) -> Tuple[List[Entity], Dict[str, Any]]:
     except Exception as e:
         logging.warning(f"Layer 1 failed: {e}")
     
-    # CAPA 2: Heurística legal
+    # CAPA 2: Heurística legal (contexto)
     try:
         layer2 = detect_layer2_context(text)
         metadata['layer2_count'] = len(layer2)
@@ -782,13 +882,12 @@ def detect_all_pii(text: str) -> Tuple[List[Entity], Dict[str, Any]]:
     except Exception as e:
         logging.warning(f"Layer 2 failed: {e}")
     
-    # CAPA 3: Personas
+    # CAPA 3: Personas (spaCy + fallback)
     try:
         layer3 = detect_layer3_personas(text)
         metadata['layer3_count'] = len(layer3)
         all_entities.extend(layer3)
         
-        # Determinar si se usó spaCy o fallback
         spacy_used = any(e.source == 'spacy' for e in layer3)
         heuristic_used = any(e.source == 'heuristic' for e in layer3)
         metadata['spacy_used'] = spacy_used
@@ -798,10 +897,18 @@ def detect_all_pii(text: str) -> Tuple[List[Entity], Dict[str, Any]]:
     
     metadata['total_before_merge'] = len(all_entities)
     
-    # CAPA 4: Merge
+    # CAPA 4: Merge y deduplicación
     merged = merge_entities(all_entities)
     metadata['total_after_merge'] = len(merged)
     
+    # CAPA 5: Filtros anti-sobreanonimización
+    if apply_filters:
+        filtered, filter_stats = apply_legal_filters(merged)
+        metadata['filter_stats'] = filter_stats
+        metadata['total_after_filter'] = len(filtered)
+        return filtered, metadata
+    
+    metadata['total_after_filter'] = len(merged)
     return merged, metadata
 
 

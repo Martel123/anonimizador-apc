@@ -1,0 +1,122 @@
+ACTÚA COMO: Senior Legal-Privacy Engineer + NLP/NER Engineer.
+OBJETIVO: Mejorar el ANONIMIZADOR LEGAL (DOCX/TXT) para que anonimice SOLO INFORMACIÓN SENSIBLE con exactitud máxima (meta: 99–100% de cobertura), evitando a toda costa la sobre-anonimización de texto jurídico.
+
+REGLA DE ORO (NO NEGOCIABLE):
+- NO modificar diseño, UI, templates, CSS, ni estructura del documento final.
+- NO modificar el flujo (subida → procesamiento → resultados → revisión → descarga).
+- SOLO tocar: detección de entidades, clasificación, normalización, reglas de reemplazo, consistencia de tokens y evaluación.
+- Mantener: “cero almacenamiento”, borrado automático, modo estricto ON, salida por TOKENS (no reescritura), y las decisiones previas (no “sintético”, no asteriscos).
+
+CONTEXTO DE FALLOS DETECTADOS:
+1) Sobre-anonimización: se están tokenizando frases jurídicas (ej. “Amparo mi demanda”, “Fundamentos de hecho”, “A la fecha…”, conectores, títulos) como {{PERSONA_x}}.
+2) Clasificación errónea: conceptos legales/económicos comunes aparecen como PERSONA.
+3) Inconsistencia: el mismo texto no-sensible se tokeniza con IDs distintos o con categorías equivocadas.
+4) Fugas menores: algunas entidades sensibles (instituciones privadas, empleadores, etc.) pueden escapar si no calzan con patrones.
+
+ENTIDADES SENSIBLES (DEBE ANONIMIZAR):
+A) Personas naturales (nombres y apellidos), incluyendo menores, abogados, procuradores.
+B) Identificadores: DNI, CE, RUC (si aplica), PASAPORTE, placas, pólizas, códigos únicos, número de expediente cuando incluya patrón sensible.
+C) Contacto: correo, teléfono, WhatsApp.
+D) Direcciones específicas: calle/jirón/av, número, mz/lote, dpto, urb, distrito, provincia, dpto.
+E) Cuentas/medios de pago/CBU/CCI si aparecieran.
+F) Firmas / nombres al final.
+G) Cualquier dato que permita identificar directamente a una persona o su domicilio.
+
+NO SENSIBLE (PROHIBIDO ANONIMIZAR):
+- Estructura y texto jurídico: “Señor Juez”, “Fundamentos de hecho”, “Amparo mi demanda…”, “PRIMERO/SEGUNDO…”, “Por lo expuesto…”, artículos y leyes, frases estándar, conectores (“en consecuencia”, “sin embargo”), encabezados, tablas de gastos (salvo si contienen dato identificable).
+- Montos y porcentajes por sí solos NO son PII (S/. 1,600; 40%), salvo que estén atados a un identificador personal directo in-line.
+- Nombres genéricos de instituciones públicas pueden quedar (Juzgado, RENIEC, Poder Judicial) a menos que el usuario pida lo contrario.
+
+IMPLEMENTACIÓN REQUERIDA (EN CÓDIGO):
+1) Crear un “pipeline híbrido” (Reglas + NER + validación) con etapas:
+   ETAPA 1: Preprocesamiento
+   - Extraer texto preservando saltos/estructura.
+   - Normalizar espacios, pero NO reescribir contenido.
+
+   ETAPA 2: Detección por reglas (alta precisión)
+   - Regex robustos para: DNI (8 dígitos), CE, RUC, teléfono Perú (9 dígitos + prefijos), emails, direcciones (Av./Jr./Calle/Urbanización/Mz/Lote/Dpto/Bloque/Km), casilla electrónica, números de póliza, actas (N°xxx-xxxx), expedientes (si se decide).
+   - Estas detecciones tienen prioridad máxima y NO deben fallar.
+
+   ETAPA 3: Detección por NER (recall)
+   - Usar NER para PERSONAS y ORGANIZACIONES privadas cuando aparezcan como empleadores/seguros/centros privados.
+   - PERO: aplicar filtros de “no tocar texto jurídico”.
+
+   ETAPA 4: Filtros anti-sobreanonimización (obligatorio)
+   - Implementar un “LEGAL_WHITELIST” + “LEGAL_BLACKLIST” para evitar tokenizar frases jurídicas frecuentes.
+   - Heurísticas:
+     a) NO tokenizar si el span contiene verbos comunes (“interpongo”, “amparo”, “solicito”, “declaro”, “digo”) o es una frase conectora.
+     b) NO tokenizar spans largos (>4 palabras) si no parecen nombre propio (capitalización típica de nombres).
+     c) NO tokenizar encabezados (“FUNDAMENTOS DE HECHO”, “MEDIOS PROBATORIOS”, “ANEXOS”, “OTROSI DIGO”).
+     d) NO tokenizar “roles” genéricos (Señor Juez, demandada, recurrente) salvo que venga con nombre propio.
+   - Cualquier entidad NER que caiga en whitelist → descartar.
+
+   ETAPA 5: Consistencia de tokens (crítico)
+   - Si “Eduardo Gamarra Pérez” aparece 10 veces, SIEMPRE debe mapear al mismo token (ej. {{PERSONA_1}}).
+   - Idem para DNI, direcciones, emails, teléfonos.
+   - Crear diccionario global por documento: normalized_span -> token.
+   - Normalización:
+     - Trim, colapsar espacios, normalizar mayúsculas/minúsculas conservando original para reemplazo exacto.
+
+   ETAPA 6: Reemplazo seguro (sin destruir documento)
+   - Reemplazo por tokens conservando puntuación y formato.
+   - No introducir tokens dentro de palabras.
+   - Evitar reemplazo parcial que corrompa texto.
+   - Mantener estructura DOCX: reemplazar en runs de forma robusta (reconstruir runs si es necesario sin alterar estilos).
+
+2) Métricas y “evaluación automática” (obligatorio)
+   - Implementar un reporte por documento:
+     - Conteo de entidades sensibles detectadas por tipo.
+     - Conteo reemplazadas por token.
+     - Lista de “posibles fugas” (emails/teléfonos/DNI detectables por regex que queden sin token).
+     - Lista de “posibles sobreanonimizaciones” (tokens aplicados a spans que estén en whitelist).
+   - Generar un score:
+     - Privacy Recall: % de entidades sensibles (regex) anonimizadas.
+     - Precision: penalizar tokens aplicados a spans whitelist.
+     - Score final = 0.7*Recall + 0.3*Precision.
+   - Objetivo: Recall >= 99%, Precision >= 98%.
+
+3) Compatibilidad con modo estricto ON
+   - Si el sistema no está seguro de una entidad (NER débil), NO tokenizar; pero sí marcar en “posibles fugas” para revisión manual.
+   - PRIORIDAD: nunca romper el documento por sobreanonimizar.
+
+4) No tocar diseño ni UI
+   - No modificar templates HTML/CSS, no cambiar layout.
+   - Si hay UI para mostrar reporte, solo agregar un bloque de texto simple ya existente (si existe) sin cambiar estilos.
+   - Si no existe UI, guardar el reporte solo en logs del servidor o como JSON temporal (borrado al final) sin persistencia.
+
+ARCHIVOS / PUNTOS A MODIFICAR (GUÍA PARA EL AGENTE):
+- Ubicar el módulo donde se hace:
+  a) extracción de texto
+  b) detección de entidades
+  c) reemplazo en DOCX
+- Implementar:
+  - rules_detector.py (regex + normalización)
+  - ner_detector.py (si existe, ajustarlo con filtros)
+  - filters_legal.py (whitelist/heurísticas)
+  - token_map.py (consistencia)
+  - evaluator.py (métricas + reporte)
+- Integrar al pipeline actual SIN cambiar endpoints ni flujo.
+
+CASOS DE PRUEBA (OBLIGATORIO):
+- Crear tests unitarios mínimos:
+  1) No tokenizar: “Amparo mi demanda…”, “Fundamentos de hecho”, “En consecuencia…”
+  2) Tokenizar: nombre completo, DNI 8 dígitos, email, teléfono, dirección con Av/Jr + número, pólizas N°.
+  3) Consistencia: el mismo nombre repetido → mismo token.
+  4) Runs DOCX: reemplazo no rompe estilos ni palabras.
+
+ENTREGABLES:
+1) Código implementado integrado al pipeline existente.
+2) Reporte de evaluación por documento (en logs o JSON temporal).
+3) Evidencia de tests pasando.
+4) Explicación breve (en comentarios) de whitelist + heurísticas y cómo ajustarlas.
+
+IMPORTANTE:
+- NO “inventar” detecciones: si un span no es claramente PII, NO tokenizar.
+- NO tokenizar montos, porcentajes o textos legales por sí solos.
+- El documento final debe verse igual, salvo que los datos sensibles ahora sean tokens.
+
+EMPIEZA AHORA:
+1) Inspecciona el repositorio y ubica el pipeline actual de anonimización.
+2) Implementa el pipeline híbrido con anti-sobreanonimización.
+3) Agrega tests.
+4) Ejecuta y corrige hasta cumplir los objetivos.
