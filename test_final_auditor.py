@@ -200,6 +200,54 @@ class TestAuditDocument:
         assert len(result.replacements) >= 2
 
 
+class TestActaRegistroDetection:
+    def test_detect_acta_conciliacion(self):
+        from final_auditor import find_acta_registro_leaks
+        text = "Acta de Conciliación N° 00123-2024 del Centro de Conciliación"
+        leaks = find_acta_registro_leaks(text)
+        assert len(leaks) >= 1
+        assert any('ACTA_REGISTRO' in l['type'] for l in leaks)
+    
+    def test_detect_registro(self):
+        from final_auditor import find_acta_registro_leaks
+        text = "Registro N° 45678 del Libro de Actas"
+        leaks = find_acta_registro_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_expediente(self):
+        from final_auditor import find_acta_registro_leaks
+        text = "Expediente N° 00456-2024-0-1801-JR-CI-01"
+        leaks = find_acta_registro_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_constancia(self):
+        from final_auditor import find_acta_registro_leaks
+        text = "Constancia N° 12345 de fecha 15 de enero"
+        leaks = find_acta_registro_leaks(text)
+        assert len(leaks) >= 1
+
+
+class TestPlacaDetection:
+    def test_detect_placa_with_context(self):
+        from final_auditor import find_placa_leaks
+        text = "Vehículo con placa ABC-123 color rojo"
+        leaks = find_placa_leaks(text)
+        assert len(leaks) >= 1
+        assert any('PLACA' in l['type'] for l in leaks)
+    
+    def test_detect_placa_moto(self):
+        from final_auditor import find_placa_leaks
+        text = "Motocicleta con placa ABC-123 de color azul"
+        leaks = find_placa_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_ignore_without_context(self):
+        from final_auditor import find_placa_leaks
+        text = "El código ABC-123 no corresponde a nada"
+        leaks = find_placa_leaks(text)
+        assert len(leaks) == 0
+
+
 class TestIntegration:
     def test_complete_document(self):
         text = """

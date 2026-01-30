@@ -1,0 +1,196 @@
+ACTÚA COMO:
+Principal Engineer (Python/Flask) + Legal Privacy Engineer (Perú) + DOCX Specialist.
+
+MISIÓN ÚNICA Y CERRADA:
+Garantizar que la ANONIMIZACIÓN LEGAL entregue, EN LA PRIMERA EJECUCIÓN, un ARCHIVO FINAL (DOCX/PDF) SIN NINGUNA FUGA de información sensible real (PII). El sistema debe auto-corregir silenciosamente cualquier fuga antes de permitir descarga. El objetivo es 100% o lo más cercano posible, medido SOBRE EL ARCHIVO FINAL DESCARGABLE, no sobre texto intermedio.
+
+=====================================================================
+REGLAS DE OBEDIENCIA ABSOLUTA (NO NEGOCIABLES)
+=====================================================================
+1) NO HAGAS NADA que no esté explícitamente ordenado aquí.
+2) PROHIBIDO:
+   - Agregar features nuevas (buscador, filtros, UI extra, etc.)
+   - Cambiar HTML/CSS/diseño visual (salvo eliminar el modal indicado).
+   - Reescribir texto jurídico, títulos, numeración o redacción.
+   - Guardar texto sensible o documentos (cero almacenamiento).
+3) SOLO PUEDES MODIFICAR:
+   - Detección (regex + reglas estructurales)
+   - Auditor final (que DETECTA, CORRIGE y PERSISTE)
+   - Reemplazo run-aware en DOCX (incluye tablas y headers/footers)
+   - Ruta de descarga para garantizar 0 fugas
+   - Eliminación del modal “Anonimización incompleta”
+4) Prioridad absoluta:
+   PRIVACIDAD REAL (0 fugas) > estilo de runs > cualquier otra cosa.
+5) Si este prompt no ordena algo, NO LO HAGAS.
+
+=====================================================================
+DEFINICIÓN EXACTA DE “0 FUGAS”
+=====================================================================
+Un documento es SEGURO solo si el ARCHIVO FINAL DESCARGABLE NO contiene:
+- Emails reales
+- Teléfonos reales
+- DNIs / CE / Pasaporte / RUC reales
+- Números de colegiatura profesional (CAL, C.A.L., CMP, CIP, CAP, CPA, etc.)
+- Direcciones físicas específicas (calles, avenidas, números, dpto, mz, lote, urb, condominio, torre, km)
+- Números de acta de conciliación
+- Números de registro de documento
+- Números de expediente, acta, constancia o registro que identifiquen a personas
+- Placas vehiculares
+- Cualquier valor sensible donde quede “valor original + token” (esto es FUGA).
+
+=====================================================================
+ENTIDADES OBLIGATORIAS A TOKENIZAR (LISTA NEGRA)
+=====================================================================
+
+A) EMAIL (obligatorio)
+- Cualquier formato válido, incluso si está:
+  - partido en runs
+  - con espacios raros
+  - en mayúsculas/minúsculas
+
+B) TELÉFONO (obligatorio)
+Debe detectar y tokenizar:
+- 9XXXXXXXX
+- +51 9XXXXXXXX
+- +51 987 654 321
+- 987-654-321
+- (01) 234-5678 / 01 2345678 / 01-2345678
+- Cualquier combinación con espacios, guiones o paréntesis.
+
+C) DNI / CE / PASAPORTE / RUC (obligatorio)
+- DNI: 8 dígitos.
+- Regla positiva: si cerca (±40 chars) hay:
+  “DNI”, “D.N.I”, “N°”, “Nº”, “identificado con”, “identificada con”, “doc. identidad”
+  → tratar SIEMPRE como DNI.
+- CE / Pasaporte: cuando aparezcan con su identificador textual.
+- RUC: 11 dígitos cuando aparezca “RUC” cerca.
+- Excepción: fechas tipo YYYYMMDD (1900–2100) NO son DNI.
+
+D) NÚMERO DE COLEGIATURA (obligatorio)
+Tokenizar números que aparezcan cerca de:
+- “Colegiatura”
+- “CAL”, “C.A.L.”, “Colegio de Abogados”
+- “CMP”
+- “CIP”, “CAP”, “CPA” (solo si aparecen explícitamente)
+Regla positiva: si aparece el identificador profesional, el número siguiente es sensible.
+
+E) DIRECCIONES (obligatorio)
+Tokenizar cuando haya combinación de:
+- Tipo de vía: Calle, Av., Avenida, Jr., Jirón, Psje, Pasaje, Km
+- + nombre
+- + número / dpto / mz / lote / urb / condominio / torre / oficina
+Incluye domicilio real y procesal.
+
+F) NÚMEROS DE ACTA Y REGISTROS (obligatorio)
+Tokenizar números asociados a:
+- “Acta de conciliación”
+- “N° de acta”
+- “Registro N°”
+- “N° de registro”
+- “Constancia N°”
+- “Documento N°”
+- “Expediente N°” cuando identifique a partes
+Regla: si el número permite identificar un caso o persona → tokenizar.
+
+G) PLACAS VEHICULARES (si aparecen)
+- Formatos comunes tipo ABC-123, A1B-234, etc.
+
+=====================================================================
+LISTA BLANCA (PROHIBIDO TOKENIZAR)
+=====================================================================
+- Texto jurídico estándar (interpongo demanda, amparo mi demanda, fundamentos, etc.).
+- Títulos, encabezados, numeración.
+- Artículos de ley, códigos, jurisprudencia.
+- Entidades públicas (PJ, RENIEC, SUNAT, ministerios, municipalidades).
+- Montos, porcentajes y fechas, SALVO que formen parte directa de un identificador sensible.
+
+=====================================================================
+CAMBIO UX OBLIGATORIO
+=====================================================================
+- ELIMINAR completamente el modal/pantalla:
+  “Anonimización incompleta”.
+- Nuevo comportamiento:
+  1) Auto-corrección silenciosa en backend.
+  2) Solo permitir descarga cuando el ARCHIVO FINAL esté libre de fugas.
+  3) Si tras 2 iteraciones aún hay fugas (caso extremo):
+     redirigir a revisión con mensaje neutro:
+     “Verificación adicional de seguridad requerida”.
+  4) NO usar palabras como “falló” o “incompleta”.
+
+=====================================================================
+PROBLEMA CRÍTICO A CORREGIR (CAUSA DE FUGAS ACTUALES)
+=====================================================================
+El auditor actual:
+- Detecta sobre texto plano
+- Genera fixed_text / replacements
+PERO:
+- NO persiste correctamente los reemplazos en el DOCX final
+- Hace append en vez de replace
+- No cubre tablas ni headers/footers
+
+ESTO DEBE QUEDAR CORREGIDO.
+
+=====================================================================
+IMPLEMENTACIÓN OBLIGATORIA (ORDEN ESTRICTO)
+=====================================================================
+
+PASO 1 — IDENTIFICAR
+Ubica exactamente:
+- dónde se guarda el DOCX final (doc.save(path))
+- qué archivo/path se descarga
+- dónde se ejecuta el auditor
+
+PASO 2 — MEJORAR AUDITOR FINAL
+- Agregar detección para:
+  - colegiaturas
+  - direcciones
+  - actas y registros
+- Corregir regex de DNI/teléfono/email
+- El auditor DEBE devolver replacements (valor_original → token).
+
+PASO 3 — APLICAR REEMPLAZOS AL DOCX REAL (RUN-AWARE)
+Implementa apply_replacements_to_docx(doc, replacements) que:
+- Recorra:
+  a) document.paragraphs
+  b) document.tables (todas las celdas)
+  c) headers/footers + sus tablas
+- Para cada párrafo:
+  - unir runs
+  - aplicar replace COMPLETO (nunca append)
+  - reescribir el párrafo (privacidad > estilo)
+
+PASO 4 — GARANTÍA EN LA RUTA DE DESCARGA
+Justo antes de servir el archivo:
+1) Abrir el DOCX final REAL
+2) Extraer texto
+3) audit_document(auto_fix=True)
+4) apply_replacements_to_docx
+5) Guardar MISMO path
+6) Re-extraer texto
+7) Re-auditar
+8) Repetir máx 2 iteraciones
+9) Si no hay fugas → permitir descarga
+
+PASO 5 — TESTS REALES OBLIGATORIOS
+Tests con DOCX que contengan:
+- email partido en runs
+- teléfono con +51 y guiones
+- DNI con “D.N.I. N°”
+- colegiatura (CAL / CMP)
+- dirección completa
+- acta de conciliación con número
+Y verificar que el DOCX FINAL no contenga esos valores.
+
+=====================================================================
+ENTREGABLE Y CONFIRMACIÓN
+=====================================================================
+Al finalizar, RESPONDE SOLO con:
+1) Lista exacta de archivos modificados
+2) Función/línea donde se ejecuta la garantía final
+3) Confirmación de que el archivo descargado es el auditado
+4) Resultado de tests
+
+NO EXPLIQUES NADA MÁS.
+NO HAGAS NADA MÁS.
+
+COMIENZA AHORA.

@@ -942,7 +942,10 @@ def anonymizer_apply():
 @anonymizer_bp.route("/anonymizer/download/<job_id>")
 @app.route("/anonymizer/download/<job_id>")
 def anonymizer_download(job_id):
-    """Download the anonymized document."""
+    """
+    Download the anonymized document with FINAL GUARANTEE.
+    Auditor runs JUST BEFORE serving to ensure 0 leaks in the actual downloaded file.
+    """
     result_paths = get_result_paths(job_id)
     
     if not os.path.exists(result_paths['doc']) or not os.path.exists(result_paths['meta']):
@@ -952,6 +955,71 @@ def anonymizer_download(job_id):
         with open(result_paths['meta'], 'r', encoding='utf-8') as f:
             meta = json.load(f)
         
+        # =========================================================================
+        # GARANTÍA FINAL: Auditoría JUSTO ANTES de servir el archivo
+        # =========================================================================
+        if meta['output_ext'] == 'docx' and FINAL_AUDITOR_AVAILABLE:
+            from docx import Document
+            from processor_docx import apply_replacements_to_docx
+            
+            MAX_ITERATIONS = 2
+            doc_path = result_paths['doc']
+            
+            for iteration in range(1, MAX_ITERATIONS + 1):
+                doc = Document(doc_path)
+                full_text = extract_full_text_docx(doc)
+                
+                audit_result = audit_document(full_text, auto_fix=True)
+                
+                if audit_result.is_safe:
+                    logger.info(f"DOWNLOAD_AUDIT_SAFE | job={job_id} | iteration={iteration}")
+                    break
+                
+                if audit_result.replacements:
+                    fixes = apply_replacements_to_docx(doc, audit_result.replacements)
+                    doc.save(doc_path)
+                    logger.warning(f"DOWNLOAD_AUDIT_FIX | job={job_id} | iteration={iteration} | fixes={fixes}")
+                else:
+                    break
+            
+            # Re-verificar seguridad final después de todas las iteraciones
+            doc_final = Document(doc_path)
+            final_text = extract_full_text_docx(doc_final)
+            final_audit = audit_document(final_text, auto_fix=False)
+            
+            if not final_audit.is_safe:
+                logger.error(f"DOWNLOAD_BLOCKED | job={job_id} | remaining_leaks={final_audit.remaining_leaks}")
+                leak_types = list(set(l['type'] for l in final_audit.leaks_found))
+                types_list = [f"{t} (posibles fugas)" for t in leak_types]
+                
+                return render_template("anonymizer_blocked.html",
+                    residual_types=types_list,
+                    total_residual=final_audit.remaining_leaks,
+                    original_filename=meta.get('download_name', 'documento')
+                )
+        
+        elif meta['output_ext'] == 'txt' and FINAL_AUDITOR_AVAILABLE:
+            with open(result_paths['doc'], 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            
+            audit_result = audit_document(text_content, auto_fix=True)
+            
+            if audit_result.leaks_auto_fixed > 0 and audit_result.fixed_text:
+                with open(result_paths['doc'], 'w', encoding='utf-8') as f:
+                    f.write(audit_result.fixed_text)
+                logger.info(f"DOWNLOAD_AUDIT_FIX_TXT | job={job_id} | fixes={audit_result.leaks_auto_fixed}")
+            
+            if not audit_result.is_safe:
+                logger.error(f"DOWNLOAD_BLOCKED_TXT | job={job_id} | remaining={audit_result.remaining_leaks}")
+                return render_template("anonymizer_blocked.html",
+                    residual_types=[f"{l['type']} (posibles fugas)" for l in audit_result.leaks_found[:5]],
+                    total_residual=audit_result.remaining_leaks,
+                    original_filename=meta.get('download_name', 'documento')
+                )
+        
+        # =========================================================================
+        # Leer archivo FINAL (después de auditoría) y servir
+        # =========================================================================
         with open(result_paths['doc'], 'rb') as f:
             output_bytes = f.read()
         
@@ -962,7 +1030,7 @@ def anonymizer_download(job_id):
         else:
             mimetype = 'text/plain; charset=utf-8'
         
-        logger.info(f"DOWNLOAD | job={job_id} | filename={meta['download_name']}")
+        logger.info(f"DOWNLOAD | job={job_id} | filename={meta['download_name']} | SAFE")
         
         return send_file(
             output_buffer,

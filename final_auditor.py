@@ -32,6 +32,25 @@ COLEGIATURA_PATTERN = re.compile(
 
 RUC_PATTERN = re.compile(r'\b((?:10|20)\d{9})\b')
 
+ACTA_REGISTRO_PATTERNS = [
+    re.compile(
+        r'(?:Acta\s+(?:de\s+)?[Cc]onciliaci[óo]n|N[°º]\s*(?:de\s+)?[Aa]cta|Registro\s+N[°º]?|N[°º]\s*(?:de\s+)?[Rr]egistro|'
+        r'Constancia\s+N[°º]?|Documento\s+N[°º]?|Expediente\s+N[°º]?)'
+        r'[\s:N°º]*(\d{4,12}(?:[-/]\d{2,6})?)',
+        re.IGNORECASE
+    ),
+]
+
+PLACA_PATTERN = re.compile(
+    r'\b([A-Z]{1,3}[-\s]?\d{1,3}[-\s]?[A-Z0-9]{1,3})\b',
+    re.IGNORECASE
+)
+
+PLACA_POSITIVE_CONTEXTS = [
+    'placa', 'vehiculo', 'vehículo', 'automovil', 'automóvil', 'auto', 'camioneta',
+    'moto', 'motocicleta', 'camion', 'camión', 'bus', 'ómnibus', 'omnibus'
+]
+
 DIRECCION_PATTERNS = [
     re.compile(
         r'(?:Calle|Av\.?|Avenida|Jr\.?|Jirón|Jiron|Psje\.?|Pasaje|Alameda|Malecón|Malecon)'
@@ -217,6 +236,81 @@ def find_ruc_leaks(text: str) -> List[Dict[str, Any]]:
     return leaks
 
 
+def find_acta_registro_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra números de acta, registro, expediente, constancia que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in ACTA_REGISTRO_PATTERNS:
+        for match in pattern.finditer(text):
+            full_match = match.group(0)
+            value = match.group(1) if match.lastindex else full_match
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+                continue
+            
+            if '{{' in full_match:
+                continue
+            
+            leaks.append({
+                'type': 'ACTA_REGISTRO',
+                'value': full_match,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-20):min(len(text), end+20)],
+                'fixable': True
+            })
+    
+    seen = set()
+    unique_leaks = []
+    for leak in leaks:
+        if leak['value'] not in seen:
+            seen.add(leak['value'])
+            unique_leaks.append(leak)
+    
+    return unique_leaks
+
+
+def has_placa_positive_context(text: str, start: int, end: int) -> bool:
+    """Verifica si hay contexto que indica que es una placa vehicular."""
+    window = 50
+    before = text[max(0, start - window):start].lower()
+    after = text[end:min(len(text), end + window)].lower()
+    for ctx in PLACA_POSITIVE_CONTEXTS:
+        if ctx in before or ctx in after:
+            return True
+    return False
+
+
+def find_placa_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra placas vehiculares que quedaron sin anonimizar."""
+    leaks = []
+    
+    for match in PLACA_PATTERN.finditer(text):
+        value = match.group(1)
+        start, end = match.start(1), match.end(1)
+        
+        if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+            continue
+        
+        if not has_placa_positive_context(text, start, end):
+            continue
+        
+        if len(value.replace('-', '').replace(' ', '')) < 5:
+            continue
+        
+        leaks.append({
+            'type': 'PLACA',
+            'value': value,
+            'start': start,
+            'end': end,
+            'context': text[max(0, start-20):min(len(text), end+20)],
+            'fixable': True
+        })
+    
+    return leaks
+
+
 def find_direccion_leaks(text: str) -> List[Dict[str, Any]]:
     """Encuentra direcciones que quedaron sin anonimizar."""
     leaks = []
@@ -368,6 +462,8 @@ def _find_all_leaks(text: str) -> List[Dict[str, Any]]:
     all_leaks.extend(find_colegiatura_leaks(text))
     all_leaks.extend(find_ruc_leaks(text))
     all_leaks.extend(find_direccion_leaks(text))
+    all_leaks.extend(find_acta_registro_leaks(text))
+    all_leaks.extend(find_placa_leaks(text))
     
     return all_leaks
 
