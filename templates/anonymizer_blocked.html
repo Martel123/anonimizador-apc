@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anonimización incompleta - Anonimizador Legal | APC Jurídica</title>
+  <title>Verificación de seguridad - Anonimizador Legal | APC Jurídica</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -58,19 +58,20 @@
           <i class="fas fa-exclamation-triangle text-apc-red text-3xl"></i>
         </div>
         
-        <h2 class="text-2xl font-bold text-gray-900 mb-3">Anonimización incompleta</h2>
+        <h2 class="text-2xl font-bold text-gray-900 mb-3">Verificación adicional de seguridad requerida</h2>
         
         <p class="text-apc-gray-text mb-6">
-          El modo estricto ha detectado <strong class="text-apc-red">{{ total_residual }} dato(s) sensible(s)</strong> 
-          que no fueron anonimizados en el documento.
+          El sistema de protección de datos requiere una verificación adicional. 
+          Se detectaron <strong class="text-apc-red">{{ total_residual }} elemento(s)</strong> 
+          que necesitan revisión manual.
         </p>
         
-        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left">
-          <p class="font-medium text-red-800 mb-2">Tipos de datos detectados:</p>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
+          <p class="font-medium text-amber-800 mb-2">Elementos a revisar:</p>
           <ul class="space-y-1">
             {% for type_info in residual_types %}
-            <li class="flex items-center gap-2 text-sm text-red-700">
-              <i class="fas fa-exclamation-circle"></i>
+            <li class="flex items-center gap-2 text-sm text-amber-700">
+              <i class="fas fa-shield-alt"></i>
               {{ type_info }}
             </li>
             {% endfor %}
@@ -78,8 +79,8 @@
         </div>
         
         <p class="text-sm text-apc-gray-text mb-6">
-          Para proteger la confidencialidad, la descarga ha sido bloqueada. 
-          Por favor, regrese a la revisión y marque los datos faltantes.
+          Para garantizar la máxima protección de datos personales, 
+          le sugerimos subir el documento nuevamente con marcado manual de los elementos detectados.
         </p>
         
         <div class="flex flex-col gap-3">

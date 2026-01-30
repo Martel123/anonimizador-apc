@@ -168,6 +168,65 @@ def replace_in_runs_aware(paragraph, replacements: List[Tuple[str, str]]) -> int
     return count
 
 
+def apply_replacements_to_docx(doc, replacements: List[Tuple[str, str]]) -> int:
+    """
+    Aplica reemplazos a un documento DOCX completo.
+    Cubre: párrafos, tablas (recursivas), headers/footers y sus tablas.
+    
+    Args:
+        doc: Documento python-docx
+        replacements: Lista de tuplas (valor_original, token)
+    
+    Returns:
+        Número total de reemplazos realizados
+    """
+    if not replacements:
+        return 0
+    
+    total_replacements = 0
+    
+    sorted_replacements = sorted(replacements, key=lambda x: len(x[0]), reverse=True)
+    
+    for para in doc.paragraphs:
+        total_replacements += replace_in_runs_aware(para, sorted_replacements)
+    
+    def process_table(table):
+        count = 0
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    count += replace_in_runs_aware(para, sorted_replacements)
+                for nested_table in cell.tables:
+                    count += process_table(nested_table)
+        return count
+    
+    for table in doc.tables:
+        total_replacements += process_table(table)
+    
+    try:
+        for section in doc.sections:
+            header_footer_elements = [
+                section.header, section.footer,
+                section.first_page_header, section.first_page_footer,
+                section.even_page_header, section.even_page_footer
+            ]
+            
+            for element in header_footer_elements:
+                if element is None:
+                    continue
+                try:
+                    for para in element.paragraphs:
+                        total_replacements += replace_in_runs_aware(para, sorted_replacements)
+                    for table in element.tables:
+                        total_replacements += process_table(table)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    
+    return total_replacements
+
+
 def process_docx_run_aware(doc, entities: List[Entity], mapping: EntityMapping) -> Dict[str, Any]:
     """
     Procesa documento DOCX con reemplazo run-aware.

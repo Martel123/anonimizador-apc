@@ -1,0 +1,175 @@
+ACTÚA COMO: Principal Engineer (Python/Flask) + Legal Privacy Engineer (Perú) + DOCX Specialist.
+TAREA ÚNICA Y CERRADA: Corregir el pipeline de anonimización para que en la PRIMERA EJECUCIÓN entregue un DOCX/PDF SIN FUGAS de datos sensibles (0 leaks) mediante detección determinística + auto-fix persistido en el ARCHIVO FINAL. 
+NO agregues features nuevas, NO cambies UI/estilos (HTML/CSS), NO implementes buscadores, NO refactors grandes, NO cambies endpoints salvo lo estrictamente necesario para aplicar el auto-fix antes de descargar.
+
+====================================================================
+REGLAS DE CONTROL (OBLIGATORIAS)
+====================================================================
+1) NO HAGAS NADA FUERA DE ESTE PROMPT.
+   - Prohibido: “mejoras” de UI, buscador, rediseño, nuevas pantallas, optimizaciones no pedidas.
+   - Prohibido: cambiar estructura del documento (títulos, numeración, redacción).
+   - Prohibido: persistir texto sensible (0 almacenamiento).
+2) SOLO puedes modificar:
+   - Detección (regex + reglas estructurales)
+   - Reemplazo run-aware en DOCX (párrafos/tablas/headers/footers)
+   - Auditor final (que CORRIGE y PERSISTE en el archivo final)
+   - Mensajería mínima: eliminar modal “Anonimización incompleta” y reemplazar por auto-corrección silenciosa.
+3) Prioridad absoluta: PRIVACIDAD REAL (0 leaks) > estilo de runs > cualquier otra cosa.
+
+====================================================================
+OBJETIVO FUNCIONAL (DEFINICIÓN EXACTA DE “0 LEAKS”)
+====================================================================
+Un documento se considera “OK” si el ARCHIVO FINAL que se descarga NO contiene:
+- Emails reales
+- Teléfonos reales
+- DNIs/CE/Pasaporte/RUC reales
+- Números de colegiatura (Colegio de Abogados / CMP / colegiatura profesional)
+- Direcciones específicas (calles, avenidas, jirones, números, dpto, mz, lote, urb, condominio, torre)
+- Placas vehiculares (si aparecen)
+- Cualquier token debe reemplazar COMPLETAMENTE el valor original (nunca “valor + token”).
+
+====================================================================
+ENTIDADES A DETECTAR (MÍNIMO OBLIGATORIO)
+====================================================================
+
+A) EMAIL (obligatorio)
+- Formatos estándar con ._+- y dominios múltiples
+- Debe detectar aunque esté en MAYÚSCULAS/MINÚSCULAS, con espacios accidentales.
+
+B) TELÉFONO (obligatorio)
+Cobertura obligatoria:
+- 9 dígitos PE: 9XXXXXXXX
+- +51 9XXXXXXXX
+- +51 987 654 321
+- 987-654-321
+- (01) 234-5678 / 01 2345678 / 01-2345678
+- Cualquier combinación con espacios/guiones/paréntesis.
+
+C) DNI / CE / PASAPORTE / RUC (obligatorio)
+- DNI: 8 dígitos.
+- Regla positiva: si cerca hay “DNI”, “D.N.I”, “N°/Nº”, “identificado con”, “identificada con”, “doc. identidad” → tratar como DNI sí o sí.
+- CE: patrones típicos cuando se escribe “C.E.” o “CE” + número.
+- RUC: 11 dígitos (si aparece), con “RUC” cerca.
+- Excepción: fecha tipo YYYYMMDD (1900–2100) no se tokeniza como DNI.
+
+D) NÚMERO DE COLEGIATURA (obligatorio)
+Debe detectar:
+- “Colegiatura”, “C.A.L.”, “CAL”, “Colegio de Abogados”, “N° Colegiatura”
+- CMP (médicos) “CMP N° XXXXX”
+- Otros: “CIP”, “CAP”, “CPA” si aparecen en escritos (no inventar, solo detectar por patrones).
+Regla positiva: si aparece “CMP”/“CAL”/“C.A.L.”/“Colegiatura” cerca → el número siguiente es sensible.
+
+E) DIRECCIONES (calles) (obligatorio)
+Detectar cuando haya:
+- “Calle”, “Av.”/“Avenida”, “Jr.”/“Jirón”, “Psje”/“Pasaje”, “Mz”, “Lote”, “Dpto”, “Dep.”, “Oficina”, “Torre”, “Condominio”, “Urb.”/“Urbanización”, “Distrito”, “Provincia”, “Departamento”, “Km”.
+Regla: si hay una combinación de tipo_vía + nombre + número / dpto / mz-lote → es dirección sensible.
+Incluye domicilios real/procesal.
+
+F) PLACAS (si aparecen)
+- Formatos comunes tipo ABC-123, A1B-234, etc. (no ser demasiado agresivo si no hay patrón claro).
+
+====================================================================
+LISTA BLANCA (NO TOCAR)
+====================================================================
+- Texto jurídico estándar: “Interpongo demanda”, “Amparo mi demanda”, “Fundamentos de hecho/derecho”, “Señor Juez”, “PRIMERO/SEGUNDO”, citas legales, artículos, nombres de instituciones públicas.
+- Montos, porcentajes, fechas (salvo que sean parte de identificador sensible por contexto).
+
+====================================================================
+CAMBIO CRÍTICO: NO MÁS “MODAL DE ANONIMIZACIÓN INCOMPLETA”
+====================================================================
+- Eliminar/inhabilitar la pantalla/modal que dice “Anonimización incompleta”.
+- NUEVO comportamiento:
+  1) Ejecutar auditor final + auto-fix persistido en el archivo final.
+  2) Permitir descarga si y solo si el archivo final re-auditado queda sin fugas.
+  3) Solo si tras 2 iteraciones aún hay fugas (raro), redirigir a revisión con mensaje neutro: “Verificación adicional de seguridad requerida”.
+  4) No usar la frase “incompleta” ni “falló”.
+
+====================================================================
+PROBLEMA ACTUAL A CORREGIR (NO NEGOCIABLE)
+====================================================================
+El auditor actual trabaja con TEXT STRING y produce fixed_text/replacements, pero la fuga se mantiene porque:
+- No se aplica al DOCX final real (runs, tablas, headers/footers).
+- Se reemplaza parcial y queda “valor + token”.
+
+SOLUCIÓN OBLIGATORIA:
+- El auto-fix debe aplicarse al MISMO ARCHIVO que se descargará.
+- Debe ser RUN-AWARE y debe cubrir:
+  a) document.paragraphs
+  b) document.tables (todas las celdas)
+  c) headers/footers + sus tablas
+- Luego guardar y re-auditar el DOCX guardado.
+- Repetir máx 2 iteraciones.
+
+====================================================================
+IMPLEMENTACIÓN (PASOS EXACTOS, NO TE SALTES NINGUNO)
+====================================================================
+
+PASO 1 — UBICA PUNTOS CLAVE
+- Identifica archivo(s) y función(es) donde:
+  a) se genera el DOCX final (doc.save(path))
+  b) se sirve la descarga (send_file / return file)
+  c) se ejecuta “modo estricto” y se muestra el modal
+
+PASO 2 — MEJORAR EL FINAL AUDITOR (SOLO DETECCIÓN + TOKENS)
+- Actualiza patrones:
+  - DNI: no excluir por “expediente/casilla”. Eso estaba mal.
+  - Teléfono: agregar formatos con guiones/paréntesis y +51 con separadores.
+  - Colegiatura: agregar regex por contexto (CAL/C.A.L/CMP/colegiatura).
+  - Dirección: regex por contexto de vías + número + complementos.
+- El auditor debe devolver:
+  - replacements: lista (valor_original, token)
+  - is_safe real basado en re-audit
+
+PASO 3 — APLICAR REPLACEMENTS AL DOCX REAL (LA PARTE MÁS IMPORTANTE)
+Implementa una función apply_replacements_to_docx(doc, replacements):
+- Recorre:
+  - paragraphs
+  - tables (recursivo en celdas)
+  - headers/footers paragraphs y tables
+- Reemplazo run-aware:
+  - Construye el texto completo del párrafo (join runs)
+  - Aplica reemplazos sobre el texto completo (string replace exacto o por spans)
+  - Reescribe el párrafo limpiando runs (prioridad privacidad) o implementa replace_across_runs real.
+- IMPORTANTE: el valor_original puede estar partido entre runs, así que el replace debe operar sobre el texto unido.
+
+PASO 4 — GARANTÍA EN LA RUTA DE DESCARGA
+Justo antes de servir el archivo:
+- abrir el DOCX final (path exacto que se descargará)
+- extraer texto
+- audit_document(auto_fix=True) → obtener replacements
+- apply_replacements_to_docx → guardar el mismo path
+- re-extraer texto del DOCX guardado
+- re-auditar
+- si aún hay leaks → segunda iteración (máx 2)
+- si sigue habiendo leaks → needs_review True (mensaje neutro)
+
+PASO 5 — TESTS REALES (OBLIGATORIOS)
+Agregar tests con un DOCX de prueba que incluya:
+- email partido en runs: "manu" + "el@" + "gmail.com"
+- teléfono: "+51 987 654 321" y "987-654-321"
+- DNI con “D.N.I. N° 12345678”
+- colegiatura: “CAL N° 12345” y “CMP N° 67890”
+- dirección: “Av. X N° 123, Dpto 502, Urb. Y, Distrito Z”
+Y verificar:
+- el DOCX final NO contiene patrones de email/tel/dni/colegiatura/dirección
+- y que no queda “valor + token”.
+
+PASO 6 — NO FEATURES EXTRA
+No agregues buscador, no cambies UI, no modifiques templates salvo eliminar el modal. No más.
+
+ENTREGABLE:
+- PR con cambios mínimos en:
+  1) final_auditor (patrones + lógica)
+  2) apply_replacements_to_docx (run-aware + tablas + headers)
+  3) route de descarga (garantía final)
+  4) eliminación del modal de “Anonimización incompleta”
+  5) tests
+
+CONFIRMACIÓN OBLIGATORIA AL FINAL (EN TEXTO):
+Responde con:
+- Archivos modificados (lista exacta)
+- Dónde se ejecuta la garantía final (línea/función)
+- Qué cubren los regex (resumen)
+- Resultado de tests
+
+COMIENZA AHORA. NO HAGAS NADA MÁS.

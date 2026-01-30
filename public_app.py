@@ -773,56 +773,40 @@ def anonymizer_apply():
                 logger.warning(f"AUDIT | job={job_id} | leaks_found={len(audit_result.leaks_found)} | auto_fixed={audit_result.leaks_auto_fixed}")
             
             # PERSISTIR AUTO-FIXES: Escribir texto corregido al archivo de salida
-            if audit_result.leaks_auto_fixed > 0 and audit_result.replacements:
-                logger.info(f"AUDIT_AUTOFIX | job={job_id} | applying {audit_result.leaks_auto_fixed} auto-fixes using {len(audit_result.replacements)} replacement pairs")
+            if output_ext == 'docx':
+                from docx import Document
+                from processor_docx import apply_replacements_to_docx
                 
-                if output_ext == 'docx':
-                    # Para DOCX: usar los reemplazos exactos del auditor
-                    from docx import Document
-                    from processor_docx import replace_in_runs_aware
+                MAX_ITERATIONS = 2
+                current_iteration = 0
+                
+                while current_iteration < MAX_ITERATIONS:
+                    current_iteration += 1
+                    
+                    if not audit_result.replacements:
+                        break
+                    
+                    logger.info(f"AUDIT_AUTOFIX | job={job_id} | iteration={current_iteration} | applying {len(audit_result.replacements)} replacements")
                     
                     doc_fix = Document(temp_output)
-                    
-                    # Aplicar los reemplazos exactos del auditor
-                    for para in doc_fix.paragraphs:
-                        replace_in_runs_aware(para, audit_result.replacements)
-                    for table in doc_fix.tables:
-                        for row in table.rows:
-                            for cell in row.cells:
-                                for para in cell.paragraphs:
-                                    replace_in_runs_aware(para, audit_result.replacements)
-                    
-                    # Procesar headers y footers también
-                    for section in doc_fix.sections:
-                        for header in [section.header, section.first_page_header, section.even_page_header]:
-                            if header:
-                                for para in header.paragraphs:
-                                    replace_in_runs_aware(para, audit_result.replacements)
-                        for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
-                            if footer:
-                                for para in footer.paragraphs:
-                                    replace_in_runs_aware(para, audit_result.replacements)
-                    
+                    fixes_applied = apply_replacements_to_docx(doc_fix, audit_result.replacements)
                     doc_fix.save(temp_output)
-                    logger.info(f"AUDIT_AUTOFIX_DOCX | job={job_id} | saved corrected docx")
+                    logger.info(f"AUDIT_AUTOFIX_DOCX | job={job_id} | iteration={current_iteration} | fixes_applied={fixes_applied}")
                     
-                    # RE-AUDITAR: Verificar que no quedan fugas en el DOCX corregido
                     doc_recheck = Document(temp_output)
                     recheck_text = extract_full_text_docx(doc_recheck)
-                    recheck_result = audit_document(recheck_text, auto_fix=False)
+                    audit_result = audit_document(recheck_text, auto_fix=True, existing_counters=existing_counters)
                     
-                    if not recheck_result.is_safe:
-                        logger.error(f"AUDIT_RECHECK_FAILED | job={job_id} | remaining={recheck_result.remaining_leaks}")
-                        # Actualizar resultado para bloquear descarga
-                        audit_result = recheck_result
+                    if audit_result.is_safe:
+                        logger.info(f"AUDIT_RECHECK_PASSED | job={job_id} | iteration={current_iteration} | document is safe")
+                        break
                     else:
-                        logger.info(f"AUDIT_RECHECK_PASSED | job={job_id} | document is safe")
-                else:
-                    # Para TXT/PDF: escribir el texto corregido directamente
-                    if audit_result.fixed_text:
-                        with open(temp_output, 'w', encoding='utf-8') as f:
-                            f.write(audit_result.fixed_text)
-                        logger.info(f"AUDIT_AUTOFIX_TXT | job={job_id} | saved corrected text")
+                        logger.warning(f"AUDIT_RECHECK | job={job_id} | iteration={current_iteration} | remaining={audit_result.remaining_leaks}")
+            
+            elif audit_result.leaks_auto_fixed > 0 and audit_result.fixed_text:
+                with open(temp_output, 'w', encoding='utf-8') as f:
+                    f.write(audit_result.fixed_text)
+                logger.info(f"AUDIT_AUTOFIX_TXT | job={job_id} | saved corrected text")
             
             if not audit_result.is_safe:
                 # Documento no seguro - bloquear descarga INCONDICIONALMENTE

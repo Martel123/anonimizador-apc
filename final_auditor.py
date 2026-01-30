@@ -2,7 +2,7 @@
 Final Auditor - Auditoría final obligatoria para garantizar 0 fugas de PII
 ===========================================================================
 Escanea el documento final y:
-- Detecta cualquier PII residual (email, DNI, teléfono)
+- Detecta cualquier PII residual (email, DNI, teléfono, colegiatura, direcciones)
 - Aplica reemplazo automático de emergencia si es necesario
 - Marca el documento como NO SEGURO si hay fugas no corregibles
 """
@@ -14,10 +14,39 @@ from dataclasses import dataclass
 
 DNI_PATTERN = re.compile(r'\b(\d{8})\b')
 EMAIL_PATTERN = re.compile(r'\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b', re.IGNORECASE)
+
 PHONE_PATTERNS = [
-    re.compile(r'(\+51\s*9\d{8})\b'),
+    re.compile(r'(\+51[\s\-]?9[\d\s\-]{8,12})\b'),
+    re.compile(r'\b(9\d{2}[\s\-]?\d{3}[\s\-]?\d{3})\b'),
     re.compile(r'\b(9\d{8})\b'),
-    re.compile(r'\b(9\d{2}\s*\d{3}\s*\d{3})\b'),
+    re.compile(r'(\(\s*0?1\s*\)[\s\-]?\d{3}[\s\-]?\d{4})'),
+    re.compile(r'\b(0?1[\s\-]?\d{3}[\s\-]?\d{4})\b'),
+    re.compile(r'\b(0[1-9]\d?[\s\-]?\d{6,7})\b'),
+]
+
+COLEGIATURA_PATTERN = re.compile(
+    r'(?:C\.?A\.?L\.?|CAL|CMP|CIP|CAP|CPA|Colegiatura|Colegio de Abogados|N[°º]?\s*(?:de\s+)?Colegiatura)'
+    r'[\s:N°º]*(\d{4,6})',
+    re.IGNORECASE
+)
+
+RUC_PATTERN = re.compile(r'\b((?:10|20)\d{9})\b')
+
+DIRECCION_PATTERNS = [
+    re.compile(
+        r'(?:Calle|Av\.?|Avenida|Jr\.?|Jirón|Jiron|Psje\.?|Pasaje|Alameda|Malecón|Malecon)'
+        r'\s+[A-ZÁÉÍÓÚÑa-záéíóúñ\s]+(?:N[°º]?\s*\d+|Nro\.?\s*\d+|\d+)'
+        r'(?:\s*[-,]\s*(?:Dpto\.?|Dep\.?|Oficina|Of\.?|Int\.?|Piso)\s*\d+[A-Z]?)?'
+        r'(?:\s*[-,]\s*(?:Mz\.?|Manzana)\s*[A-Z0-9]+)?'
+        r'(?:\s*[-,]\s*(?:Lt\.?|Lote)\s*\d+)?'
+        r'(?:\s*[-,]\s*(?:Urb\.?|Urbanización|Urbanizacion)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ\s]+)?',
+        re.IGNORECASE
+    ),
+    re.compile(
+        r'(?:Mz\.?|Manzana)\s*[A-Z0-9]+\s*[-,]?\s*(?:Lt\.?|Lote)\s*\d+'
+        r'(?:\s*[-,]\s*(?:Urb\.?|Urbanización|Urbanizacion)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ\s]+)?',
+        re.IGNORECASE
+    ),
 ]
 
 TOKEN_PATTERN = re.compile(r'\{\{[A-Z_]+_\d+\}\}')
@@ -30,8 +59,12 @@ MONEY_INDICATORS = [
 
 LEGAL_NUMBER_CONTEXTS = [
     'artículo', 'articulo', 'art.', 'inciso', 'numeral', 'literal',
-    'ley', 'decreto', 'expediente', 'exp.', 'casilla', 'resolución',
-    'folio', 'página', 'cuaderno', 'tomo', 'legajo'
+    'ley', 'decreto', 'resolución', 'folio', 'página', 'cuaderno', 'tomo', 'legajo'
+]
+
+DNI_POSITIVE_CONTEXTS = [
+    'dni', 'd.n.i', 'documento de identidad', 'doc. identidad', 'identificado con',
+    'identificada con', 'n°', 'nº', 'numero', 'número'
 ]
 
 
@@ -89,6 +122,16 @@ def is_date_context(text: str, start: int, end: int) -> bool:
     return False
 
 
+def has_dni_positive_context(text: str, start: int, end: int) -> bool:
+    """Verifica si hay contexto que indica que es un DNI real."""
+    window = 50
+    before = text[max(0, start - window):start].lower()
+    for ctx in DNI_POSITIVE_CONTEXTS:
+        if ctx in before:
+            return True
+    return False
+
+
 def find_dni_leaks(text: str) -> List[Dict[str, Any]]:
     """Encuentra posibles DNIs que quedaron sin anonimizar."""
     leaks = []
@@ -100,14 +143,16 @@ def find_dni_leaks(text: str) -> List[Dict[str, Any]]:
         if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
             continue
         
-        if is_money_context(text, start, end):
-            continue
-        
-        if is_legal_number_context(text, start, end):
-            continue
-        
         if is_date_context(text, start, end):
             continue
+        
+        has_positive_context = has_dni_positive_context(text, start, end)
+        
+        if not has_positive_context:
+            if is_money_context(text, start, end):
+                continue
+            if is_legal_number_context(text, start, end):
+                continue
         
         leaks.append({
             'type': 'DNI',
@@ -119,6 +164,91 @@ def find_dni_leaks(text: str) -> List[Dict[str, Any]]:
         })
     
     return leaks
+
+
+def find_colegiatura_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra números de colegiatura que quedaron sin anonimizar."""
+    leaks = []
+    
+    for match in COLEGIATURA_PATTERN.finditer(text):
+        full_match = match.group(0)
+        value = match.group(1) if match.lastindex else full_match
+        start, end = match.start(), match.end()
+        
+        if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+            continue
+        
+        leaks.append({
+            'type': 'COLEGIATURA',
+            'value': full_match,
+            'start': start,
+            'end': end,
+            'context': text[max(0, start-20):min(len(text), end+20)],
+            'fixable': True
+        })
+    
+    return leaks
+
+
+def find_ruc_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra RUCs que quedaron sin anonimizar."""
+    leaks = []
+    
+    for match in RUC_PATTERN.finditer(text):
+        value = match.group(1)
+        start, end = match.start(1), match.end(1)
+        
+        if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+            continue
+        
+        before = text[max(0, start-30):start].lower()
+        if 'ruc' not in before:
+            continue
+        
+        leaks.append({
+            'type': 'RUC',
+            'value': value,
+            'start': start,
+            'end': end,
+            'context': text[max(0, start-20):min(len(text), end+20)],
+            'fixable': True
+        })
+    
+    return leaks
+
+
+def find_direccion_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra direcciones que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in DIRECCION_PATTERNS:
+        for match in pattern.finditer(text):
+            value = match.group(0)
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-10):end+10]):
+                continue
+            
+            if '{{' in value:
+                continue
+            
+            leaks.append({
+                'type': 'DIRECCION',
+                'value': value,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-10):min(len(text), end+10)],
+                'fixable': True
+            })
+    
+    seen = set()
+    unique_leaks = []
+    for leak in leaks:
+        if leak['value'] not in seen:
+            seen.add(leak['value'])
+            unique_leaks.append(leak)
+    
+    return unique_leaks
 
 
 def find_email_leaks(text: str) -> List[Dict[str, Any]]:
@@ -228,6 +358,20 @@ def auto_fix_leaks(text: str, leaks: List[Dict[str, Any]],
     return result, fixes, replacements
 
 
+def _find_all_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra todas las fugas de PII en el texto."""
+    all_leaks = []
+    
+    all_leaks.extend(find_dni_leaks(text))
+    all_leaks.extend(find_email_leaks(text))
+    all_leaks.extend(find_phone_leaks(text))
+    all_leaks.extend(find_colegiatura_leaks(text))
+    all_leaks.extend(find_ruc_leaks(text))
+    all_leaks.extend(find_direccion_leaks(text))
+    
+    return all_leaks
+
+
 def audit_document(text: str, auto_fix: bool = True,
                    existing_counters: Optional[Dict[str, int]] = None) -> AuditResult:
     """
@@ -242,48 +386,31 @@ def audit_document(text: str, auto_fix: bool = True,
     Returns:
         AuditResult con el estado de seguridad del documento
     """
-    all_leaks = []
     warnings = []
     
-    dni_leaks = find_dni_leaks(text)
-    all_leaks.extend(dni_leaks)
-    if dni_leaks:
-        logging.warning(f"AUDIT: Found {len(dni_leaks)} potential DNI leaks")
+    all_leaks = _find_all_leaks(text)
     
-    email_leaks = find_email_leaks(text)
-    all_leaks.extend(email_leaks)
-    if email_leaks:
-        logging.warning(f"AUDIT: Found {len(email_leaks)} potential email leaks")
-    
-    phone_leaks = find_phone_leaks(text)
-    all_leaks.extend(phone_leaks)
-    if phone_leaks:
-        logging.warning(f"AUDIT: Found {len(phone_leaks)} potential phone leaks")
+    if all_leaks:
+        by_type = {}
+        for leak in all_leaks:
+            by_type[leak['type']] = by_type.get(leak['type'], 0) + 1
+        for t, c in by_type.items():
+            logging.warning(f"AUDIT: Found {c} potential {t} leaks")
     
     fixed_text = text
     leaks_auto_fixed = 0
     replacements = []
+    remaining = []
     
     if auto_fix and all_leaks:
         fixed_text, leaks_auto_fixed, replacements = auto_fix_leaks(text, all_leaks, existing_counters)
         
-        # Re-auditar el texto corregido para verificar que no quedan fugas
-        remaining = []
-        remaining.extend(find_dni_leaks(fixed_text))
-        remaining.extend(find_email_leaks(fixed_text))
-        remaining.extend(find_phone_leaks(fixed_text))
+        remaining = _find_all_leaks(fixed_text)
         
         if remaining:
             warnings.append(f"CRITICAL: {len(remaining)} leaks could not be auto-fixed")
-            leaks_auto_fixed = leaks_auto_fixed - len(remaining)  # Ajustar conteo
     
-    # Calcular fugas restantes basándose en la re-auditoría
-    remaining_leaks = 0
-    if auto_fix and all_leaks:
-        remaining_leaks = len(remaining) if 'remaining' in dir() else 0
-    else:
-        remaining_leaks = len(all_leaks)
-    
+    remaining_leaks = len(remaining) if auto_fix else len(all_leaks)
     is_safe = remaining_leaks == 0
     
     if not is_safe:
