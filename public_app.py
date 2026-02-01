@@ -988,15 +988,21 @@ def anonymizer_download(job_id):
             final_audit = audit_document(final_text, auto_fix=False)
             
             if not final_audit.is_safe:
-                logger.error(f"DOWNLOAD_BLOCKED | job={job_id} | remaining_leaks={final_audit.remaining_leaks}")
-                leak_types = list(set(l['type'] for l in final_audit.leaks_found))
-                types_list = [f"{t} (posibles fugas)" for t in leak_types]
+                force_download = request.args.get('force', '0') == '1'
                 
-                return render_template("anonymizer_blocked.html",
-                    residual_types=types_list,
-                    total_residual=final_audit.remaining_leaks,
-                    original_filename=meta.get('download_name', 'documento')
-                )
+                if force_download:
+                    logger.warning(f"DOWNLOAD_FORCED | job={job_id} | remaining_leaks={final_audit.remaining_leaks} | user_accepted_risk=true")
+                else:
+                    logger.warning(f"DOWNLOAD_WARNING | job={job_id} | remaining_leaks={final_audit.remaining_leaks}")
+                    leak_types = list(set(l['type'] for l in final_audit.leaks_found))
+                    types_list = [f"{t} (posibles fugas)" for t in leak_types]
+                    
+                    return render_template("anonymizer_blocked.html",
+                        residual_types=types_list,
+                        total_residual=final_audit.remaining_leaks,
+                        original_filename=meta.get('download_name', 'documento'),
+                        job_id=job_id
+                    )
         
         elif meta['output_ext'] == 'txt' and FINAL_AUDITOR_AVAILABLE:
             with open(result_paths['doc'], 'r', encoding='utf-8') as f:
@@ -1010,12 +1016,18 @@ def anonymizer_download(job_id):
                 logger.info(f"DOWNLOAD_AUDIT_FIX_TXT | job={job_id} | fixes={audit_result.leaks_auto_fixed}")
             
             if not audit_result.is_safe:
-                logger.error(f"DOWNLOAD_BLOCKED_TXT | job={job_id} | remaining={audit_result.remaining_leaks}")
-                return render_template("anonymizer_blocked.html",
-                    residual_types=[f"{l['type']} (posibles fugas)" for l in audit_result.leaks_found[:5]],
-                    total_residual=audit_result.remaining_leaks,
-                    original_filename=meta.get('download_name', 'documento')
-                )
+                force_download = request.args.get('force', '0') == '1'
+                
+                if force_download:
+                    logger.warning(f"DOWNLOAD_FORCED_TXT | job={job_id} | remaining={audit_result.remaining_leaks} | user_accepted_risk=true")
+                else:
+                    logger.warning(f"DOWNLOAD_WARNING_TXT | job={job_id} | remaining={audit_result.remaining_leaks}")
+                    return render_template("anonymizer_blocked.html",
+                        residual_types=[f"{l['type']} (posibles fugas)" for l in audit_result.leaks_found[:5]],
+                        total_residual=audit_result.remaining_leaks,
+                        original_filename=meta.get('download_name', 'documento'),
+                        job_id=job_id
+                    )
         
         # =========================================================================
         # Leer archivo FINAL (después de auditoría) y servir

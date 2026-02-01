@@ -79,17 +79,20 @@
         </div>
         
         <p class="text-sm text-apc-gray-text mb-6">
-          Para garantizar la máxima protección de datos personales, 
-          le sugerimos subir el documento nuevamente con marcado manual de los elementos detectados.
+          Le recomendamos revisar manualmente estos elementos antes de compartir el documento.
         </p>
         
         <div class="flex flex-col gap-3">
-          <a href="/anonymizer" class="w-full bg-apc-red text-white py-3 rounded-xl font-medium hover:bg-apc-red-dark flex items-center justify-center gap-2">
+          <a href="/anonymizer/download/{{ job_id }}?force=1" class="w-full bg-apc-red text-white py-3 rounded-xl font-medium hover:bg-apc-red-dark flex items-center justify-center gap-2">
+            <i class="fas fa-download"></i>
+            Descargar de todas formas
+          </a>
+          <a href="/anonymizer" class="w-full border border-apc-gray-border text-apc-gray-text py-3 rounded-xl font-medium hover:bg-gray-50 flex items-center justify-center gap-2">
             <i class="fas fa-redo"></i>
             Subir documento nuevamente
           </a>
-          <p class="text-xs text-apc-gray-text">
-            El documento "{{ original_filename }}" no fue guardado por seguridad.
+          <p class="text-xs text-apc-gray-text mt-2">
+            <i class="fas fa-info-circle"></i> El documento ya está anonimizado. Los elementos detectados son posibles coincidencias que podrían requerir revisión.
           </p>
         </div>
         
