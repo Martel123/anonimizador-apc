@@ -620,11 +620,12 @@ def anonymizer_process():
         all_entities = normalize_entities(entities)
         all_entities = deduplicate_entities(all_entities)
         
+        openai_review_items = []
         try:
             from detector_openai import detect_with_openai, merge_openai_with_local, is_openai_available
             if is_openai_available():
                 logger.info(f"OPENAI_DETECT | job={job_id} | starting OpenAI detection")
-                openai_entities = detect_with_openai(full_text)
+                openai_entities, openai_review_items = detect_with_openai(full_text)
                 if openai_entities:
                     entities_dict = [{'type': e.get('type'), 'value': e.get('value'), 
                                      'start': e.get('start', 0), 'end': e.get('end', 0),
@@ -633,7 +634,7 @@ def anonymizer_process():
                     merged = merge_openai_with_local(entities_dict, openai_entities, full_text)
                     all_entities = normalize_entities(merged)
                     all_entities = deduplicate_entities(all_entities)
-                    logger.info(f"OPENAI_MERGE | job={job_id} | openai_entities={len(openai_entities)} | total_after_merge={len(all_entities)}")
+                    logger.info(f"OPENAI_MERGE | job={job_id} | openai_entities={len(openai_entities)} | review={len(openai_review_items)} | total_after_merge={len(all_entities)}")
         except Exception as e:
             logger.warning(f"OPENAI_DETECT_FAIL | job={job_id} | error={str(e)}")
         

@@ -37,35 +37,86 @@ OPENAI_ENTITY_TYPES = [
     "PARTIDA", "CASILLA", "JUZGADO", "TRIBUNAL", "SALA"
 ]
 
-SYSTEM_PROMPT = """Eres un sistema de detección de información sensible en documentos legales peruanos.
-Tu tarea es identificar ÚNICAMENTE entidades sensibles que deben ser anonimizadas.
+SYSTEM_PROMPT = """ROL: Eres un motor de detección de datos sensibles para un anonimizador legal peruano. Tu objetivo es identificar con precisión solo información sensible explícita en el texto. Debes minimizar falsos positivos (tokenizar cosas que no son sensibles) y minimizar falsos negativos (dejar escapar sensibles).
 
-CATEGORÍAS A DETECTAR:
-- PERSONA: Nombres completos, parciales, abreviados (incluyendo "doña", "don", "Sr.", "Sra.")
-- ENTIDAD: Organizaciones, empresas, instituciones
-- DIRECCION: Direcciones completas (Calle, Av, Jr, Psje, Mz, Lt, Urb, AA.HH, etc.)
-- COLEGIATURA: Números de colegiatura profesional (CAL, CIP, CMP, CAP, CPA, etc.)
-- EXPEDIENTE: Números de expediente judicial, proceso, código
-- ACTA: Números de acta de conciliación, audiencia, notarial
-- REGISTRO: Números de registro (PJ, documento, constancia, certificado)
-- RESOLUCION: Números de resolución, auto, oficio, informe
-- PARTIDA: Partidas electrónicas, SUNARP, asiento, tomo, ficha, folio
-- CASILLA: Casillas electrónicas, mesa de partes
-- JUZGADO: Nombre completo del juzgado
-- TRIBUNAL: Nombre del tribunal
-- SALA: Nombre de la sala judicial
+0) REGLAS CRÍTICAS (OBLIGATORIAS)
+- NO inventes, NO completes, NO adivines. Si el dato sensible no está explícito en el texto, NO lo marques.
+- NO tokenices por "parecer" nombre. Solo marca PERSONA cuando haya evidencia sólida (nombre propio completo o contexto inequívoco).
+- Si tienes duda, NO tokenices: en su lugar devuelve un item en review con razón.
+- No tokenices: frases legales estándar, instituciones, cargos genéricos, áreas ("Juzgado", "Fiscalía", "Demandante", "Juez"), ni nombres de leyes, programas, entidades del Estado, universidades, empresas públicas/privadas si no identifican directamente a una persona natural.
+- Solo marca lo que puedas señalar exactamente: el match_text debe aparecer tal cual en el texto (mismo orden de caracteres, sin "reconstruir").
 
-NO DETECTAR:
-- Montos de dinero (S/, US$, soles, dólares)
-- Porcentajes o cifras genéricas
-- Artículos de ley, numerales, incisos
-- Fechas
+1) QUÉ CUENTA COMO "SENSIBLE" (CATEGORÍAS)
+Marca únicamente estas categorías, cuando estén explícitas:
+
+A) Identificadores peruanos
+- DNI: 8 dígitos (puede tener espacios o guiones).
+- CE: carnet de extranjería (patrones alfanuméricos si está rotulado como CE).
+- RUC: 11 dígitos.
+- PASAPORTE: si está rotulado como pasaporte.
+
+B) Contacto
+- EMAIL: formato correo válido.
+- TELEFONO: números de teléfono (7–9 dígitos típicos) o con +51; puede incluir espacios.
+
+C) Ubicación y dirección
+- DIRECCION: direcciones con marcadores (Av., Jr., Calle, Psje, Mz, Lt, N°, Dpto, Urb, Sector, etc.) o una dirección claramente redactada.
+
+D) Personas naturales
+- PERSONA: nombres y apellidos de persona natural (idealmente 2+ componentes) o identificación inequívoca en contexto ("Sr. Juan Pérez", "Doña X", "el señor X Y").
+- NO marques "Juan" solo si está suelto y sin evidencia.
+- NO marques "Fiscal", "Juez", "Demandante" como PERSONA.
+
+E) Otros sensibles frecuentes
+- PLACA: placa vehicular si parece placa o está rotulada.
+- CUENTA_BANCARIA: cuentas/CCI si están rotuladas o patrón típico.
+- EXPEDIENTE: número de expediente/caso si aparece como identificador de un proceso.
+- FECHA_NACIMIENTO: si aparece como fecha de nacimiento (rotulada o contexto claro).
+- FIRMA: si hay texto de firma o nombre en sección de firma (siempre con alta evidencia).
+- COLEGIATURA: números de colegiatura profesional (CAL, CIP, CMP, CAP, CPA, etc.)
+
+2) QUÉ NO DEBES MARCAR (LISTA NEGRA)
+Nunca tokenices:
+- "VISTOS", "CONSIDERANDO", "RESUELVE", "SEÑOR JUEZ", "MINISTERIO PÚBLICO", "PODER JUDICIAL" (y similares).
+- Nombres de instituciones por sí solos: "SUNAT", "RENIEC", "INDECOPI", "Municipalidad…", "Ministerio…", "Policía…", etc.
+- Partes procesales genéricas: "demandante", "demandado", "agraviado", "imputado", "fiscal", "juez".
+- Texto publicitario, encabezados institucionales, slogans, disclaimers.
+- Fechas comunes que no sean fecha de nacimiento.
+- Montos de dinero.
 - Texto que ya esté entre {{...}}
 
-RESPONDE ÚNICAMENTE EN JSON:
-{"entities":[{"type":"TIPO","value":"texto_exacto"}]}
+3) SALIDA (FORMATO ESTRICTO)
+Devuelve SOLO JSON válido (sin texto extra, sin markdown).
+Estructura exacta:
+{
+  "matches": [
+    {
+      "category": "DNI|RUC|CE|PASAPORTE|EMAIL|TELEFONO|DIRECCION|PERSONA|PLACA|CUENTA_BANCARIA|EXPEDIENTE|FECHA_NACIMIENTO|FIRMA|COLEGIATURA",
+      "match_text": "texto exacto tal como aparece en el documento",
+      "reason": "por qué lo marcaste (breve)",
+      "confidence": 0.95
+    }
+  ],
+  "review": [
+    {
+      "category_suspected": "PERSONA|DIRECCION|etc",
+      "match_text": "texto exacto",
+      "reason": "por qué es dudoso",
+      "confidence": 0.60
+    }
+  ]
+}
 
-Si no hay entidades: {"entities":[]}"""
+4) CRITERIOS DE CONFIANZA (0 a 1)
+- 0.95–1.00: patrón inequívoco (DNI 8 dígitos, RUC 11 dígitos, email claro).
+- 0.75–0.94: muy probable pero podría ser ambiguo (nombre completo con contexto).
+- 0.50–0.74: dudoso → preferir review.
+- <0.50: NO incluir.
+
+5) POLÍTICA ANTI-FALSOS POSITIVOS
+Si una entidad no es claramente sensible, no la tokenices. En duda: review.
+
+Si no hay entidades: {"matches":[],"review":[]}"""
 
 
 @dataclass
@@ -167,8 +218,11 @@ def chunk_text(text: str, max_chars: int = 6000) -> List[str]:
     return chunks if chunks else [text]
 
 
-def call_openai_api(chunk: str, chunk_idx: int) -> List[Dict[str, str]]:
-    """Llama a la API de OpenAI para detectar entidades en un chunk."""
+def call_openai_api(chunk: str, chunk_idx: int) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Llama a la API de OpenAI para detectar entidades en un chunk.
+    Retorna (matches, review) según el nuevo formato del prompt maestro.
+    """
     try:
         from openai import OpenAI
         client = OpenAI(timeout=OPENAI_TIMEOUT_SECONDS)
@@ -186,30 +240,60 @@ def call_openai_api(chunk: str, chunk_idx: int) -> List[Dict[str, str]]:
         
         content = response.choices[0].message.content
         data = json.loads(content)
-        entities = data.get("entities", [])
         
-        logger.info(f"OPENAI_CHUNK | idx={chunk_idx} | entities_found={len(entities)}")
-        return entities
+        matches = data.get("matches", data.get("entities", []))
+        review = data.get("review", [])
+        
+        logger.info(f"OPENAI_CHUNK | idx={chunk_idx} | matches={len(matches)} | review={len(review)}")
+        return matches, review
         
     except json.JSONDecodeError as e:
         logger.error(f"OPENAI_JSON_ERROR | chunk={chunk_idx} | error={str(e)}")
-        return []
+        return [], []
     except Exception as e:
         logger.error(f"OPENAI_API_ERROR | chunk={chunk_idx} | error={str(e)}")
-        return []
+        return [], []
 
 
-def detect_with_openai(text: str) -> List[OpenAIEntity]:
+CATEGORY_MAP = {
+    "DNI": "DNI",
+    "RUC": "RUC",
+    "CE": "DNI",
+    "PASAPORTE": "DNI",
+    "EMAIL": "EMAIL",
+    "TELEFONO": "TELEFONO",
+    "DIRECCION": "DIRECCION",
+    "PERSONA": "PERSONA",
+    "PLACA": "PLACA",
+    "CUENTA_BANCARIA": "CUENTA",
+    "EXPEDIENTE": "EXPEDIENTE",
+    "FECHA_NACIMIENTO": "FECHA_NACIMIENTO",
+    "FIRMA": "FIRMA",
+    "COLEGIATURA": "COLEGIATURA",
+    "ENTIDAD": "ENTIDAD",
+    "ACTA": "ACTA_REGISTRO",
+    "REGISTRO": "ACTA_REGISTRO",
+    "RESOLUCION": "RESOLUCION",
+    "PARTIDA": "PARTIDA",
+    "CASILLA": "CASILLA",
+    "JUZGADO": "JUZGADO",
+    "TRIBUNAL": "TRIBUNAL",
+    "SALA": "SALA",
+}
+
+
+def detect_with_openai(text: str) -> Tuple[List[OpenAIEntity], List[Dict[str, Any]]]:
     """
     Detecta entidades usando OpenAI API.
     Aplica pre-redacción, chunking y procesamiento paralelo.
+    Retorna (entities, review_items) donde review_items son casos dudosos.
     """
     if not is_openai_available():
         logger.warning("OPENAI_DISABLED | USE_OPENAI_DETECT=0 or no API key")
-        return []
+        return [], []
     
     if not text or len(text.strip()) < 50:
-        return []
+        return [], []
     
     redacted_text, redaction_map = pre_redact_for_privacy(text)
     
@@ -217,6 +301,7 @@ def detect_with_openai(text: str) -> List[OpenAIEntity]:
     logger.info(f"OPENAI_DETECT | chunks={len(chunks)} | text_len={len(text)}")
     
     all_entities = []
+    all_review = []
     
     with ThreadPoolExecutor(max_workers=OPENAI_CONCURRENCY) as executor:
         futures = {executor.submit(call_openai_api, chunk, i): i for i, chunk in enumerate(chunks)}
@@ -224,18 +309,31 @@ def detect_with_openai(text: str) -> List[OpenAIEntity]:
         for future in as_completed(futures):
             chunk_idx = futures[future]
             try:
-                entities = future.result()
-                for ent in entities:
-                    ent_type = ent.get("type", "").upper()
-                    ent_value = ent.get("value", "").strip()
+                matches, review = future.result()
+                
+                for ent in matches:
+                    category = ent.get("category", ent.get("type", "")).upper()
+                    match_text = ent.get("match_text", ent.get("value", "")).strip()
+                    confidence = ent.get("confidence", 0.9)
                     
-                    if ent_type in OPENAI_ENTITY_TYPES and ent_value:
-                        if not re.match(r'^\{\{.*\}\}$', ent_value):
+                    mapped_type = CATEGORY_MAP.get(category, category)
+                    
+                    if match_text and confidence >= 0.5:
+                        if not re.match(r'^\{\{.*\}\}$', match_text):
                             all_entities.append(OpenAIEntity(
-                                type=ent_type,
-                                value=ent_value,
+                                type=mapped_type,
+                                value=match_text,
                                 source="openai"
                             ))
+                
+                for item in review:
+                    all_review.append({
+                        "category": item.get("category_suspected", "UNKNOWN"),
+                        "match_text": item.get("match_text", ""),
+                        "reason": item.get("reason", ""),
+                        "confidence": item.get("confidence", 0.5)
+                    })
+                    
             except Exception as e:
                 logger.error(f"OPENAI_FUTURE_ERROR | chunk={chunk_idx} | error={str(e)}")
     
@@ -247,8 +345,8 @@ def detect_with_openai(text: str) -> List[OpenAIEntity]:
             seen.add(key)
             unique_entities.append(ent)
     
-    logger.info(f"OPENAI_DETECT_DONE | total_entities={len(unique_entities)}")
-    return unique_entities
+    logger.info(f"OPENAI_DETECT_DONE | entities={len(unique_entities)} | review={len(all_review)}")
+    return unique_entities, all_review
 
 
 def merge_openai_with_local(local_entities: List[Dict], openai_entities: List[OpenAIEntity], text: str) -> List[Dict]:
