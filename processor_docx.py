@@ -391,3 +391,55 @@ def anonymize_docx_complete(file_path: str, output_path: str, strict_mode: bool 
         result['error'] = str(e)
     
     return result
+
+
+HARD_REDACT_PATTERNS = [
+    (re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', re.IGNORECASE), '{{EMAIL_REDACT}}'),
+    (re.compile(r'\b\d{8}\b'), '{{DNI_REDACT}}'),
+    (re.compile(r'\b(?:10|20)\d{9}\b'), '{{RUC_REDACT}}'),
+    (re.compile(r'\+51[\s\-]?9[\d\s\-]{8,12}|9\d{8}', re.IGNORECASE), '{{TEL_REDACT}}'),
+    (re.compile(r'(?:C\.?A\.?L\.?|CAL|CMP|CIP)[\s:N°º]*\d{4,6}', re.IGNORECASE), '{{COLEGIATURA_REDACT}}'),
+]
+
+
+def hard_redact_patterns(doc) -> int:
+    """
+    Aplica redacción forzada de patrones sensibles como último recurso.
+    Esto es un safety net cuando la detección normal falla.
+    """
+    total_fixes = 0
+    
+    def redact_in_runs(paragraph):
+        fixes = 0
+        full_text = ''.join(run.text for run in paragraph.runs)
+        
+        for pattern, replacement in HARD_REDACT_PATTERNS:
+            if pattern.search(full_text):
+                for run in paragraph.runs:
+                    original = run.text
+                    new_text = pattern.sub(replacement, run.text)
+                    if new_text != original:
+                        run.text = new_text
+                        fixes += 1
+        return fixes
+    
+    for para in doc.paragraphs:
+        total_fixes += redact_in_runs(para)
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    total_fixes += redact_in_runs(para)
+    
+    for section in doc.sections:
+        for header in [section.header, section.first_page_header, section.even_page_header]:
+            if header:
+                for para in header.paragraphs:
+                    total_fixes += redact_in_runs(para)
+        for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
+            if footer:
+                for para in footer.paragraphs:
+                    total_fixes += redact_in_runs(para)
+    
+    return total_fixes

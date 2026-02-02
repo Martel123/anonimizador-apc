@@ -1005,21 +1005,34 @@ def anonymizer_download(job_id):
             final_audit = audit_document(final_text, auto_fix=False)
             
             if not final_audit.is_safe:
+                strict_mode = os.environ.get('STRICT_ZERO_LEAKS', '1') == '1'
                 force_download = request.args.get('force', '0') == '1'
                 
-                if force_download:
-                    logger.warning(f"DOWNLOAD_FORCED | job={job_id} | remaining_leaks={final_audit.remaining_leaks} | user_accepted_risk=true")
-                else:
-                    logger.warning(f"DOWNLOAD_WARNING | job={job_id} | remaining_leaks={final_audit.remaining_leaks}")
-                    leak_types = list(set(l['type'] for l in final_audit.leaks_found))
-                    types_list = [f"{t} (posibles fugas)" for t in leak_types]
-                    
-                    return render_template("anonymizer_blocked.html",
-                        residual_types=types_list,
-                        total_residual=final_audit.remaining_leaks,
-                        original_filename=meta.get('download_name', 'documento'),
-                        job_id=job_id
-                    )
+                if strict_mode and not force_download:
+                    from processor_docx import hard_redact_patterns
+                    doc_hard = Document(doc_path)
+                    hard_fixes = hard_redact_patterns(doc_hard)
+                    if hard_fixes > 0:
+                        doc_hard.save(doc_path)
+                        logger.warning(f"HARD_REDACT | job={job_id} | fixes={hard_fixes}")
+                        doc_recheck = Document(doc_path)
+                        recheck_text = extract_full_text_docx(doc_recheck)
+                        final_audit = audit_document(recheck_text, auto_fix=False)
+                
+                if not final_audit.is_safe:
+                    if force_download:
+                        logger.warning(f"DOWNLOAD_FORCED | job={job_id} | remaining_leaks={final_audit.remaining_leaks} | user_accepted_risk=true")
+                    else:
+                        logger.warning(f"DOWNLOAD_WARNING | job={job_id} | remaining_leaks={final_audit.remaining_leaks}")
+                        leak_types = list(set(l['type'] for l in final_audit.leaks_found))
+                        types_list = [f"{t} (posibles fugas)" for t in leak_types]
+                        
+                        return render_template("anonymizer_blocked.html",
+                            residual_types=types_list,
+                            total_residual=final_audit.remaining_leaks,
+                            original_filename=meta.get('download_name', 'documento'),
+                            job_id=job_id
+                        )
         
         elif meta['output_ext'] == 'txt' and FINAL_AUDITOR_AVAILABLE:
             with open(result_paths['doc'], 'r', encoding='utf-8') as f:
