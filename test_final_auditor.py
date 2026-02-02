@@ -13,6 +13,8 @@ import pytest
 from final_auditor import (
     audit_document, find_dni_leaks, find_email_leaks, find_phone_leaks,
     find_colegiatura_leaks, find_ruc_leaks, find_direccion_leaks,
+    find_expediente_leaks, find_resolucion_leaks, find_partida_leaks,
+    find_casilla_leaks, find_tribunal_sala_leaks,
     _find_all_leaks
 )
 
@@ -185,7 +187,7 @@ class TestAuditDocument:
         text = """
         DEMANDA DE ALIMENTOS
         
-        SEÑOR JUEZ DEL JUZGADO DE PAZ LETRADO
+        SEÑOR JUEZ DEL {{JUZGADO_1}}
         
         {{PERSONA_1}}, identificado con DNI {{DNI_1}},
         con domicilio en {{DIRECCION_1}}, interpone demanda.
@@ -424,6 +426,89 @@ class TestDOCXIntegration:
             assert '987654321' not in final_text
         finally:
             os.unlink(temp_path)
+
+
+class TestExpedienteDetection:
+    def test_detect_expediente_judicial(self):
+        text = "Expediente N° 00123-2024-0-1801-JP-FC-01"
+        leaks = find_expediente_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_expediente_simple(self):
+        text = "Exp. N° 12345-2024"
+        leaks = find_expediente_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_ignore_tokenized_expediente(self):
+        text = "Expediente: {{EXPEDIENTE_1}}"
+        leaks = find_expediente_leaks(text)
+        assert len(leaks) == 0
+
+
+class TestResolucionDetection:
+    def test_detect_resolucion(self):
+        text = "Resolución N° 123-2024"
+        leaks = find_resolucion_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_auto(self):
+        text = "Auto N° 456-2024"
+        leaks = find_resolucion_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_oficio(self):
+        text = "Oficio N° 789-2024"
+        leaks = find_resolucion_leaks(text)
+        assert len(leaks) >= 1
+
+
+class TestPartidaDetection:
+    def test_detect_partida_electronica(self):
+        text = "Partida electrónica N° 12345678"
+        leaks = find_partida_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_sunarp(self):
+        text = "SUNARP N° 87654321"
+        leaks = find_partida_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_asiento(self):
+        text = "Asiento N° 00001234"
+        leaks = find_partida_leaks(text)
+        assert len(leaks) >= 1
+
+
+class TestCasillaDetection:
+    def test_detect_casilla_electronica(self):
+        text = "Casilla electrónica N° 12345"
+        leaks = find_casilla_leaks(text)
+        assert len(leaks) >= 1
+    
+    def test_detect_mesa_partes(self):
+        text = "Mesa de partes N° 67890"
+        leaks = find_casilla_leaks(text)
+        assert len(leaks) >= 1
+
+
+class TestTribunalSalaDetection:
+    def test_detect_juzgado(self):
+        text = "1° Juzgado de Paz Letrado de Lima"
+        leaks = find_tribunal_sala_leaks(text)
+        assert len(leaks) >= 1
+        assert leaks[0]['type'] == 'JUZGADO'
+    
+    def test_detect_tribunal(self):
+        text = "Tribunal Constitucional del Perú"
+        leaks = find_tribunal_sala_leaks(text)
+        assert len(leaks) >= 1
+        assert leaks[0]['type'] == 'TRIBUNAL'
+    
+    def test_detect_sala(self):
+        text = "Sala Civil de Lima Norte"
+        leaks = find_tribunal_sala_leaks(text)
+        assert len(leaks) >= 1
+        assert leaks[0]['type'] == 'SALA'
 
 
 if __name__ == '__main__':
