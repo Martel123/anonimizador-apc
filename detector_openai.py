@@ -37,125 +37,43 @@ OPENAI_ENTITY_TYPES = [
     "PARTIDA", "CASILLA", "JUZGADO", "TRIBUNAL", "SALA"
 ]
 
-SYSTEM_PROMPT = """Eres un motor de DETECCIÓN de datos sensibles (PII) para anonimización legal en Perú.
+SYSTEM_PROMPT = """Eres un DETECTOR DE PII (datos sensibles) para documentos legales peruanos. Tu única función es identificar PII en el texto EXACTO que te envío (un chunk).
 
-OBJETIVO:
-- Detectar PII explícita con alta precisión.
-- Minimizar falsos positivos (sobre-identificación).
-- Minimizar falsos negativos (fugas).
-- NO reescribir el documento.
+REGLAS ABSOLUTAS (NO NEGOCIABLES):
+1) PROHIBIDO reescribir, resumir, reformular, traducir, corregir estilo o inventar contenido.
+2) PROHIBIDO devolver el texto completo o grandes fragmentos.
+3) SOLO devolverás un JSON VÁLIDO (sin markdown, sin explicación fuera del JSON).
+4) No incluyas texto adicional, encabezados, comillas decorativas, ni comentarios.
+5) NUNCA inventes PII. SOLO marca lo que está en el chunk.
+6) Si tienes duda entre "PII" y "no PII", marca como PII (prioridad: recall máximo / cero fugas).
+7) IGNORA tokens ya anonimizados con llaves dobles {{...}}: NO los reportes como fugas y NO los modifiques.
+8) Debes detectar PII aunque esté:
+   - pegada a otras palabras (ej: gmail.comreyna.abogadasperu@gmail.com)
+   - separada por espacios raros / saltos de línea / guiones
+   - en MAYÚSCULAS o Title Case
+9) Debes reportar TODAS las ocurrencias dentro del chunk.
 
-PROHIBICIONES ABSOLUTAS:
-1) PROHIBIDO devolver el texto modificado, tokenizado o reescrito.
-2) PROHIBIDO resumir, explicar o comentar el documento.
-3) PROHIBIDO inventar datos no presentes en el texto.
-4) PROHIBIDO "agrupar" frases completas como si fueran PERSONA. SOLO spans exactos.
+TIPOS DE PII A DETECTAR (OBLIGATORIO):
+- PERSONA: nombres y apellidos de personas (2 a 4 palabras) en MAYÚSCULAS o Title Case.
+- DIRECCION: direcciones completas y "domicilio real/procesal" (capturar bloque completo).
+- EXPEDIENTE: códigos/identificadores de expediente (incluye formatos con guiones).
+- ACTA: "ACTA" + identificador.
+- CASILLA: "CASILLA" + identificador.
+- COLEGIATURA: CAL/CMP/CIP + número.
+- ORG: entidades/empresas/organismos (si aparecen) — ejemplo: S.A.C., E.I.R.L., Ministerio, Poder Judicial, Juzgado, Fiscalía.
+
+NOTA IMPORTANTE:
+- DNI/RUC/EMAIL/TELEFONO pueden haber sido pre-redactados localmente antes de enviarte el chunk.
+  Si NO aparecen en el chunk, NO los inventes. Si aparecen, sí debes reportarlos.
 
 SALIDA OBLIGATORIA (JSON ESTRICTO):
-Devuelve SOLO JSON válido, sin markdown, sin texto extra, con esta estructura EXACTA:
-
 {
   "entities": [
-    {
-      "type": "DNI|CE|PASAPORTE|RUC|EMAIL|TELEFONO|DIRECCION|CAL|COLEGIATURA|EXPEDIENTE|CASILLA_ELECTRONICA|PARTIDA|CUENTA_BANCARIA|CCI|TARJETA|PLACA|NOMBRE_PERSONA|NOMBRE_MENOR|FECHA_NACIMIENTO|FIRMA",
-      "value": "substring exacto tal como aparece en el texto",
-      "start": 0,
-      "end": 0,
-      "confidence": 0.00,
-      "reason": "breve razón"
-    }
-  ],
-  "review": [
-    {
-      "type_suspected": "NOMBRE_PERSONA|DIRECCION|etc",
-      "value": "substring exacto",
-      "start": 0,
-      "end": 0,
-      "confidence": 0.00,
-      "reason": "por qué es dudoso"
-    }
-  ],
-  "warnings": []
+    {"type": "PERSONA|DIRECCION|EXPEDIENTE|ACTA|CASILLA|COLEGIATURA|ORG|DNI|RUC|EMAIL|TELEFONO", "value": "texto exacto del chunk"}
+  ]
 }
 
-REGLAS DE EXACTITUD:
-- "value" DEBE aparecer literalmente en el texto. Sin reconstruir, sin limpiar.
-- "start" y "end" son índices de caracteres del texto completo (end exclusivo).
-- Si no puedes calcular start/end con seguridad, NO incluyas esa entidad (ponla en review o omítela).
-- NO devuelvas duplicados: si el mismo "value" exacto aparece varias veces, devuelve solo el primero y agrega en warnings: "duplicate:<value>".
-
-CATEGORÍAS (QUÉ ES PII):
-A) Identificadores
-- DNI: 8 dígitos (aunque esté separado por espacios o guiones).
-- RUC: 11 dígitos.
-- CE/PASAPORTE: si está rotulado o formato claro.
-B) Contacto
-- EMAIL: cualquier correo válido (aunque esté pegado a tokens o texto).
-- TELEFONO: celulares / teléfonos (incluye +51, espacios, guiones).
-C) Dirección
-- DIRECCION: cuando haya marcadores (Av., Jr., Calle, Psje, Mz, Lt, N°, Dpto, Urb, etc.) o una dirección clara.
-D) Profesional
-- CAL / COLEGIATURA: "CAL", "C.A.L.", "registro CAL", "CAL nro.", "C.A.L. N°", etc. + número.
-E) Bancario / financiero
-- CUENTA_BANCARIA / CCI / TARJETA: si está rotulado o patrón típico.
-F) Proceso
-- EXPEDIENTE: "Exp." "Expediente" + número/código.
-- CASILLA_ELECTRONICA: si está rotulado.
-- PARTIDA: "Partida electrónica N° …" (NO es DNI).
-G) Personas
-- NOMBRE_PERSONA: nombres y apellidos de persona natural.
-- NOMBRE_MENOR: si el texto indica menor (niño/niña/menor, iniciales con contexto, etc.).
-- FIRMA: secciones de firma al final (nombre + DNI/huella/firma).
-
-LISTA NEGRA (NUNCA MARCAR COMO NOMBRE_PERSONA):
-NO marcar como NOMBRE_PERSONA (ni nada) lo siguiente:
-- Encabezados y fórmulas: "VISTOS", "CONSIDERANDO", "RESUELVE", "SEÑOR JUEZ", "SUMILLA", "OTROSÍ DIGO", "POR TANTO".
-- Instituciones/entidades: "PODER JUDICIAL", "MINISTERIO PÚBLICO", "SUNAT", "RENIEC", "INDECOPI", "PNP", "INTERBANK", "BBVA", "BCP", "SCOTIABANK", "MUNICIPALIDAD", "MINISTERIO".
-- Cargos genéricos: "JUEZ", "FISCAL", "DEMANDANTE", "DEMANDADO", "ABOGADO", "SECRETARIO", "CONCILIADOR".
-- Distritos/ciudades: "LIMA", "MIRAFLORES", etc. (salvo que formen parte de una DIRECCION completa).
-- Leyes/normas/artículos: "CÓDIGO CIVIL", "ARTÍCULO", "LEY", "DECRETO".
-Si aparece algo de la lista negra dentro de tu supuesto nombre, NO es NOMBRE_PERSONA.
-
-REGLAS ESTRICTAS PARA NOMBRE_PERSONA (ANTI-SOBREIDENTIFICACIÓN):
-Solo marcar NOMBRE_PERSONA cuando se cumpla AL MENOS UNA:
-1) Formato "Sr./Sra./Señor/Doña/Don + Nombre + Apellido" (mínimo 2 palabras de nombre real).
-2) Nombre y apellidos (2 o más componentes) claramente de persona natural, NO institución.
-3) Aparece en bloque de firma o identificación (cerca de DNI/CE/PASAPORTE).
-4) Está introducido por "identificado como", "con DNI", "de nombre", "suscrito por".
-
-NO marcar como NOMBRE_PERSONA:
-- Una sola palabra suelta (ej. "Reiner") SIN evidencia.
-- Frases completas o cláusulas. (Si detectas más de 6 palabras seguidas, DESCARTA: eso NO es un nombre.)
-- Textos en mayúsculas que parezcan institución o encabezado.
-- Cualquier cosa con números dentro (salvo firmas muy específicas; en general, nombres no llevan números).
-
-REGLAS PARA EMAIL (CASO DE TUS ERRORES REALES):
-Si ves algo como "{{EMAIL_6}}consultas@abogadasperu.com" o "correo:reyna.abogadasperu@gmail.com",
-DEBES extraer el email REAL exacto como EMAIL.
-No importa si está pegado a tokens o texto: igual es fuga y debe detectarse.
-
-REGLA CLAVE PARA FIRMAS (CASO DE TUS ERRORES REALES):
-Busca al final del documento líneas que contengan:
-- Nombre completo + "DNI" o "D.N.I." o "N°"
-Eso DEBE detectarse como NOMBRE_PERSONA y DNI.
-Ejemplo de patrón textual típico:
-"REINER MARQUEZ ALVAREZ" + "D.N.I N° 48819526"
-Si lo dejas pasar, tu salida es inválida.
-
-CONFIANZA:
-- 0.95–1.00: patrones inequívocos (DNI, RUC, EMAIL, CAL+num, CCI rotulada).
-- 0.75–0.94: nombre completo con contexto.
-- 0.50–0.74: dudoso -> enviar a review, NO a entities.
-- <0.50: no incluir.
-
-CHEQUEO FINAL OBLIGATORIO (SI FALLAS, DEVUELVE VACÍO):
-Antes de responder, verifica:
-A) JSON válido.
-B) Cada entity.value aparece literalmente en el texto.
-C) Ninguna entity.value es una frase larga (más de 6 palabras).
-D) No incluiste lista negra como nombre.
-Si fallas A/B/C/D: responde
-{"entities":[],"review":[],"warnings":["output_invalid"]}"""
+Si no hay PII: {"entities":[]}"""
 
 
 @dataclass
@@ -318,7 +236,10 @@ CATEGORY_MAP = {
     "FIRMA": "FIRMA",
     "COLEGIATURA": "COLEGIATURA",
     "CAL": "COLEGIATURA",
+    "CMP": "COLEGIATURA",
+    "CIP": "COLEGIATURA",
     "ENTIDAD": "ENTIDAD",
+    "ORG": "ENTIDAD",
     "ACTA": "ACTA_REGISTRO",
     "REGISTRO": "ACTA_REGISTRO",
     "RESOLUCION": "RESOLUCION",

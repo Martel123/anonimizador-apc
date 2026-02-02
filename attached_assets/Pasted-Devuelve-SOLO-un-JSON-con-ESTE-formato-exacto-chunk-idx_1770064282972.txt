@@ -1,0 +1,85 @@
+Devuelve SOLO un JSON con ESTE formato exacto:
+
+{
+  "chunk_idx": <<IDX>>,
+  "entities": [
+    {
+      "type": "PERSONA|DNI|RUC|EMAIL|TELEFONO|DIRECCION|EXPEDIENTE|ACTA|CASILLA|COLEGIATURA|ORG",
+      "start": 0,
+      "end": 0,
+      "value": "",
+      "priority": "high|medium",
+      "why": ""
+    }
+  ],
+  "residual_check": {
+    "possible_remaining_pii": true,
+    "notes": []
+  }
+}
+
+REGLAS DE SALIDA (OBLIGATORIO CUMPLIR):
+A) "start" y "end" son índices EXACTOS dentro del CHUNK (Python slicing): chunk[start:end].
+B) "value" debe ser EXACTAMENTE chunk[start:end] (idéntico, sin recortar, sin limpiar).
+C) "why" debe ser corto (máx 12 palabras).
+D) NO reportar NADA dentro de tokens {{...}}.
+E) Reporta TODAS las ocurrencias (si se repite 3 veces, reporta 3).
+F) Ordena entities por start ascendente.
+G) NO devuelvas entidades vacías: si no hay PII, entities debe ser [].
+
+CRITERIOS DE DETECCIÓN (RECALL MÁXIMO):
+
+1) PERSONA (MUY AGRESIVO):
+- Marca como PERSONA cualquier secuencia de 2 a 4 palabras SOLO letras:
+  a) TODO MAYÚSCULAS: "REINER MARQUEZ ALVAREZ"
+  b) Title Case: "Reiner Marquez Alvarez"
+- Marca PERSONA con prioridad HIGH si:
+  - hay contexto legal cerca (±80 caracteres):
+    identificado, identificada, DNI, demandante, demandado, señor, doña, abogado,
+    suscrito, suscribo, interpone, contra, madre, padre, menor, hijo, hija
+  - O si son 3 o 4 palabras (nombre completo probable), aunque no haya contexto.
+- NO marques como PERSONA si coincide con palabras legales comunes (títulos/secciones):
+  SEÑOR, SEÑORES, JUEZ, JUZGADO, DEMANDA, SUMILLA, PETITORIO, FUNDAMENTOS,
+  MEDIOS, PRUEBAS, ANEXOS, OTROSÍ, EXPEDIENTE, ACTA, CASILLA, MINISTERIO,
+  PODER JUDICIAL, FISCALÍA, TRIBUNAL, SALA, ARTÍCULO, CÓDIGO.
+
+2) DNI:
+- 8 dígitos consecutivos.
+- Prioridad HIGH si cerca aparece "DNI" o "identificado".
+
+3) RUC:
+- 11 dígitos que empiecen con 10 o 20. SIEMPRE marcar.
+
+4) EMAIL:
+- patrón correo estándar, incluso si está pegado a letras antes/después.
+- si encuentras correos concatenados, reporta cada correo.
+
+5) TELEFONO:
+- Perú: 9 dígitos (empieza con 9) con o sin +51, con espacios/guiones/paréntesis.
+
+6) DIRECCION:
+- Si aparece "domicilio real" o "domicilio procesal":
+  captura desde esa frase hasta el siguiente ';' o '.' o salto de línea (lo que ocurra primero).
+- Si aparecen disparadores de dirección + número, marca el bloque completo:
+  Av/Avenida/Jr/Jirón/Calle/Pasaje/Mz/Manzana/Lt/Lote/Dpto/Departamento/Urb/Urbanización/N°/Nro/Bloque/Piso/Distrito/Provincia/Departamento.
+
+7) EXPEDIENTE / ACTA / CASILLA:
+- EXPEDIENTE: "EXPEDIENTE" o "Exp." + identificador con dígitos/guiones.
+- ACTA: "ACTA" + identificador.
+- CASILLA: "CASILLA" + identificador.
+Captura el identificador completo.
+
+8) COLEGIATURA:
+- CAL/CMP/CIP (con o sin puntos) + número (4 a 7 dígitos). Ej: "CAL N° 49657"
+
+SEGUNDA PASADA (residual_check):
+- Re-escanea mentalmente el chunk.
+- Si crees que puede haber PII no capturada (por formatos raros, cortes, pegado), pon:
+  possible_remaining_pii=true y notes con máximo 3 patrones cortos.
+- Si estás seguro que capturaste todo, possible_remaining_pii=false.
+
+CHUNK_IDX: <<IDX>>
+CHUNK_TEXT:
+<<<
+<<CHUNK>>
+>>>
