@@ -8,11 +8,26 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 ## Legal Anonymizer (Main Feature)
 - **URL**: `/` (home page) or `/anonymizer`
 - **Supported formats**: DOCX and PDF (text-based)
-- **PII Detection**: 15 entity categories including DNI, RUC, emails, phones, addresses, names, expedientes, casillas, juzgados, FIRMA, SELLO, HUELLA, PLACA, ACTA, CUENTA
+- **PII Detection**: 21+ entity categories including DNI, RUC, emails, phones, addresses, names, EXPEDIENTE, RESOLUCION, PARTIDA, CASILLA, TRIBUNAL, SALA, JUZGADO, FISCALIA, FIRMA, SELLO, HUELLA, PLACA, ACTA, CUENTA, COLEGIATURA
 - **Placeholders**: `{{DNI_1}}`, `{{PERSONA_1}}`, `{{EMAIL_1}}`, etc.
 - **Output**: Anonymized document + detailed report (JSON/TXT)
 - **Privacy**: Files processed in memory, auto-deleted after 30 minutes
-- **No paid services**: Pure regex/rule-based detection
+- **Default**: 100% local processing (no API calls). Optional OpenAI enhancement available
+
+### Environment Variables
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `USE_OPENAI_DETECT` | `0` | Enable OpenAI-enhanced detection (1=on, 0=off) |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Model for detection (cost-effective) |
+| `OPENAI_TIMEOUT_SECONDS` | `30` | Timeout per API call |
+| `OPENAI_CHUNK_TOKENS` | `3000` | Tokens per chunk for processing |
+| `OPENAI_CONCURRENCY` | `2` | Parallel chunk processing |
+| `STRICT_ZERO_LEAKS` | `0` | Apply hard-redaction patterns as fallback (1=on) |
+
+### Triple-Layer Zero-Leak Guarantee
+1. **Processing Audit**: 8-stage detection pipeline with auto-fix
+2. **Download Audit**: Final scan before file delivery (warning if leaks found)
+3. **Hard-Redaction Fallback**: Emergency pattern-based redaction (STRICT_ZERO_LEAKS=1)
 
 ### Detection Pipeline (8 Stages)
 1. **Preprocesamiento**: Text extraction preserving structure
@@ -26,10 +41,11 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 
 ### Key Modules
 - `detector_capas.py`: 8-stage detection pipeline
+- `detector_openai.py`: Optional OpenAI-enhanced detection with pre-redaction privacy
 - `legal_filters.py`: Anti-over-anonymization with legal whitelist
-- `final_auditor.py`: Final audit with auto-fix for leaked PII
-- `processor_docx.py`: Run-aware DOCX replacement (preserves formatting)
-- `test_legal_filters.py`: 22 unit tests for legal filtering
+- `final_auditor.py`: Final audit with auto-fix for leaked PII (21+ categories)
+- `processor_docx.py`: Run-aware DOCX replacement with hard-redaction fallback
+- `test_final_auditor.py`: 61 unit tests for PII detection
 
 ## Original Platform Overview
 This project is a multi-tenant SaaS web platform built with Flask, designed for Conciliation Centers. It enables multiple centers to register, each operating with isolated data, including templates, users, documents, and styles. Each tenant benefits from customizable branding (logo, contact information) and the system supports three distinct user roles, along with a subscription-based plan system (Basic, Medium, Advanced) that gates access to features like user count, document limits, and AI argumentation. The platform aims to streamline document generation, improve legal argumentation with AI, and provide a comprehensive management system for conciliation processes.

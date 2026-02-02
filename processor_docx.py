@@ -406,40 +406,96 @@ def hard_redact_patterns(doc) -> int:
     """
     Aplica redacción forzada de patrones sensibles como último recurso.
     Esto es un safety net cuando la detección normal falla.
+    Usa el mismo enfoque run-aware que replace_in_runs_aware.
     """
     total_fixes = 0
     
-    def redact_in_runs(paragraph):
+    def redact_paragraph_run_aware(paragraph):
         fixes = 0
-        full_text = ''.join(run.text for run in paragraph.runs)
+        MAX_ITERATIONS = 50
+        
+        try:
+            runs = paragraph.runs
+            if not runs:
+                return 0
+        except Exception:
+            return 0
+        
+        full_text = ''.join(run.text or '' for run in runs)
+        if not full_text:
+            return 0
         
         for pattern, replacement in HARD_REDACT_PATTERNS:
-            if pattern.search(full_text):
-                for run in paragraph.runs:
-                    original = run.text
-                    new_text = pattern.sub(replacement, run.text)
-                    if new_text != original:
-                        run.text = new_text
-                        fixes += 1
+            iterations = 0
+            while iterations < MAX_ITERATIONS:
+                iterations += 1
+                full_text = ''.join(run.text or '' for run in runs)
+                match = pattern.search(full_text)
+                if not match:
+                    break
+                
+                original = match.group(0)
+                start_pos = match.start()
+                end_pos = match.end()
+                
+                run_map = []
+                pos = 0
+                for idx, run in enumerate(runs):
+                    run_text = run.text or ''
+                    run_map.append((pos, pos + len(run_text), idx, run))
+                    pos += len(run_text)
+                
+                start_runs = [(s, e, i, r) for s, e, i, r in run_map if s <= start_pos < e]
+                end_runs = [(s, e, i, r) for s, e, i, r in run_map if s < end_pos <= e]
+                
+                if not start_runs or not end_runs:
+                    break
+                
+                start_run_info = start_runs[0]
+                end_run_info = end_runs[0]
+                
+                if start_run_info[2] == end_run_info[2]:
+                    run = start_run_info[3]
+                    run_start = start_run_info[0]
+                    local_start = start_pos - run_start
+                    local_end = end_pos - run_start
+                    run.text = run.text[:local_start] + replacement + run.text[local_end:]
+                    fixes += 1
+                else:
+                    first_run = start_run_info[3]
+                    first_run_start = start_run_info[0]
+                    local_start = start_pos - first_run_start
+                    first_run.text = first_run.text[:local_start] + replacement
+                    
+                    for s, e, i, r in run_map:
+                        if start_run_info[2] < i < end_run_info[2]:
+                            r.text = ''
+                    
+                    last_run = end_run_info[3]
+                    last_run_start = end_run_info[0]
+                    local_end = end_pos - last_run_start
+                    last_run.text = last_run.text[local_end:]
+                    fixes += 1
+        
         return fixes
     
     for para in doc.paragraphs:
-        total_fixes += redact_in_runs(para)
+        total_fixes += redact_paragraph_run_aware(para)
     
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for para in cell.paragraphs:
-                    total_fixes += redact_in_runs(para)
+                    total_fixes += redact_paragraph_run_aware(para)
     
     for section in doc.sections:
         for header in [section.header, section.first_page_header, section.even_page_header]:
             if header:
                 for para in header.paragraphs:
-                    total_fixes += redact_in_runs(para)
+                    total_fixes += redact_paragraph_run_aware(para)
         for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
             if footer:
                 for para in footer.paragraphs:
-                    total_fixes += redact_in_runs(para)
+                    total_fixes += redact_paragraph_run_aware(para)
     
     return total_fixes

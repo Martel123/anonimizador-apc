@@ -90,34 +90,45 @@ def pre_redact_for_privacy(text: str) -> Tuple[str, Dict[str, str]]:
     """
     redaction_map = {}
     result = text
-    counter = {"dni": 0, "ruc": 0, "email": 0, "phone": 0, "cci": 0, "cuenta": 0, "placa": 0}
     
-    for match in PRE_REDACT_EMAIL.finditer(result):
-        counter["email"] += 1
-        placeholder = f"[EMAIL_PRE_{counter['email']}]"
-        redaction_map[placeholder] = match.group(0)
-    result = PRE_REDACT_EMAIL.sub(lambda m: f"[EMAIL_PRE_{list(PRE_REDACT_EMAIL.finditer(text)).index(m)+1}]", result)
+    def replace_with_counter(pattern, prefix, text_to_process):
+        counter = [0]
+        local_map = {}
+        def replacer(m):
+            counter[0] += 1
+            placeholder = f"[{prefix}_{counter[0]}]"
+            local_map[placeholder] = m.group(0)
+            return placeholder
+        new_text = pattern.sub(replacer, text_to_process)
+        return new_text, local_map
     
-    for match in PRE_REDACT_RUC.finditer(result):
-        counter["ruc"] += 1
-        placeholder = f"[RUC_PRE_{counter['ruc']}]"
-        redaction_map[placeholder] = match.group(0)
-    result = PRE_REDACT_RUC.sub(lambda m: f"[RUC_PRE_{list(PRE_REDACT_RUC.finditer(text)).index(m)+1}]", result)
+    result, email_map = replace_with_counter(PRE_REDACT_EMAIL, "EMAIL_PRE", result)
+    redaction_map.update(email_map)
     
-    for match in PRE_REDACT_DNI.finditer(result):
-        val = match.group(0)
-        if not any(c in result[max(0, match.start()-20):match.start()].lower() 
-                   for c in ['s/', 'us$', '$', 'soles', 'artículo', 'art.', 'ley', 'decreto']):
-            counter["dni"] += 1
-            placeholder = f"[DNI_PRE_{counter['dni']}]"
-            redaction_map[placeholder] = val
-            result = result[:match.start()] + placeholder + result[match.end():]
+    result, ruc_map = replace_with_counter(PRE_REDACT_RUC, "RUC_PRE", result)
+    redaction_map.update(ruc_map)
     
-    for match in PRE_REDACT_PHONE.finditer(result):
-        counter["phone"] += 1
-        placeholder = f"[TEL_PRE_{counter['phone']}]"
-        redaction_map[placeholder] = match.group(0)
-    result = PRE_REDACT_PHONE.sub(lambda m: f"[TEL_PRE_{list(PRE_REDACT_PHONE.finditer(text)).index(m)+1}]", result)
+    result, phone_map = replace_with_counter(PRE_REDACT_PHONE, "TEL_PRE", result)
+    redaction_map.update(phone_map)
+    
+    result, cci_map = replace_with_counter(PRE_REDACT_CCI, "CCI_PRE", result)
+    redaction_map.update(cci_map)
+    
+    result, placa_map = replace_with_counter(PRE_REDACT_PLACA, "PLACA_PRE", result)
+    redaction_map.update(placa_map)
+    
+    dni_counter = [0]
+    def dni_replacer(m):
+        val = m.group(0)
+        context_start = max(0, m.start() - 20)
+        context = result[context_start:m.start()].lower()
+        if any(c in context for c in ['s/', 'us$', '$', 'soles', 'artículo', 'art.', 'ley', 'decreto']):
+            return val
+        dni_counter[0] += 1
+        placeholder = f"[DNI_PRE_{dni_counter[0]}]"
+        redaction_map[placeholder] = val
+        return placeholder
+    result = PRE_REDACT_DNI.sub(dni_replacer, result)
     
     return result, redaction_map
 

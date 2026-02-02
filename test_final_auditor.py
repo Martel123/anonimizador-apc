@@ -511,5 +511,63 @@ class TestTribunalSalaDetection:
         assert leaks[0]['type'] == 'SALA'
 
 
+class TestPreRedactForPrivacy:
+    def test_pre_redact_email(self):
+        from detector_openai import pre_redact_for_privacy
+        text = "Contactar a juan@mail.com para más información"
+        result, redaction_map = pre_redact_for_privacy(text)
+        assert 'juan@mail.com' not in result
+        assert '[EMAIL_PRE_1]' in result
+        assert '[EMAIL_PRE_1]' in redaction_map
+        assert redaction_map['[EMAIL_PRE_1]'] == 'juan@mail.com'
+    
+    def test_pre_redact_phone(self):
+        from detector_openai import pre_redact_for_privacy
+        text = "Celular: 987654321"
+        result, redaction_map = pre_redact_for_privacy(text)
+        assert '987654321' not in result
+        assert '[TEL_PRE_1]' in result
+    
+    def test_pre_redact_multiple(self):
+        from detector_openai import pre_redact_for_privacy
+        text = "Email: a@b.com, Tel: 987654321, DNI: 12345678"
+        result, redaction_map = pre_redact_for_privacy(text)
+        assert 'a@b.com' not in result
+        assert '987654321' not in result
+        assert len(redaction_map) >= 2
+
+
+class TestHardRedactPatterns:
+    def test_hard_redact_email_in_doc(self):
+        from docx import Document
+        from processor_docx import hard_redact_patterns
+        doc = Document()
+        doc.add_paragraph("Email: test@example.com para contacto")
+        fixes = hard_redact_patterns(doc)
+        assert fixes >= 1
+        assert '{{EMAIL_REDACT}}' in doc.paragraphs[0].text
+    
+    def test_hard_redact_phone(self):
+        from docx import Document
+        from processor_docx import hard_redact_patterns
+        doc = Document()
+        doc.add_paragraph("Celular: 987654321")
+        fixes = hard_redact_patterns(doc)
+        assert fixes >= 1
+    
+    def test_hard_redact_split_across_runs(self):
+        from docx import Document
+        from processor_docx import hard_redact_patterns
+        doc = Document()
+        para = doc.add_paragraph()
+        run1 = para.add_run("test@")
+        run2 = para.add_run("example")
+        run3 = para.add_run(".com")
+        fixes = hard_redact_patterns(doc)
+        full_text = ''.join(run.text for run in para.runs)
+        assert 'test@example.com' not in full_text
+        assert '{{EMAIL_REDACT}}' in full_text or fixes >= 1
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
