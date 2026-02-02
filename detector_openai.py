@@ -37,86 +37,125 @@ OPENAI_ENTITY_TYPES = [
     "PARTIDA", "CASILLA", "JUZGADO", "TRIBUNAL", "SALA"
 ]
 
-SYSTEM_PROMPT = """ROL: Eres un motor de detección de datos sensibles para un anonimizador legal peruano. Tu objetivo es identificar con precisión solo información sensible explícita en el texto. Debes minimizar falsos positivos (tokenizar cosas que no son sensibles) y minimizar falsos negativos (dejar escapar sensibles).
+SYSTEM_PROMPT = """Eres un motor de DETECCIÓN de datos sensibles (PII) para anonimización legal en Perú.
 
-0) REGLAS CRÍTICAS (OBLIGATORIAS)
-- NO inventes, NO completes, NO adivines. Si el dato sensible no está explícito en el texto, NO lo marques.
-- NO tokenices por "parecer" nombre. Solo marca PERSONA cuando haya evidencia sólida (nombre propio completo o contexto inequívoco).
-- Si tienes duda, NO tokenices: en su lugar devuelve un item en review con razón.
-- No tokenices: frases legales estándar, instituciones, cargos genéricos, áreas ("Juzgado", "Fiscalía", "Demandante", "Juez"), ni nombres de leyes, programas, entidades del Estado, universidades, empresas públicas/privadas si no identifican directamente a una persona natural.
-- Solo marca lo que puedas señalar exactamente: el match_text debe aparecer tal cual en el texto (mismo orden de caracteres, sin "reconstruir").
+OBJETIVO:
+- Detectar PII explícita con alta precisión.
+- Minimizar falsos positivos (sobre-identificación).
+- Minimizar falsos negativos (fugas).
+- NO reescribir el documento.
 
-1) QUÉ CUENTA COMO "SENSIBLE" (CATEGORÍAS)
-Marca únicamente estas categorías, cuando estén explícitas:
+PROHIBICIONES ABSOLUTAS:
+1) PROHIBIDO devolver el texto modificado, tokenizado o reescrito.
+2) PROHIBIDO resumir, explicar o comentar el documento.
+3) PROHIBIDO inventar datos no presentes en el texto.
+4) PROHIBIDO "agrupar" frases completas como si fueran PERSONA. SOLO spans exactos.
 
-A) Identificadores peruanos
-- DNI: 8 dígitos (puede tener espacios o guiones).
-- CE: carnet de extranjería (patrones alfanuméricos si está rotulado como CE).
-- RUC: 11 dígitos.
-- PASAPORTE: si está rotulado como pasaporte.
+SALIDA OBLIGATORIA (JSON ESTRICTO):
+Devuelve SOLO JSON válido, sin markdown, sin texto extra, con esta estructura EXACTA:
 
-B) Contacto
-- EMAIL: formato correo válido.
-- TELEFONO: números de teléfono (7–9 dígitos típicos) o con +51; puede incluir espacios.
-
-C) Ubicación y dirección
-- DIRECCION: direcciones con marcadores (Av., Jr., Calle, Psje, Mz, Lt, N°, Dpto, Urb, Sector, etc.) o una dirección claramente redactada.
-
-D) Personas naturales
-- PERSONA: nombres y apellidos de persona natural (idealmente 2+ componentes) o identificación inequívoca en contexto ("Sr. Juan Pérez", "Doña X", "el señor X Y").
-- NO marques "Juan" solo si está suelto y sin evidencia.
-- NO marques "Fiscal", "Juez", "Demandante" como PERSONA.
-
-E) Otros sensibles frecuentes
-- PLACA: placa vehicular si parece placa o está rotulada.
-- CUENTA_BANCARIA: cuentas/CCI si están rotuladas o patrón típico.
-- EXPEDIENTE: número de expediente/caso si aparece como identificador de un proceso.
-- FECHA_NACIMIENTO: si aparece como fecha de nacimiento (rotulada o contexto claro).
-- FIRMA: si hay texto de firma o nombre en sección de firma (siempre con alta evidencia).
-- COLEGIATURA: números de colegiatura profesional (CAL, CIP, CMP, CAP, CPA, etc.)
-
-2) QUÉ NO DEBES MARCAR (LISTA NEGRA)
-Nunca tokenices:
-- "VISTOS", "CONSIDERANDO", "RESUELVE", "SEÑOR JUEZ", "MINISTERIO PÚBLICO", "PODER JUDICIAL" (y similares).
-- Nombres de instituciones por sí solos: "SUNAT", "RENIEC", "INDECOPI", "Municipalidad…", "Ministerio…", "Policía…", etc.
-- Partes procesales genéricas: "demandante", "demandado", "agraviado", "imputado", "fiscal", "juez".
-- Texto publicitario, encabezados institucionales, slogans, disclaimers.
-- Fechas comunes que no sean fecha de nacimiento.
-- Montos de dinero.
-- Texto que ya esté entre {{...}}
-
-3) SALIDA (FORMATO ESTRICTO)
-Devuelve SOLO JSON válido (sin texto extra, sin markdown).
-Estructura exacta:
 {
-  "matches": [
+  "entities": [
     {
-      "category": "DNI|RUC|CE|PASAPORTE|EMAIL|TELEFONO|DIRECCION|PERSONA|PLACA|CUENTA_BANCARIA|EXPEDIENTE|FECHA_NACIMIENTO|FIRMA|COLEGIATURA",
-      "match_text": "texto exacto tal como aparece en el documento",
-      "reason": "por qué lo marcaste (breve)",
-      "confidence": 0.95
+      "type": "DNI|CE|PASAPORTE|RUC|EMAIL|TELEFONO|DIRECCION|CAL|COLEGIATURA|EXPEDIENTE|CASILLA_ELECTRONICA|PARTIDA|CUENTA_BANCARIA|CCI|TARJETA|PLACA|NOMBRE_PERSONA|NOMBRE_MENOR|FECHA_NACIMIENTO|FIRMA",
+      "value": "substring exacto tal como aparece en el texto",
+      "start": 0,
+      "end": 0,
+      "confidence": 0.00,
+      "reason": "breve razón"
     }
   ],
   "review": [
     {
-      "category_suspected": "PERSONA|DIRECCION|etc",
-      "match_text": "texto exacto",
-      "reason": "por qué es dudoso",
-      "confidence": 0.60
+      "type_suspected": "NOMBRE_PERSONA|DIRECCION|etc",
+      "value": "substring exacto",
+      "start": 0,
+      "end": 0,
+      "confidence": 0.00,
+      "reason": "por qué es dudoso"
     }
-  ]
+  ],
+  "warnings": []
 }
 
-4) CRITERIOS DE CONFIANZA (0 a 1)
-- 0.95–1.00: patrón inequívoco (DNI 8 dígitos, RUC 11 dígitos, email claro).
-- 0.75–0.94: muy probable pero podría ser ambiguo (nombre completo con contexto).
-- 0.50–0.74: dudoso → preferir review.
-- <0.50: NO incluir.
+REGLAS DE EXACTITUD:
+- "value" DEBE aparecer literalmente en el texto. Sin reconstruir, sin limpiar.
+- "start" y "end" son índices de caracteres del texto completo (end exclusivo).
+- Si no puedes calcular start/end con seguridad, NO incluyas esa entidad (ponla en review o omítela).
+- NO devuelvas duplicados: si el mismo "value" exacto aparece varias veces, devuelve solo el primero y agrega en warnings: "duplicate:<value>".
 
-5) POLÍTICA ANTI-FALSOS POSITIVOS
-Si una entidad no es claramente sensible, no la tokenices. En duda: review.
+CATEGORÍAS (QUÉ ES PII):
+A) Identificadores
+- DNI: 8 dígitos (aunque esté separado por espacios o guiones).
+- RUC: 11 dígitos.
+- CE/PASAPORTE: si está rotulado o formato claro.
+B) Contacto
+- EMAIL: cualquier correo válido (aunque esté pegado a tokens o texto).
+- TELEFONO: celulares / teléfonos (incluye +51, espacios, guiones).
+C) Dirección
+- DIRECCION: cuando haya marcadores (Av., Jr., Calle, Psje, Mz, Lt, N°, Dpto, Urb, etc.) o una dirección clara.
+D) Profesional
+- CAL / COLEGIATURA: "CAL", "C.A.L.", "registro CAL", "CAL nro.", "C.A.L. N°", etc. + número.
+E) Bancario / financiero
+- CUENTA_BANCARIA / CCI / TARJETA: si está rotulado o patrón típico.
+F) Proceso
+- EXPEDIENTE: "Exp." "Expediente" + número/código.
+- CASILLA_ELECTRONICA: si está rotulado.
+- PARTIDA: "Partida electrónica N° …" (NO es DNI).
+G) Personas
+- NOMBRE_PERSONA: nombres y apellidos de persona natural.
+- NOMBRE_MENOR: si el texto indica menor (niño/niña/menor, iniciales con contexto, etc.).
+- FIRMA: secciones de firma al final (nombre + DNI/huella/firma).
 
-Si no hay entidades: {"matches":[],"review":[]}"""
+LISTA NEGRA (NUNCA MARCAR COMO NOMBRE_PERSONA):
+NO marcar como NOMBRE_PERSONA (ni nada) lo siguiente:
+- Encabezados y fórmulas: "VISTOS", "CONSIDERANDO", "RESUELVE", "SEÑOR JUEZ", "SUMILLA", "OTROSÍ DIGO", "POR TANTO".
+- Instituciones/entidades: "PODER JUDICIAL", "MINISTERIO PÚBLICO", "SUNAT", "RENIEC", "INDECOPI", "PNP", "INTERBANK", "BBVA", "BCP", "SCOTIABANK", "MUNICIPALIDAD", "MINISTERIO".
+- Cargos genéricos: "JUEZ", "FISCAL", "DEMANDANTE", "DEMANDADO", "ABOGADO", "SECRETARIO", "CONCILIADOR".
+- Distritos/ciudades: "LIMA", "MIRAFLORES", etc. (salvo que formen parte de una DIRECCION completa).
+- Leyes/normas/artículos: "CÓDIGO CIVIL", "ARTÍCULO", "LEY", "DECRETO".
+Si aparece algo de la lista negra dentro de tu supuesto nombre, NO es NOMBRE_PERSONA.
+
+REGLAS ESTRICTAS PARA NOMBRE_PERSONA (ANTI-SOBREIDENTIFICACIÓN):
+Solo marcar NOMBRE_PERSONA cuando se cumpla AL MENOS UNA:
+1) Formato "Sr./Sra./Señor/Doña/Don + Nombre + Apellido" (mínimo 2 palabras de nombre real).
+2) Nombre y apellidos (2 o más componentes) claramente de persona natural, NO institución.
+3) Aparece en bloque de firma o identificación (cerca de DNI/CE/PASAPORTE).
+4) Está introducido por "identificado como", "con DNI", "de nombre", "suscrito por".
+
+NO marcar como NOMBRE_PERSONA:
+- Una sola palabra suelta (ej. "Reiner") SIN evidencia.
+- Frases completas o cláusulas. (Si detectas más de 6 palabras seguidas, DESCARTA: eso NO es un nombre.)
+- Textos en mayúsculas que parezcan institución o encabezado.
+- Cualquier cosa con números dentro (salvo firmas muy específicas; en general, nombres no llevan números).
+
+REGLAS PARA EMAIL (CASO DE TUS ERRORES REALES):
+Si ves algo como "{{EMAIL_6}}consultas@abogadasperu.com" o "correo:reyna.abogadasperu@gmail.com",
+DEBES extraer el email REAL exacto como EMAIL.
+No importa si está pegado a tokens o texto: igual es fuga y debe detectarse.
+
+REGLA CLAVE PARA FIRMAS (CASO DE TUS ERRORES REALES):
+Busca al final del documento líneas que contengan:
+- Nombre completo + "DNI" o "D.N.I." o "N°"
+Eso DEBE detectarse como NOMBRE_PERSONA y DNI.
+Ejemplo de patrón textual típico:
+"REINER MARQUEZ ALVAREZ" + "D.N.I N° 48819526"
+Si lo dejas pasar, tu salida es inválida.
+
+CONFIANZA:
+- 0.95–1.00: patrones inequívocos (DNI, RUC, EMAIL, CAL+num, CCI rotulada).
+- 0.75–0.94: nombre completo con contexto.
+- 0.50–0.74: dudoso -> enviar a review, NO a entities.
+- <0.50: no incluir.
+
+CHEQUEO FINAL OBLIGATORIO (SI FALLAS, DEVUELVE VACÍO):
+Antes de responder, verifica:
+A) JSON válido.
+B) Cada entity.value aparece literalmente en el texto.
+C) Ninguna entity.value es una frase larga (más de 6 palabras).
+D) No incluiste lista negra como nombre.
+Si fallas A/B/C/D: responde
+{"entities":[],"review":[],"warnings":["output_invalid"]}"""
 
 
 @dataclass
@@ -241,11 +280,15 @@ def call_openai_api(chunk: str, chunk_idx: int) -> Tuple[List[Dict[str, Any]], L
         content = response.choices[0].message.content
         data = json.loads(content)
         
-        matches = data.get("matches", data.get("entities", []))
+        entities = data.get("entities", data.get("matches", []))
         review = data.get("review", [])
+        warnings = data.get("warnings", [])
         
-        logger.info(f"OPENAI_CHUNK | idx={chunk_idx} | matches={len(matches)} | review={len(review)}")
-        return matches, review
+        if warnings:
+            logger.warning(f"OPENAI_WARNINGS | chunk={chunk_idx} | warnings={warnings}")
+        
+        logger.info(f"OPENAI_CHUNK | idx={chunk_idx} | entities={len(entities)} | review={len(review)}")
+        return entities, review
         
     except json.JSONDecodeError as e:
         logger.error(f"OPENAI_JSON_ERROR | chunk={chunk_idx} | error={str(e)}")
@@ -264,18 +307,24 @@ CATEGORY_MAP = {
     "TELEFONO": "TELEFONO",
     "DIRECCION": "DIRECCION",
     "PERSONA": "PERSONA",
+    "NOMBRE_PERSONA": "PERSONA",
+    "NOMBRE_MENOR": "PERSONA",
     "PLACA": "PLACA",
     "CUENTA_BANCARIA": "CUENTA",
+    "CCI": "CUENTA",
+    "TARJETA": "CUENTA",
     "EXPEDIENTE": "EXPEDIENTE",
     "FECHA_NACIMIENTO": "FECHA_NACIMIENTO",
     "FIRMA": "FIRMA",
     "COLEGIATURA": "COLEGIATURA",
+    "CAL": "COLEGIATURA",
     "ENTIDAD": "ENTIDAD",
     "ACTA": "ACTA_REGISTRO",
     "REGISTRO": "ACTA_REGISTRO",
     "RESOLUCION": "RESOLUCION",
     "PARTIDA": "PARTIDA",
     "CASILLA": "CASILLA",
+    "CASILLA_ELECTRONICA": "CASILLA",
     "JUZGADO": "JUZGADO",
     "TRIBUNAL": "TRIBUNAL",
     "SALA": "SALA",
@@ -328,8 +377,8 @@ def detect_with_openai(text: str) -> Tuple[List[OpenAIEntity], List[Dict[str, An
                 
                 for item in review:
                     all_review.append({
-                        "category": item.get("category_suspected", "UNKNOWN"),
-                        "match_text": item.get("match_text", ""),
+                        "category": item.get("type_suspected", item.get("category_suspected", "UNKNOWN")),
+                        "match_text": item.get("value", item.get("match_text", "")),
                         "reason": item.get("reason", ""),
                         "confidence": item.get("confidence", 0.5)
                     })
