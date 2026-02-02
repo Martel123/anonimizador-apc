@@ -1026,3 +1026,4 @@ def post_scan_final(text: str) -> Tuple[bool, List[Dict]]:
     detected = [{'type': t, 'count': c} for t, c in type_counts.items()]
     
     return True, detected
+    
