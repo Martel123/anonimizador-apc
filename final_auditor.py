@@ -41,6 +41,33 @@ ACTA_REGISTRO_PATTERNS = [
     ),
 ]
 
+EXPEDIENTE_PATTERNS = [
+    re.compile(r'\b(\d{5}-\d{4}-\d+-\d{4}-[A-Z]{2}-[A-Z]{2}-\d{2})\b', re.IGNORECASE),
+    re.compile(r'(?:expediente|exp\.?|proceso)\s*(?:n[°oº]?\s*)?[:\s]*(\d{2,6}[-/]?\d{0,4}[-/]?\d{0,4})', re.IGNORECASE),
+]
+
+RESOLUCION_PATTERNS = [
+    re.compile(r'(?:resoluci[oó]n|auto|oficio|informe)\s*(?:n[°oº]?\s*)?[:\s]*(\d{2,6}[-/]?\d{0,4})', re.IGNORECASE),
+]
+
+PARTIDA_PATTERNS = [
+    re.compile(r'(?:partida\s+(?:electr[oó]nica|registral)?|SUNARP|asiento|tomo|ficha|folio)\s*(?:n[°oº]?\s*)?[:\s]*(\d{4,12})', re.IGNORECASE),
+]
+
+CASILLA_PATTERNS = [
+    re.compile(r'casilla\s+(?:electr[oó]nica\s+)?(?:n[°oº]?\s*)?(\d+)', re.IGNORECASE),
+    re.compile(r'mesa\s+de\s+partes\s*(?:n[°oº]?\s*)?[:\s]*(\d+)', re.IGNORECASE),
+]
+
+TRIBUNAL_SALA_PATTERNS = [
+    re.compile(
+        r'(\d*[°ºo]?\s*(?:juzgado|tribunal|sala|corte\s+superior|fiscalía|fiscalia)'
+        r'\s+(?:de\s+)?(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial|constitucional|suprema)?'
+        r'(?:\s+(?:de|del)\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,3})',
+        re.IGNORECASE
+    ),
+]
+
 PLACA_PATTERN = re.compile(
     r'\b([A-Z]{1,3}[-\s]?\d{1,3}[-\s]?[A-Z0-9]{1,3})\b',
     re.IGNORECASE
@@ -271,6 +298,159 @@ def find_acta_registro_leaks(text: str) -> List[Dict[str, Any]]:
     return unique_leaks
 
 
+def find_expediente_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra números de expediente judicial que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in EXPEDIENTE_PATTERNS:
+        for match in pattern.finditer(text):
+            full_match = match.group(0)
+            value = match.group(1) if match.lastindex else full_match
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+                continue
+            if '{{' in full_match:
+                continue
+            
+            leaks.append({
+                'type': 'EXPEDIENTE',
+                'value': full_match,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-20):min(len(text), end+20)],
+                'fixable': True
+            })
+    
+    return _dedupe_leaks(leaks)
+
+
+def find_resolucion_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra números de resolución, auto, oficio que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in RESOLUCION_PATTERNS:
+        for match in pattern.finditer(text):
+            full_match = match.group(0)
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+                continue
+            if '{{' in full_match:
+                continue
+            
+            leaks.append({
+                'type': 'RESOLUCION',
+                'value': full_match,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-20):min(len(text), end+20)],
+                'fixable': True
+            })
+    
+    return _dedupe_leaks(leaks)
+
+
+def find_partida_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra partidas electrónicas, SUNARP que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in PARTIDA_PATTERNS:
+        for match in pattern.finditer(text):
+            full_match = match.group(0)
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+                continue
+            if '{{' in full_match:
+                continue
+            
+            leaks.append({
+                'type': 'PARTIDA',
+                'value': full_match,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-20):min(len(text), end+20)],
+                'fixable': True
+            })
+    
+    return _dedupe_leaks(leaks)
+
+
+def find_casilla_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra casillas electrónicas que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in CASILLA_PATTERNS:
+        for match in pattern.finditer(text):
+            full_match = match.group(0)
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+                continue
+            if '{{' in full_match:
+                continue
+            
+            leaks.append({
+                'type': 'CASILLA',
+                'value': full_match,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-20):min(len(text), end+20)],
+                'fixable': True
+            })
+    
+    return _dedupe_leaks(leaks)
+
+
+def find_tribunal_sala_leaks(text: str) -> List[Dict[str, Any]]:
+    """Encuentra juzgados, tribunales, salas que quedaron sin anonimizar."""
+    leaks = []
+    
+    for pattern in TRIBUNAL_SALA_PATTERNS:
+        for match in pattern.finditer(text):
+            full_match = match.group(0).strip()
+            if len(full_match) < 10:
+                continue
+            start, end = match.start(), match.end()
+            
+            if TOKEN_PATTERN.search(text[max(0, start-20):end+20]):
+                continue
+            if '{{' in full_match:
+                continue
+            
+            leak_type = 'JUZGADO'
+            lower = full_match.lower()
+            if 'tribunal' in lower:
+                leak_type = 'TRIBUNAL'
+            elif 'sala' in lower:
+                leak_type = 'SALA'
+            elif 'fiscal' in lower:
+                leak_type = 'FISCALIA'
+            
+            leaks.append({
+                'type': leak_type,
+                'value': full_match,
+                'start': start,
+                'end': end,
+                'context': text[max(0, start-20):min(len(text), end+20)],
+                'fixable': True
+            })
+    
+    return _dedupe_leaks(leaks)
+
+
+def _dedupe_leaks(leaks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Helper para deduplicar leaks por valor."""
+    seen = set()
+    unique = []
+    for leak in leaks:
+        if leak['value'] not in seen:
+            seen.add(leak['value'])
+            unique.append(leak)
+    return unique
+
+
 def has_placa_positive_context(text: str, start: int, end: int) -> bool:
     """Verifica si hay contexto que indica que es una placa vehicular."""
     window = 50
@@ -464,6 +644,11 @@ def _find_all_leaks(text: str) -> List[Dict[str, Any]]:
     all_leaks.extend(find_direccion_leaks(text))
     all_leaks.extend(find_acta_registro_leaks(text))
     all_leaks.extend(find_placa_leaks(text))
+    all_leaks.extend(find_expediente_leaks(text))
+    all_leaks.extend(find_resolucion_leaks(text))
+    all_leaks.extend(find_partida_leaks(text))
+    all_leaks.extend(find_casilla_leaks(text))
+    all_leaks.extend(find_tribunal_sala_leaks(text))
     
     return all_leaks
 
