@@ -372,6 +372,9 @@ def anonymize_docx_complete(file_path: str, output_path: str, strict_mode: bool 
         result['replacement_stats']['entities_replaced'] = dict(stats['entities_replaced'])
         result['mapping'] = mapping.reverse_mappings
         
+        # Safety-net: emails residuales
+        hard_redact_remaining_emails(doc, mapping)
+        
         # Guardar documento
         doc.save(output_path)
         
@@ -400,6 +403,64 @@ HARD_REDACT_PATTERNS = [
     (re.compile(r'\+51[\s\-]?9[\d\s\-]{8,12}|9\d{8}', re.IGNORECASE), '{{TEL_REDACT}}'),
     (re.compile(r'(?:C\.?A\.?L\.?|CAL|CMP|CIP)[\s:N°º]*\d{4,6}', re.IGNORECASE), '{{COLEGIATURA_REDACT}}'),
 ]
+
+EMAIL_SAFETY_PATTERN = re.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}')
+
+
+def hard_redact_remaining_emails(doc, mapping: 'EntityMapping') -> int:
+    """Safety-net: reemplaza emails no anonimizados antes de guardar."""
+    fixes = 0
+    
+    def process_paragraph(paragraph):
+        nonlocal fixes
+        try:
+            runs = paragraph.runs
+            if not runs:
+                return
+        except Exception:
+            return
+        
+        full_text = ''.join(run.text or '' for run in runs)
+        if not full_text or '@' not in full_text:
+            return
+        
+        for match in EMAIL_SAFETY_PATTERN.finditer(full_text):
+            email = match.group(0)
+            if '{{' in full_text[max(0, match.start()-2):match.start()]:
+                continue
+            
+            token = mapping.get_token("EMAIL", email)
+            start_pos = match.start()
+            end_pos = match.end()
+            
+            run_map = []
+            pos = 0
+            for idx, run in enumerate(runs):
+                run_text = run.text or ''
+                run_map.append((pos, pos + len(run_text), idx, run))
+                pos += len(run_text)
+            
+            for rs, re_end, ri, run in run_map:
+                if rs <= start_pos < re_end or rs < end_pos <= re_end or (start_pos <= rs and re_end <= end_pos):
+                    run_text = run.text or ''
+                    local_start = max(0, start_pos - rs)
+                    local_end = min(len(run_text), end_pos - rs)
+                    if local_start < local_end:
+                        new_text = run_text[:local_start] + (token if rs <= start_pos < re_end else '') + run_text[local_end:]
+                        run.text = new_text
+            fixes += 1
+            return process_paragraph(paragraph)
+    
+    for para in doc.paragraphs:
+        process_paragraph(para)
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    process_paragraph(para)
+    
+    return fixes
 
 
 def hard_redact_patterns(doc) -> int:
