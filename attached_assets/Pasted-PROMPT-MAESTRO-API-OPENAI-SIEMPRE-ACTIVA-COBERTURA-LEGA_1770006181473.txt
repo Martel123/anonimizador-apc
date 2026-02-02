@@ -1,0 +1,300 @@
+PROMPT MAESTRO — API OPENAI SIEMPRE ACTIVA + COBERTURA LEGAL PERÚ + 0 FUGAS (PRODUCCIÓN)
+
+NO cambies diseño, NO cambies HTML/CSS/JS, NO agregues modales ni mensajes, NO refactorices.
+Mantén exactamente el flujo actual: upload → procesamiento → revisión → descarga.
+Objetivo: integrar OpenAI API como detector principal para maximizar detección de información sensible legal, con garantía “0 fugas” (práctico) en el documento final, y borrado automático.
+
+0) Principio máximo (obligatorio)
+
+En el archivo final descargable NO puede quedar información sensible en claro.
+
+“0 fugas” se garantiza en backend, sin avisos al usuario.
+
+1) Feature flags y configuración (OBLIGATORIO)
+
+USE_OPENAI_DETECT=1 (SIEMPRE activo por ahora)
+
+OPENAI_MODEL configurable por env (default: modelo económico “mini”)
+
+OPENAI_TIMEOUT_SECONDS (default 20)
+
+OPENAI_MAX_RETRIES (default 1)
+
+OPENAI_CHUNK_TOKENS (default aprox 1200–1800 tokens por chunk)
+
+OPENAI_CONCURRENCY (default 2 para baja concurrencia)
+
+STRICT_ZERO_LEAKS=1 (default 1)
+
+2) Política de privacidad (OBLIGATORIA)
+
+Antes de enviar texto a OpenAI, aplicar pre-redaction local para:
+
+DNI/CE/PASAPORTE (números de identidad)
+
+EMAIL
+
+TELÉFONO
+
+RUC
+
+Cuentas bancarias (CCI/IBAN si aparece)
+
+Placas (si las detectas por regex simple)
+
+Firmas digitales/códigos QR (si aparecen como texto)
+Esto reduce sensibilidad enviada.
+PROHIBIDO loguear texto del documento o entidades completas. Solo conteos.
+
+3) Qué debe detectar el sistema (cobertura avanzada)
+
+La API + reglas locales deben producir replacements para estas categorías (mínimo):
+
+Identidad y contacto
+
+PERSONA (nombres completos, parciales, abreviados, “doña/don”, “Sr./Sra.”)
+
+EMAIL
+
+TELÉFONO
+
+DNI / CE / PASAPORTE
+
+RUC
+
+Direcciones: Calle/Av/Jr/Psje/Mz/Lt/Dpto/Urb/Asoc/AA.HH/CP/Provincia/Distrito, etc.
+
+Colegiaturas y profesión
+
+Número de colegiatura / habilitación:
+
+CAL (abogados), CIP (ingenieros), CMP (médicos), etc.
+
+formatos tipo “C.A.L. N° 49657”, “CAL N.º …”, “CIP …”
+
+“papeleta de habilitación”, “habilitado”, “colegiatura”
+
+Registros, expedientes y números judiciales
+
+Expediente / N° de expediente / Exp. / “EXPEDIENTE:”
+
+Número de proceso / código de proceso
+
+Juzgado / tribunal / sala / fiscalía:
+
+“JUZGADO …”, “SALA …”, “TRIBUNAL …”, “CORTE SUPERIOR …”
+
+“Especialista legal”, “Secretario”, “Juez”
+
+número de tribunal/juzgado si aparece (“Juzgado N° …”, “Sala … N° …”)
+
+Registro del Poder Judicial / casilla electrónica / mesa de partes:
+
+“Casilla electrónica”, “Registro”, “ID”, “código”, “mesa de partes”
+
+Resoluciones / autos / oficios con numeración:
+
+“Resolución N° …”, “Auto N° …”, “Oficio N° …”, “Informe N° …”
+
+Partidas electrónicas / registros públicos:
+
+“Partida electrónica N° …”, “SUNARP”, “asiento”, “tomo”, “ficha”, “folio”
+
+Actas de conciliación / actas notariales / actas administrativas:
+
+“Acta de conciliación N° …”, “Acta N° …”, “Centro de conciliación …”
+
+Otros identificadores
+
+N° de documento / registro / constancia / certificado
+
+N° de recibo por honorarios / boleta / factura (si consideras sensible)
+
+N° de cuenta bancaria / CCI (si aparece)
+
+Datos de menores (nombres de hijos) → PERSONA también.
+
+4) Regla de oro de números (para evitar clasificar mal)
+
+DNI/CE/PASAPORTE/RUC se detectan por regex + contexto, NO por la API.
+
+La API se usa para:
+
+PERSONA/ORG/DIRECCION/COLEGIATURA
+
+y números “legales” (expediente/acta/registro/resolución/partida)
+
+Nunca tokenizar montos (S/, US$, porcentajes) como “ID”.
+
+Nunca convertir “Partida electrónica” a DNI.
+
+Implementar contexto mínimo: si aparece “Partida”, “Resolución”, “Expediente”, “Acta”, “Oficio”, “Informe”, “Casilla”, “Registro” → eso va a su token correspondiente.
+
+5) Salida de OpenAI (ESTRUCTURADA, JSON-only)
+
+Implementar detector_openai.py:
+
+Envía chunks.
+
+Instruye: “Devuelve SOLO JSON”.
+
+Respuesta debe ser:
+
+{"entities":[{"type":"PERSONA","value":"..."},
+             {"type":"DIRECCION","value":"..."},
+             {"type":"COLEGIATURA","value":"..."},
+             {"type":"EXPEDIENTE","value":"..."},
+             {"type":"ACTA","value":"..."},
+             {"type":"REGISTRO","value":"..."},
+             {"type":"RESOLUCION","value":"..."},
+             {"type":"PARTIDA","value":"..."},
+             {"type":"CASILLA","value":"..."},
+             {"type":"TRIBUNAL","value":"..."},
+             {"type":"JUZGADO","value":"..."},
+             {"type":"SALA","value":"..."}]}
+
+
+No explicar nada, no texto adicional.
+
+6) Tokenización (mapa de tokens)
+
+Mapear a tokens del sistema (crear si faltan):
+
+{{PERSONA_n}}
+
+{{ENTIDAD_n}} (org/empresa/entidad)
+
+{{DIRECCION_n}}
+
+{{EMAIL_n}}
+
+{{TELEFONO_n}}
+
+{{DNI_n}}
+
+{{RUC_n}}
+
+{{COLEGIATURA_n}}
+
+{{ACTA_n}}
+
+{{EXPEDIENTE_n}}
+
+{{REGISTRO_n}} (registro PJ, registro documento)
+
+{{RESOLUCION_n}}
+
+{{PARTIDA_n}}
+
+{{CASILLA_n}}
+
+{{JUZGADO_n}}
+
+{{TRIBUNAL_n}}
+
+{{SALA_n}}
+
+(si aplica) {{PLACA_n}}, {{CUENTA_n}}, {{CCI_n}}
+
+Consistencia por documento:
+
+mismo “value” → mismo token en todo el documento.
+
+Prohibiciones:
+
+NO tokens anidados (ej: {{{{...}}}})
+
+Si el texto ya contiene {{...}}, NO volver a tokenizar.
+
+NO concatenar (correo + token). Debe ser reemplazo real.
+
+7) Integración exacta en tu proyecto (sin romper nada)
+
+Archivos:
+
+Crear: detector_openai.py
+
+Modificar: public_app.py:
+
+anonymizer_apply: genera replacements (local + API), aplica.
+
+anonymizer_download: antes de doc.save(...) ejecuta garantía final.
+
+Reusar: processor_docx.py apply_replacements_to_docx
+
+Reusar: final_auditor.py
+
+8) Garantía final “0 fugas” (OBLIGATORIA, backend silencioso)
+
+En anonymizer_download:
+
+Extraer texto del DOCX final (post replacements).
+
+Ejecutar auditor final:
+
+detectar EMAIL/DNI/TEL/RUC y también:
+
+COLEGIATURA
+
+EXPEDIENTE
+
+ACTA
+
+PARTIDA
+
+RESOLUCION
+
+CASILLA
+
+REGISTRO
+
+Si hay leaks:
+
+generar replacements de emergencia
+
+aplicar a DOCX run-aware (NO a string)
+
+guardar
+
+re-extraer y re-auditar
+
+máximo 1 intento extra
+
+Si todavía hay leaks (debería ser raro):
+
+aplicar hard-redaction por patrón en el DOCX (reemplazo directo)
+
+guardar y re-auditar
+
+Solo permitir descarga si auditor final confirma 0 leaks.
+
+NO mostrar mensajes al usuario.
+
+9) Borrado (cero almacenamiento)
+
+Guardar únicamente en /tmp por job.
+
+Borrar archivo original y anonimizados:
+
+inmediatamente tras descarga
+
+y además un TTL (ej 30 min) por seguridad si el usuario no descarga.
+
+No guardar dataset ni texto en disco.
+
+10) Entregables (obligatorios)
+
+A) Lista exacta de archivos y líneas tocadas.
+B) Diff de cambios.
+C) Instrucciones para configurar env vars en Replit (OPENAI_API_KEY, USE_OPENAI_DETECT, OPENAI_MODEL).
+D) Pruebas automáticas mínimas:
+
+DOCX con email partido en runs → debe desaparecer
+
+texto con “Partida electrónica N° …” → debe ser {{PARTIDA_n}} (no DNI)
+
+texto con “C.A.L. N° …” → {{COLEGIATURA_n}}
+
+texto con “Expediente N° …” → {{EXPEDIENTE_n}}
+
+y confirmar que no existe @ ni \b\d{8}\b en el DOCX final
