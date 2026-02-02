@@ -37,43 +37,87 @@ OPENAI_ENTITY_TYPES = [
     "PARTIDA", "CASILLA", "JUZGADO", "TRIBUNAL", "SALA"
 ]
 
-SYSTEM_PROMPT = """Eres un DETECTOR DE PII (datos sensibles) para documentos legales peruanos. Tu única función es identificar PII en el texto EXACTO que te envío (un chunk).
+SYSTEM_PROMPT = """Eres un DETECTOR DE PII para documentos legales peruanos.
 
-REGLAS ABSOLUTAS (NO NEGOCIABLES):
-1) PROHIBIDO reescribir, resumir, reformular, traducir, corregir estilo o inventar contenido.
-2) PROHIBIDO devolver el texto completo o grandes fragmentos.
-3) SOLO devolverás un JSON VÁLIDO (sin markdown, sin explicación fuera del JSON).
-4) No incluyas texto adicional, encabezados, comillas decorativas, ni comentarios.
-5) NUNCA inventes PII. SOLO marca lo que está en el chunk.
-6) Si tienes duda entre "PII" y "no PII", marca como PII (prioridad: recall máximo / cero fugas).
-7) IGNORA tokens ya anonimizados con llaves dobles {{...}}: NO los reportes como fugas y NO los modifiques.
-8) Debes detectar PII aunque esté:
-   - pegada a otras palabras (ej: gmail.comreyna.abogadasperu@gmail.com)
-   - separada por espacios raros / saltos de línea / guiones
-   - en MAYÚSCULAS o Title Case
-9) Debes reportar TODAS las ocurrencias dentro del chunk.
+Devuelve SOLO un JSON con ESTE formato exacto:
 
-TIPOS DE PII A DETECTAR (OBLIGATORIO):
-- PERSONA: nombres y apellidos de personas (2 a 4 palabras) en MAYÚSCULAS o Title Case.
-- DIRECCION: direcciones completas y "domicilio real/procesal" (capturar bloque completo).
-- EXPEDIENTE: códigos/identificadores de expediente (incluye formatos con guiones).
-- ACTA: "ACTA" + identificador.
-- CASILLA: "CASILLA" + identificador.
-- COLEGIATURA: CAL/CMP/CIP + número.
-- ORG: entidades/empresas/organismos (si aparecen) — ejemplo: S.A.C., E.I.R.L., Ministerio, Poder Judicial, Juzgado, Fiscalía.
-
-NOTA IMPORTANTE:
-- DNI/RUC/EMAIL/TELEFONO pueden haber sido pre-redactados localmente antes de enviarte el chunk.
-  Si NO aparecen en el chunk, NO los inventes. Si aparecen, sí debes reportarlos.
-
-SALIDA OBLIGATORIA (JSON ESTRICTO):
 {
+  "chunk_idx": 0,
   "entities": [
-    {"type": "PERSONA|DIRECCION|EXPEDIENTE|ACTA|CASILLA|COLEGIATURA|ORG|DNI|RUC|EMAIL|TELEFONO", "value": "texto exacto del chunk"}
-  ]
+    {
+      "type": "PERSONA|DNI|RUC|EMAIL|TELEFONO|DIRECCION|EXPEDIENTE|ACTA|CASILLA|COLEGIATURA|ORG",
+      "start": 0,
+      "end": 0,
+      "value": "",
+      "priority": "high|medium",
+      "why": ""
+    }
+  ],
+  "residual_check": {
+    "possible_remaining_pii": true,
+    "notes": []
+  }
 }
 
-Si no hay PII: {"entities":[]}"""
+REGLAS DE SALIDA (OBLIGATORIO CUMPLIR):
+A) "start" y "end" son índices EXACTOS dentro del CHUNK (Python slicing): chunk[start:end].
+B) "value" debe ser EXACTAMENTE chunk[start:end] (idéntico, sin recortar, sin limpiar).
+C) "why" debe ser corto (máx 12 palabras).
+D) NO reportar NADA dentro de tokens {{...}}.
+E) Reporta TODAS las ocurrencias (si se repite 3 veces, reporta 3).
+F) Ordena entities por start ascendente.
+G) NO devuelvas entidades vacías: si no hay PII, entities debe ser [].
+
+CRITERIOS DE DETECCIÓN (RECALL MÁXIMO):
+
+1) PERSONA (MUY AGRESIVO):
+- Marca como PERSONA cualquier secuencia de 2 a 4 palabras SOLO letras:
+  a) TODO MAYÚSCULAS: "REINER MARQUEZ ALVAREZ"
+  b) Title Case: "Reiner Marquez Alvarez"
+- Marca PERSONA con prioridad HIGH si:
+  - hay contexto legal cerca (±80 caracteres):
+    identificado, identificada, DNI, demandante, demandado, señor, doña, abogado,
+    suscrito, suscribo, interpone, contra, madre, padre, menor, hijo, hija
+  - O si son 3 o 4 palabras (nombre completo probable), aunque no haya contexto.
+- NO marques como PERSONA si coincide con palabras legales comunes (títulos/secciones):
+  SEÑOR, SEÑORES, JUEZ, JUZGADO, DEMANDA, SUMILLA, PETITORIO, FUNDAMENTOS,
+  MEDIOS, PRUEBAS, ANEXOS, OTROSÍ, EXPEDIENTE, ACTA, CASILLA, MINISTERIO,
+  PODER JUDICIAL, FISCALÍA, TRIBUNAL, SALA, ARTÍCULO, CÓDIGO.
+
+2) DNI:
+- 8 dígitos consecutivos.
+- Prioridad HIGH si cerca aparece "DNI" o "identificado".
+
+3) RUC:
+- 11 dígitos que empiecen con 10 o 20. SIEMPRE marcar.
+
+4) EMAIL:
+- patrón correo estándar, incluso si está pegado a letras antes/después.
+- si encuentras correos concatenados, reporta cada correo.
+
+5) TELEFONO:
+- Perú: 9 dígitos (empieza con 9) con o sin +51, con espacios/guiones/paréntesis.
+
+6) DIRECCION:
+- Si aparece "domicilio real" o "domicilio procesal":
+  captura desde esa frase hasta el siguiente ';' o '.' o salto de línea (lo que ocurra primero).
+- Si aparecen disparadores de dirección + número, marca el bloque completo:
+  Av/Avenida/Jr/Jirón/Calle/Pasaje/Mz/Manzana/Lt/Lote/Dpto/Departamento/Urb/Urbanización/N°/Nro/Bloque/Piso/Distrito/Provincia/Departamento.
+
+7) EXPEDIENTE / ACTA / CASILLA:
+- EXPEDIENTE: "EXPEDIENTE" o "Exp." + identificador con dígitos/guiones.
+- ACTA: "ACTA" + identificador.
+- CASILLA: "CASILLA" + identificador.
+Captura el identificador completo.
+
+8) COLEGIATURA:
+- CAL/CMP/CIP (con o sin puntos) + número (4 a 7 dígitos). Ej: "CAL N° 49657"
+
+SEGUNDA PASADA (residual_check):
+- Re-escanea mentalmente el chunk.
+- Si crees que puede haber PII no capturada (por formatos raros, cortes, pegado), pon:
+  possible_remaining_pii=true y notes con máximo 3 patrones cortos.
+- Si estás seguro que capturaste todo, possible_remaining_pii=false."""
 
 
 @dataclass
@@ -175,45 +219,50 @@ def chunk_text(text: str, max_chars: int = 6000) -> List[str]:
     return chunks if chunks else [text]
 
 
-def call_openai_api(chunk: str, chunk_idx: int) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def call_openai_api(chunk: str, chunk_idx: int) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Llama a la API de OpenAI para detectar entidades en un chunk.
-    Retorna (matches, review) según el nuevo formato del prompt maestro.
+    Retorna (entities, residual_check) según el formato del prompt.
     """
     try:
         from openai import OpenAI
         client = OpenAI(timeout=OPENAI_TIMEOUT_SECONDS)
         
+        user_message = f"""CHUNK_IDX: {chunk_idx}
+CHUNK_TEXT:
+<<<
+{chunk}
+>>>"""
+        
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Analiza el siguiente texto legal y detecta entidades sensibles:\n\n{chunk}"}
+                {"role": "user", "content": user_message}
             ],
             temperature=0.1,
-            max_tokens=2000,
+            max_tokens=3000,
             response_format={"type": "json_object"}
         )
         
         content = response.choices[0].message.content
         data = json.loads(content)
         
-        entities = data.get("entities", data.get("matches", []))
-        review = data.get("review", [])
-        warnings = data.get("warnings", [])
+        entities = data.get("entities", [])
+        residual_check = data.get("residual_check", {"possible_remaining_pii": False, "notes": []})
         
-        if warnings:
-            logger.warning(f"OPENAI_WARNINGS | chunk={chunk_idx} | warnings={warnings}")
+        if residual_check.get("possible_remaining_pii"):
+            logger.warning(f"OPENAI_RESIDUAL | chunk={chunk_idx} | notes={residual_check.get('notes', [])}")
         
-        logger.info(f"OPENAI_CHUNK | idx={chunk_idx} | entities={len(entities)} | review={len(review)}")
-        return entities, review
+        logger.info(f"OPENAI_CHUNK | idx={chunk_idx} | entities={len(entities)} | residual={residual_check.get('possible_remaining_pii', False)}")
+        return entities, residual_check
         
     except json.JSONDecodeError as e:
         logger.error(f"OPENAI_JSON_ERROR | chunk={chunk_idx} | error={str(e)}")
-        return [], []
+        return [], {"possible_remaining_pii": True, "notes": ["json_error"]}
     except Exception as e:
         logger.error(f"OPENAI_API_ERROR | chunk={chunk_idx} | error={str(e)}")
-        return [], []
+        return [], {"possible_remaining_pii": True, "notes": ["api_error"]}
 
 
 CATEGORY_MAP = {
@@ -256,7 +305,7 @@ def detect_with_openai(text: str) -> Tuple[List[OpenAIEntity], List[Dict[str, An
     """
     Detecta entidades usando OpenAI API.
     Aplica pre-redacción, chunking y procesamiento paralelo.
-    Retorna (entities, review_items) donde review_items son casos dudosos.
+    Retorna (entities, residual_notes) donde residual_notes son alertas de posibles fugas.
     """
     if not is_openai_available():
         logger.warning("OPENAI_DISABLED | USE_OPENAI_DETECT=0 or no API key")
@@ -271,7 +320,7 @@ def detect_with_openai(text: str) -> Tuple[List[OpenAIEntity], List[Dict[str, An
     logger.info(f"OPENAI_DETECT | chunks={len(chunks)} | text_len={len(text)}")
     
     all_entities = []
-    all_review = []
+    all_residual_notes = []
     
     with ThreadPoolExecutor(max_workers=OPENAI_CONCURRENCY) as executor:
         futures = {executor.submit(call_openai_api, chunk, i): i for i, chunk in enumerate(chunks)}
@@ -279,30 +328,28 @@ def detect_with_openai(text: str) -> Tuple[List[OpenAIEntity], List[Dict[str, An
         for future in as_completed(futures):
             chunk_idx = futures[future]
             try:
-                matches, review = future.result()
+                entities, residual_check = future.result()
                 
-                for ent in matches:
-                    category = ent.get("category", ent.get("type", "")).upper()
-                    match_text = ent.get("match_text", ent.get("value", "")).strip()
-                    confidence = ent.get("confidence", 0.9)
+                for ent in entities:
+                    ent_type = ent.get("type", "").upper()
+                    value = ent.get("value", "").strip()
+                    priority = ent.get("priority", "medium")
                     
-                    mapped_type = CATEGORY_MAP.get(category, category)
+                    mapped_type = CATEGORY_MAP.get(ent_type, ent_type)
                     
-                    if match_text and confidence >= 0.5:
-                        if not re.match(r'^\{\{.*\}\}$', match_text):
-                            all_entities.append(OpenAIEntity(
-                                type=mapped_type,
-                                value=match_text,
-                                source="openai"
-                            ))
+                    if value and not re.match(r'^\{\{.*\}\}$', value):
+                        all_entities.append(OpenAIEntity(
+                            type=mapped_type,
+                            value=value,
+                            source="openai"
+                        ))
                 
-                for item in review:
-                    all_review.append({
-                        "category": item.get("type_suspected", item.get("category_suspected", "UNKNOWN")),
-                        "match_text": item.get("value", item.get("match_text", "")),
-                        "reason": item.get("reason", ""),
-                        "confidence": item.get("confidence", 0.5)
-                    })
+                if residual_check.get("possible_remaining_pii"):
+                    for note in residual_check.get("notes", []):
+                        all_residual_notes.append({
+                            "chunk_idx": chunk_idx,
+                            "note": note
+                        })
                     
             except Exception as e:
                 logger.error(f"OPENAI_FUTURE_ERROR | chunk={chunk_idx} | error={str(e)}")
@@ -315,8 +362,8 @@ def detect_with_openai(text: str) -> Tuple[List[OpenAIEntity], List[Dict[str, An
             seen.add(key)
             unique_entities.append(ent)
     
-    logger.info(f"OPENAI_DETECT_DONE | entities={len(unique_entities)} | review={len(all_review)}")
-    return unique_entities, all_review
+    logger.info(f"OPENAI_DETECT_DONE | entities={len(unique_entities)} | residual_notes={len(all_residual_notes)}")
+    return unique_entities, all_residual_notes
 
 
 def merge_openai_with_local(local_entities: List[Dict], openai_entities: List[OpenAIEntity], text: str) -> List[Dict]:
