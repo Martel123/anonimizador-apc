@@ -180,6 +180,21 @@
       background: #EFF6FF;
     }
     
+    .entity-deselect-btn {
+      background: none;
+      border: none;
+      color: #9CA3AF;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .entity-deselect-btn:hover {
+      color: #EF4444;
+      background: #FEE2E2;
+    }
+    
     .manual-entity-card {
       background: white;
       border: 1px solid #E5E7EB;
@@ -328,6 +343,9 @@
               </div>
               <p class="font-medium text-gray-900 text-sm truncate" title="{{ entity.value }}">{{ entity.value[:50] }}{% if entity.value|length > 50 %}...{% endif %}</p>
             </div>
+            <button type="button" class="entity-deselect-btn" title="Deseleccionar">
+              <i class="fas fa-times"></i>
+            </button>
           </div>
         </div>
         {% endfor %}
@@ -451,6 +469,14 @@
     if (entitiesContainer) {
       entitiesContainer.querySelectorAll('.entity-card').forEach(card => {
         card.addEventListener('click', function(e) {
+          if (e.target.closest('.entity-deselect-btn')) {
+            const checkbox = this.querySelector('.custom-checkbox');
+            checkbox.classList.remove('checked');
+            this.classList.remove('selected');
+            this.dataset.selected = 'false';
+            updatePreview();
+            return;
+          }
           if (e.target.classList.contains('custom-checkbox') || e.target.closest('.custom-checkbox')) {
             const checkbox = this.querySelector('.custom-checkbox');
             checkbox.classList.toggle('checked');
