@@ -523,15 +523,22 @@
       
       const popupWidth = 420;
       const popupHeight = 280;
+      const gap = 8;
       
-      let left = rect.left + (rect.width / 2) - (popupWidth / 2);
-      left = Math.max(10, Math.min(left, window.innerWidth - popupWidth - 10));
-      
-      let top = rect.bottom + window.scrollY + 10;
-      if (top + popupHeight > window.innerHeight + window.scrollY) {
-        top = rect.top + window.scrollY - popupHeight - 10;
+      let left = rect.right + gap;
+      if (left + popupWidth > window.innerWidth - 10) {
+        left = rect.left - popupWidth - gap;
       }
-      top = Math.max(window.scrollY + 10, top);
+      if (left < 10) {
+        left = rect.left + (rect.width / 2) - (popupWidth / 2);
+        left = Math.max(10, Math.min(left, window.innerWidth - popupWidth - 10));
+      }
+      
+      let top = rect.top;
+      if (top + popupHeight > window.innerHeight - 10) {
+        top = window.innerHeight - popupHeight - 10;
+      }
+      top = Math.max(10, top);
       
       selectionPopup.style.left = left + 'px';
       selectionPopup.style.top = top + 'px';
