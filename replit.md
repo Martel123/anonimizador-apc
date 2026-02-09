@@ -23,6 +23,8 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 | `OPENAI_CHUNK_TOKENS` | `3000` | Tokens per chunk for processing |
 | `OPENAI_CONCURRENCY` | `2` | Parallel chunk processing |
 | `STRICT_ZERO_LEAKS` | `0` | Apply hard-redaction patterns as fallback (1=on) |
+| `USE_LOCAL_NER` | `0` | Enable local trained NER model (1=on, 0=off) |
+| `LOCAL_NER_MODEL_PATH` | `models/ner_v1` | Path to the spaCy NER model directory |
 
 ### Triple-Layer Zero-Leak Guarantee
 1. **Processing Audit**: 8-stage detection pipeline with auto-fix
@@ -34,18 +36,49 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 2. **Regex Determinístico**: Email, phone, DNI, addresses (mandatory, cannot fail)
 3. **Secciones Obligatorias**: Forced PII extraction in DATOS DEL DEMANDANTE sections
 4. **Contexto Legal**: Trigger words (doña, don, identificado, etc.)
-5. **NER**: spaCy support for recall (not authoritative)
+5. **NER**: spaCy support for recall (not authoritative) + optional local trained NER (USE_LOCAL_NER=1)
 6. **Filtro Anti-Sobreanonimización**: Legal whitelist with 200+ phrases
 7. **Merge y Consistencia**: Token deduplication
 8. **Auditor Final**: 0-leak guarantee with auto-fix
 
 ### Key Modules
 - `detector_capas.py`: 8-stage detection pipeline
+- `detector_ner_local.py`: Optional local trained NER detector (spaCy model, feature-flagged)
 - `detector_openai.py`: Optional OpenAI-enhanced detection with pre-redaction privacy
 - `legal_filters.py`: Anti-over-anonymization with legal whitelist
 - `final_auditor.py`: Final audit with auto-fix for leaked PII (21+ categories)
 - `processor_docx.py`: Run-aware DOCX replacement with hard-redaction fallback
 - `test_final_auditor.py`: 61 unit tests for PII detection
+- `train_ner.py`: Script to train the local NER model from `training_data/train.jsonl`
+- `smoke_test_local_ner.py`: Quick test for the local NER detector
+
+### Local NER Model (Optional)
+The system supports an optional locally-trained spaCy NER model for improved entity detection.
+
+**Training:**
+```bash
+# Add training data to training_data/train.jsonl (JSONL format)
+# Each line: {"text": "...", "entities": [[start, end, "LABEL"], ...]}
+python train_ner.py
+```
+
+**Activating:**
+```bash
+USE_LOCAL_NER=1
+LOCAL_NER_MODEL_PATH=models/ner_v1  # default
+```
+
+**Deactivating (no code changes needed):**
+```bash
+USE_LOCAL_NER=0  # or simply unset the variable
+```
+
+**Testing:**
+```bash
+USE_LOCAL_NER=1 python smoke_test_local_ner.py
+```
+
+**Important:** Training data must NOT come from user-uploaded documents. Use only manually curated, synthetic, or public legal text examples.
 
 ## Original Platform Overview
 This project is a multi-tenant SaaS web platform built with Flask, designed for Conciliation Centers. It enables multiple centers to register, each operating with isolated data, including templates, users, documents, and styles. Each tenant benefits from customizable branding (logo, contact information) and the system supports three distinct user roles, along with a subscription-based plan system (Basic, Medium, Advanced) that gates access to features like user count, document limits, and AI argumentation. The platform aims to streamline document generation, improve legal argumentation with AI, and provide a comprehensive management system for conciliation processes.

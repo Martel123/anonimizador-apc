@@ -989,6 +989,25 @@ def detect_all_pii(text: str, apply_filters: bool = True) -> Tuple[List[Entity],
     except Exception as e:
         logging.warning(f"Layer 3 failed: {e}")
     
+    # ETAPA 5b: NER local entrenado (opcional, controlado por USE_LOCAL_NER)
+    try:
+        from detector_ner_local import detect_with_local_ner
+        local_ner_results = detect_with_local_ner(text)
+        if local_ner_results:
+            for item in local_ner_results:
+                all_entities.append(Entity(
+                    type=item.get('type', 'PERSONA'),
+                    value=item.get('value', ''),
+                    start=item.get('start', 0),
+                    end=item.get('end', 0),
+                    source='local_ner',
+                    confidence=item.get('confidence', 0.85)
+                ))
+            metadata['local_ner_count'] = len(local_ner_results)
+            metadata['local_ner_used'] = True
+    except Exception as e:
+        logging.warning(f"Local NER failed (non-critical): {e}")
+    
     metadata['total_before_merge'] = len(all_entities)
     
     # CAPA 4: Merge y deduplicación

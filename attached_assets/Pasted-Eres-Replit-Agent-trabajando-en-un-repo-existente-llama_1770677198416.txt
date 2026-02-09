@@ -1,0 +1,103 @@
+Eres Replit Agent trabajando en un repo existente llamado “Anonimizador Proyecto”.
+
+OBJETIVO:
+Integrar un detector NER local entrenado con spaCy (models/ner_v1) como detector adicional (no reemplazo), de forma segura y con cambios mínimos. El sistema actual NO debe romperse ni cambiar su comportamiento si esta integración no está activada.
+
+========================
+RESTRICCIONES OBLIGATORIAS
+========================
+1) No modificar el flujo del anonimizador salvo en un único punto: ETAPA 5 (detección de personas/NER) para sumar entidades de un modelo local.
+2) No tocar ni modificar:
+   - final_auditor.py
+   - processor_docx.py
+   - templates
+   - frontend JS
+   - detector_openai.py
+   - endpoints existentes (/anonymizer/process, /apply, /download, /report)
+3) No almacenar documentos de usuarios.
+4) El entrenamiento NO debe usar documentos subidos por usuarios.
+5) Todos los cambios deben poder apagarse sin tocar código usando variables de entorno:
+   - USE_LOCAL_NER (default "0")
+   - LOCAL_NER_MODEL_PATH (default "models/ner_v1")
+6) Si USE_LOCAL_NER != "1", el sistema debe comportarse exactamente igual que antes.
+
+========================
+ENTREGABLES
+========================
+
+A) Crear archivo nuevo: detector_ner_local.py
+
+Debe incluir:
+- carga cacheada del modelo spaCy usando lru_cache
+- función detect_with_local_ner(text)
+- salida compatible con el pipeline actual:
+  type, value, start, end, source, confidence
+- confidence fija = 0.85 por ahora
+- source = "local_ner"
+- si el modelo no existe o USE_LOCAL_NER está desactivado, devolver [] sin lanzar errores.
+
+B) Integración mínima en detector_capas.py
+
+Dentro de la ETAPA 5:
+- importar detect_with_local_ner
+- sumar las entidades detectadas al flujo actual
+- usar el dataclass Entity ya existente
+- no modificar merge_entities, legal_filters ni deduplicación
+- no alterar lógica existente, solo sumar.
+
+C) Crear script de prueba rápida:
+smoke_test_local_ner.py
+
+Debe:
+- activar temporalmente USE_LOCAL_NER=1 si no está activo
+- ejecutar texto de prueba:
+  "El perito Carlos Mendoza Ruiz, colegiado ICAC N° 15432, presentó su informe."
+- imprimir entidades detectadas.
+
+D) Documentación mínima (README o REPLIT.md):
+Incluir:
+- cómo entrenar modelo:
+  python train_ner.py
+- cómo activar:
+  USE_LOCAL_NER=1
+  LOCAL_NER_MODEL_PATH=models/ner_v1
+- cómo desactivar sin tocar código.
+
+========================
+ESTRUCTURA DE ENTRENAMIENTO
+========================
+Si no existe, crear:
+
+training_data/train.jsonl
+training_data/raw_docs/
+
+Solo estructura. NO crear endpoints nuevos.
+El dataset se llena manualmente de forma controlada (admin).
+
+========================
+CHECKLIST FINAL
+========================
+Antes de terminar, verificar:
+
+1) Con USE_LOCAL_NER=0 el sistema funciona exactamente igual que antes.
+2) Con USE_LOCAL_NER=1 aparecen entidades con source="local_ner".
+3) Si el modelo no existe, el sistema no falla.
+4) No se almacena ningún documento de usuario.
+
+========================
+RECOMENDACIÓN OPERATIVA (OBLIGATORIO RESPETAR)
+========================
+
+Mi recomendación (para el objetivo de no tocar nada más):
+
+Sí: usar Replit Agent para hacer esta integración con mínimos cambios y usando feature flag.
+
+No: implementar auto-entrenamiento con documentos de usuarios, ya que rompe la promesa de privacidad y puede generar fugas de información.
+
+========================
+SALIDA FINAL ESPERADA
+========================
+Al terminar, entregar:
+- Lista de archivos creados/modificados.
+- Resumen de cambios realizados.
+- Pasos exactos para probar en Replit.

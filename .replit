@@ -2,7 +2,7 @@ modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cargo", "freetype", "glibcLocales", "gumbo", "harfbuzz", "imagemagick", "jbig2dec", "lcms2", "libheif", "libiconv", "libimagequant", "libjpeg", "libjpeg_turbo", "libtiff", "libwebp", "libxcrypt", "mupdf", "openjpeg", "openssl", "pkg-config", "postgresql", "rustc", "swig", "tcl", "tk", "xcbuild", "zlib"]
+packages = ["cargo", "freetype", "glibcLocales", "gumbo", "harfbuzz", "imagemagick", "jbig2dec", "lcms2", "libheif", "libiconv", "libimagequant", "libjpeg", "libjpeg_turbo", "libtiff", "libwebp", "libxcrypt", "mupdf", "openjpeg", "openssl", "pkg-config", "postgresql", "rustc", "swig", "tcl", "tk", "xcbuild", "zlib", "nano"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -40,7 +40,7 @@ integrations = ["resend:1.0.0"]
 
 [userenv.shared]
 TWOFA_ENCRYPTION_KEY = "7wanZ8x3uY5eDpF2_nMXXC9aKSm8LY5Z0I4IewsJWig="
-USE_OPENAI_DETECT = "1"
+USE_OPENAI_DETECT = "0"
 OPENAI_MODEL = "gpt-4o-mini"
 OPENAI_TIMEOUT_SECONDS = "20"
 OPENAI_MAX_RETRIES = "1"
