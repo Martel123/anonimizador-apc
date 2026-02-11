@@ -13,6 +13,100 @@ import logging
 from typing import Dict, List, Tuple, Set, Any, Optional
 from collections import defaultdict
 from dataclasses import dataclass, field
+# =====================================================
+# COLEGIOS DE ABOGADOS + ENTIDADES PÚBLICAS (ENTIDAD->ENTIDAD)
+# =====================================================
+
+# ----------- COLEGIOS DE ABOGADOS (abreviaturas) -----------
+COLEGIOS_ABOGADOS_ABREV = {
+    "CAL":  "Colegio de Abogados de Lima",
+    "CALN": "Colegio de Abogados de Lima Norte",
+    "CAC":  "Colegio de Abogados del Callao",
+    "CAA":  "Colegio de Abogados de Arequipa",
+    "ICAP": "Ilustre Colegio de Abogados de Piura",
+    "ICAL": "Ilustre Colegio de Abogados de La Libertad",
+    "ICAC": "Ilustre Colegio de Abogados del Cusco",
+    "ICAA": "Ilustre Colegio de Abogados de Ayacucho",
+    "CAH":  "Colegio de Abogados de Huánuco",
+    "ICAI": "Ilustre Colegio de Abogados de Ica",
+    "CAJ":  "Colegio de Abogados de Junín",
+    "ICAT": "Ilustre Colegio de Abogados de Tacna",
+}
+
+def normalize_abbrev(s: str) -> str:
+    return s.replace(".", "").replace(" ", "").upper()
+
+# Detecta: "CAL: COLEGIO DE ABOGADOS DE LIMA"  -> ENTIDAD + ENTIDAD
+PAT_COLEGIO_ENTIDAD = re.compile(
+    r"\b([A-Z](?:\.?[A-Z]){1,5}\.?)\s*[:\-]?\s*"
+    r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,15})\b"
+)
+
+def detectar_colegio_entidad(text: str):
+    resultados = []
+    for m in PAT_COLEGIO_ENTIDAD.finditer(text):
+        abrev = normalize_abbrev(m.group(1))
+        if abrev in COLEGIOS_ABOGADOS_ABREV:
+            s1, e1 = m.span(1)
+            s2, e2 = m.span(2)
+            resultados.append((s1, e1, "ENTIDAD"))
+            resultados.append((s2, e2, "ENTIDAD"))
+    return resultados
+
+
+# ----------- ENTIDADES PÚBLICAS / NOTARIALES (triggers) -----------
+TRIGGERS_ENTIDAD = [
+    # Justicia
+    r"JUZGADO", r"SALA", r"CORTE\s+SUPERIOR", r"PODER\s+JUDICIAL",
+    r"FISCAL[IÍ]A", r"MINISTERIO\s+P[ÚU]BLICO",
+    r"DEFENSOR[IÍ]A\s+DEL\s+PUEBLO",
+
+    # Registro / Identidad
+    r"SUNARP", r"REGISTROS\s+P[ÚU]BLICOS", r"REGISTRO\s+PERSONAL", r"REGISTRO\s+VEHICULAR",
+    r"RENIEC", r"RNP", r"REGISTRO\s+NACIONAL",
+
+    # Gobierno / Municipal
+    r"MUNICIPALIDAD", r"GOBIERNO\s+REGIONAL", r"MINISTERIO", r"SUPERINTENDENCIA",
+    r"SBS", r"OSIPTEL", r"OSINERGMIN", r"SUNAT", r"INDECOPI", r"MIGRACIONES",
+
+    # Notarial / Conciliación
+    r"NOTAR[IÍ]A", r"NOTARIO", r"COLEGIO\s+DE\s+NOTARIOS",
+    r"CENTRO\s+DE\s+CONCILIACI[ÓO]N", r"CONCILIADOR",
+
+    # Policía / Militar
+    r"PNP", r"POLIC[IÍ]A\s+NACIONAL", r"COMISAR[IÍ]A",
+]
+
+ENTIDAD_SIGUIENTE = r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,15})"
+
+PAT_TRIGGER_SEGUIDO = re.compile(
+    rf"\b({'|'.join(TRIGGERS_ENTIDAD)})\s+{ENTIDAD_SIGUIENTE}\b",
+    flags=re.IGNORECASE
+)
+
+PAT_TRIGGER_DOS_PUNTOS = re.compile(
+    rf"\b({'|'.join(TRIGGERS_ENTIDAD)})\s*[:\-]\s*{ENTIDAD_SIGUIENTE}\b",
+    flags=re.IGNORECASE
+)
+
+def detectar_entidad_publica_entidad(text: str):
+    resultados = []
+
+    for m in PAT_TRIGGER_SEGUIDO.finditer(text):
+        s1, e1 = m.span(1)
+        s2, e2 = m.span(2)
+        resultados.append((s1, e1, "ENTIDAD"))
+        resultados.append((s2, e2, "ENTIDAD"))
+
+    for m in PAT_TRIGGER_DOS_PUNTOS.finditer(text):
+        s1, e1 = m.span(1)
+        s2, e2 = m.span(2)
+        resultados.append((s1, e1, "ENTIDAD"))
+        resultados.append((s2, e2, "ENTIDAD"))
+
+    resultados = sorted(set(resultados), key=lambda x: (x[0], x[1], x[2]))
+    return resultados
+
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -463,7 +557,15 @@ def detect_layer2_context(text: str) -> List[Entity]:
     Detecta entidades basándose en palabras clave de contexto.
     """
     entities = []
-    
+    # ENTIDADES PÚBLICAS / NOTARIALES -> ENTIDAD + ENTIDAD
+    for s, e, label in detectar_entidad_publica_entidad(text):
+        entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_entidad_publica"))
+
+    # COLEGIO DE ABOGADOS -> ENTIDAD + ENTIDAD
+    for s, e, label in detectar_colegio_entidad(text):
+        entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_colegio"))
+
+
     # Domicilio (real/procesal/legal)
     for pattern in DOMICILIO_PATTERNS:
         for match in pattern.finditer(text):
@@ -583,7 +685,7 @@ EXCLUDED_WORDS = {
     'CAJAMARCA', 'HUANUCO', 'HUANCAVELICA', 'APURIMAC', 'MADRE', 'DIOS',
     'MARTIN', 'SAN', 'DOCTOR', 'DOCTORA', 'ABOGADO', 'ABOGADA',
     'MENOR', 'MENORES', 'HIJOS', 'HIJAS', 'PADRE', 'MADRE', 'CONYUGE',
-    'ESPOSO', 'ESPOSA', 'CONVIVIENTE', 'HEREDERO', 'HEREDEROS',
+    'ESPOSO', 'ESPOSA', 'CONVIVIENTE', 'HEREDERO', 'HEREDEROS', 'PETITORIO'
 }
 
 EXCLUDED_PHRASES = {

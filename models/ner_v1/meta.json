@@ -18,8 +18,32 @@
   },
   "labels":{
     "ner":[
+      "ACTA_CONCILIACION",
+      "ASEGURADORA",
+      "BANCO",
+      "CASILLA_ELECTRONICA",
+      "CENTRO_CONCILIACION",
       "COLEGIATURA",
-      "PERSONA"
+      "DNI",
+      "DOMICILIO",
+      "DOMICILIO_PROCESAL",
+      "DOMICILIO_REAL",
+      "EMAIL",
+      "EMPRESA",
+      "ENTIDAD",
+      "FECHA",
+      "JUZGADO",
+      "MONTO",
+      "MOTOR",
+      "PARTIDA_REGISTRAL",
+      "PERSONA",
+      "PLACA",
+      "POLIZA",
+      "PORCENTAJE",
+      "RECIBO",
+      "SERIE",
+      "TELEFONO",
+      "ZONA_REGISTRAL"
     ]
   },
   "pipeline":[
