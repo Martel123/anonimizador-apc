@@ -2012,3 +2012,33 @@ class TipoActa(db.Model):
     __table_args__ = (
         db.UniqueConstraint('tenant_id', 'nombre', name='uq_tipo_acta_tenant_nombre'),
     )
+
+
+class AnonymizerPackage(db.Model):
+    __tablename__ = 'anonymizer_packages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    price_pen = db.Column(db.Numeric(10, 2), nullable=False)
+    pages_granted = db.Column(db.Integer, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    display_order = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AnonymizerPurchase(db.Model):
+    __tablename__ = 'anonymizer_purchases'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    package_id = db.Column(db.Integer, db.ForeignKey('anonymizer_packages.id'), nullable=False)
+    amount_pen = db.Column(db.Numeric(10, 2), nullable=False)
+    pages_added = db.Column(db.Integer, nullable=False)
+    culqi_charge_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
+    culqi_token_id = db.Column(db.String(100), nullable=True)
+    status = db.Column(db.String(20), default='pending', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('anonymizer_purchases', lazy='dynamic'))
+    package = db.relationship('AnonymizerPackage', backref=db.backref('purchases', lazy='dynamic'))

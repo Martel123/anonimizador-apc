@@ -1,0 +1,109 @@
+Necesito que implementes el sistema de COMPRA POR PAQUETES (cargo único) para el módulo ANONIMIZADOR por páginas.
+
+IMPORTANTE (para reducir costo):
+- NO analices todo el repositorio.
+- NO reescribas archivos completos.
+- Trabaja solo en estos archivos (si existen):
+  1) models.py (solo agregar modelos nuevos al final, sin tocar los existentes)
+  2) app.py (solo agregar endpoints nuevos o reutilizar el endpoint Culqi existente sin romperlo)
+  3) templates del pricing del anonimizador (crear uno nuevo si hace falta, mínimo)
+  4) public_app.py (solo si necesitas agregar/ajustar una ruta para mostrar “Planes” o linkearla)
+
+CONTEXTO:
+- Ya existe el sistema de créditos por usuario y UserCredits + reservas + cobro.
+- El anonimizador ya es solo para usuarios logueados.
+- Ya existe integración Culqi en app.py con un endpoint tipo POST /api/culqi/charge (o equivalente) para hacer charges.
+- Queremos “cargo único por paquete”: el usuario compra X páginas una vez y se le suman al saldo.
+
+REQUISITOS FUNCIONALES:
+1) Modelo de paquetes (editable luego desde superadmin):
+   Crear un modelo NUEVO (no mezclar con planes del dashboard) llamado AnonymizerPackage:
+   - id (pk)
+   - name (string) ej “300 páginas”
+   - price_pen (decimal) ej 15.00
+   - pages_granted (int) ej 300
+   - is_active (bool, default True)
+   - display_order (int, default 0)
+   - created_at, updated_at
+
+2) Seed inicial (si la tabla está vacía, crear 3 paquetes por defecto):
+   - 300 páginas => 15
+   - 800 páginas => 25
+   - 2000 páginas => 59
+   IMPORTANTE: estos valores deben quedar en DB y ser editables más adelante.
+
+3) API pública autenticada para listar paquetes:
+   - GET /api/anonymizer/packages
+   Respuesta JSON ordenada por display_order asc, luego id asc.
+   Solo incluir is_active=True.
+   Campos: id, name, price_pen, pages_granted.
+
+4) Registro de pagos para idempotencia:
+   Crear un modelo NUEVO llamado AnonymizerPurchase:
+   - id (pk)
+   - user_id (fk User)
+   - package_id (fk AnonymizerPackage)
+   - amount_pen (decimal)
+   - pages_added (int)
+   - culqi_charge_id (string unique, indexed)
+   - culqi_token_id (string nullable)
+   - status (string: pending/paid/failed)
+   - created_at
+
+   Regla: si llega un culqi_charge_id ya registrado como paid => NO sumar páginas de nuevo (idempotencia).
+
+5) Endpoint de compra (cargo único):
+   - POST /api/anonymizer/purchase
+   Body JSON:
+   {
+     "package_id": <int>,
+     "culqi_token_id": "<string>",
+     "email": "<string opcional>"
+   }
+
+   Flujo:
+   a) Validar user logueado (login_required).
+   b) Leer package_id y buscar paquete activo en DB.
+   c) NO confiar en el precio del frontend. Usar price_pen del paquete para el charge.
+   d) Llamar a Culqi charges con:
+      - amount en céntimos (price_pen * 100)
+      - currency_code "PEN"
+      - email (si no viene, usar current_user.email si existe)
+      - source_id = culqi_token_id
+      - description: "APC Anonimizador - <package.name>"
+   e) Si Culqi devuelve success y un charge_id:
+      - Crear AnonymizerPurchase status="paid"
+      - Sumar pages_granted al UserCredits.pages_balance del usuario
+      - Registrar log (si existe función de logs, úsala; si no, crea un PageUsageLog entry con action="charged", detail="purchase:<charge_id>")
+      - Responder JSON:
+        { "ok": true, "pages_added": X, "new_balance": Y, "charge_id": "..."}
+   f) Si falla:
+      - Registrar AnonymizerPurchase status="failed" (si tienes charge_id parcial, guardarlo)
+      - Responder {ok:false, error:"..."}
+
+6) Página mínima “Planes” del anonimizador (UI):
+   - GET /anonymizer/plans (login_required)
+   Mostrar paquetes (llamando a la API o render desde backend) con botón “Comprar”.
+   Integración Culqi Checkout:
+     - Cargar checkout v4 JS.
+     - Al click “Comprar”, abrir checkout con el monto del paquete (solo para UI).
+     - Recibir token y llamar POST /api/anonymizer/purchase con package_id y token.
+     - Mostrar success y actualizar saldo en pantalla.
+
+   IMPORTANTE: aunque el UI pase un monto, el backend siempre recalcula con DB.
+
+DONE CRITERIA (PRUEBAS):
+- Usuario logueado ve /anonymizer/plans y lista de paquetes.
+- Compra paquete 300 => saldo aumenta +300.
+- Reintento con mismo charge_id (simulado) no suma doble.
+- Si paquete is_active=False no se puede comprar.
+- Si token Culqi inválido => no suma páginas.
+
+NOTAS:
+- No toques el sistema de reservas/cobro del anonimizador.
+- No reescribas templates existentes del dashboard.
+- No rompas el endpoint Culqi existente: si lo reutilizas, encapsula lógica específica para “anonymizer purchase”.
+- Al final entrega:
+  - archivos tocados
+  - endpoints agregados
+  - cómo probar con Culqi test

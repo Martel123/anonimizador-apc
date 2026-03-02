@@ -44,7 +44,7 @@ import anonymizer as anon_module
 import anonymizer_robust as anon_robust
 from public_app import anonymizer_bp
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation, AnonymizerPackage, AnonymizerPurchase
 import qrcode
 import threading
 import queue
@@ -2310,6 +2310,128 @@ def culqi_create_charge():
     except Exception as e:
         logging.error(f"Error creating Culqi charge for session {session_id}: {e}")
         return jsonify({'success': False, 'error': 'Error procesando el pago'}), 500
+
+
+# ============================================================================
+# ANONYMIZER PACKAGE PURCHASE
+# ============================================================================
+
+@app.route("/api/anonymizer/packages", methods=["GET"])
+@login_required
+def anonymizer_list_packages():
+    """Lista paquetes de páginas activos para el anonimizador."""
+    pkgs = AnonymizerPackage.query.filter_by(is_active=True)\
+        .order_by(AnonymizerPackage.display_order.asc(), AnonymizerPackage.id.asc()).all()
+    return jsonify([{
+        'id': p.id,
+        'name': p.name,
+        'price_pen': float(p.price_pen),
+        'pages_granted': p.pages_granted,
+    } for p in pkgs])
+
+
+@app.route("/api/anonymizer/purchase", methods=["POST"])
+@login_required
+def anonymizer_purchase():
+    """Cargo único por paquete de páginas. El precio siempre se lee desde DB."""
+    from credit_utils import get_or_create_credits
+
+    data = request.get_json(silent=True) or {}
+    package_id = data.get('package_id')
+    culqi_token_id = data.get('culqi_token_id', '').strip()
+    email = (data.get('email') or getattr(current_user, 'email', '') or '').strip()
+
+    if not package_id or not culqi_token_id:
+        return jsonify({'ok': False, 'error': 'package_id y culqi_token_id son requeridos'}), 400
+
+    pkg = AnonymizerPackage.query.filter_by(id=package_id, is_active=True).first()
+    if not pkg:
+        return jsonify({'ok': False, 'error': 'Paquete no disponible'}), 404
+
+    culqi_private_key = os.environ.get('CULQI_PRIVATE_KEY')
+    if not culqi_private_key:
+        logging.error("CULQI_PRIVATE_KEY not configured")
+        return jsonify({'ok': False, 'error': 'Pago no configurado'}), 500
+
+    amount_cents = int(pkg.price_pen * 100)
+    description = f"APC Anonimizador - {pkg.name}"
+
+    purchase = AnonymizerPurchase(
+        user_id=current_user.id,
+        package_id=pkg.id,
+        amount_pen=pkg.price_pen,
+        pages_added=pkg.pages_granted,
+        culqi_token_id=culqi_token_id,
+        status='pending'
+    )
+    db.session.add(purchase)
+    db.session.commit()
+
+    try:
+        charge_resp = requests.post(
+            'https://api.culqi.com/v2/charges',
+            headers={
+                'Authorization': f'Bearer {culqi_private_key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'amount': amount_cents,
+                'currency_code': 'PEN',
+                'email': email,
+                'source_id': culqi_token_id,
+                'description': description,
+            },
+            timeout=20
+        )
+        result = charge_resp.json()
+
+        if charge_resp.status_code in (200, 201):
+            charge_id = result.get('id')
+
+            existing = AnonymizerPurchase.query.filter_by(
+                culqi_charge_id=charge_id, status='paid'
+            ).first()
+            if existing:
+                logging.warning(f"PURCHASE_DUPLICATE | charge_id={charge_id} | user={current_user.id}")
+                credits = get_or_create_credits(current_user.id)
+                return jsonify({'ok': True, 'pages_added': 0, 'new_balance': credits.pages_balance, 'charge_id': charge_id})
+
+            purchase.culqi_charge_id = charge_id
+            purchase.status = 'paid'
+
+            credits = get_or_create_credits(current_user.id)
+            credits.pages_balance += pkg.pages_granted
+
+            log_entry = PageUsageLog(
+                user_id=current_user.id,
+                job_id=f"purchase:{charge_id}",
+                stage='purchase',
+                pages=pkg.pages_granted,
+                action='charged',
+                detail=f"Compra paquete '{pkg.name}' – charge {charge_id}"
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+
+            logging.info(f"PURCHASE_OK | user={current_user.id} | pkg={pkg.name} | pages={pkg.pages_granted} | charge={charge_id}")
+            return jsonify({
+                'ok': True,
+                'pages_added': pkg.pages_granted,
+                'new_balance': credits.pages_balance,
+                'charge_id': charge_id,
+            })
+        else:
+            error_msg = result.get('user_message', result.get('merchant_message', 'Error procesando pago'))
+            purchase.status = 'failed'
+            db.session.commit()
+            logging.error(f"PURCHASE_FAIL | user={current_user.id} | pkg={pkg.id} | culqi={result}")
+            return jsonify({'ok': False, 'error': error_msg}), 400
+
+    except Exception as e:
+        purchase.status = 'failed'
+        db.session.commit()
+        logging.error(f"PURCHASE_EXCEPTION | user={current_user.id} | error={e}")
+        return jsonify({'ok': False, 'error': 'Error procesando el pago'}), 500
 
 
 @app.route("/checkout/payment/<session_id>")
@@ -9152,6 +9274,25 @@ def get_modelo_public_link(modelo_id):
     })
 
 
+def _seed_anonymizer_packages():
+    """Inserta paquetes por defecto si aún no existen (idempotente por nombre)."""
+    defaults = [
+        ("300 páginas",  15.00, 300,  1),
+        ("800 páginas",  25.00, 800,  2),
+        ("2000 páginas", 59.00, 2000, 3),
+    ]
+    try:
+        for name, price, pages, order in defaults:
+            if not AnonymizerPackage.query.filter_by(name=name).first():
+                db.session.add(AnonymizerPackage(
+                    name=name, price_pen=price, pages_granted=pages, display_order=order
+                ))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"SEED_PACKAGES_ERROR: {e}")
+
+
 def init_app_once():
     """Initialize app directories and database (if configured)."""
     try:
@@ -9169,6 +9310,7 @@ def init_app_once():
             with app.app_context():
                 db.create_all()
                 logging.info("Database tables created successfully")
+                _seed_anonymizer_packages()
         else:
             logging.warning("DATABASE_URL not set - skipping database initialization")
     except Exception as e:

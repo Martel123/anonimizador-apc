@@ -1229,3 +1229,22 @@ def anonymizer_report(job_id):
         return render_error("Error al descargar el reporte. Por favor procese el documento nuevamente.")
 
 
+@anonymizer_bp.route("/anonymizer/plans")
+@login_required
+def anonymizer_plans():
+    """Página de compra de paquetes de páginas."""
+    from models import AnonymizerPackage, UserCredits
+    from credit_utils import get_or_create_credits
+    pkgs = AnonymizerPackage.query.filter_by(is_active=True)\
+        .order_by(AnonymizerPackage.display_order.asc(), AnonymizerPackage.id.asc()).all()
+    credits = get_or_create_credits(current_user.id)
+    culqi_public_key = os.environ.get('CULQI_PUBLIC_KEY', '')
+    return render_template(
+        "anonymizer_plans.html",
+        packages=pkgs,
+        pages_balance=credits.pages_balance,
+        culqi_public_key=culqi_public_key,
+        user_email=getattr(current_user, 'email', '') or '',
+    )
+
+
