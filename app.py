@@ -9273,6 +9273,19 @@ def get_modelo_public_link(modelo_id):
     })
 
 
+def _run_schema_migrations():
+    """Aplica migraciones de columnas que db.create_all() no maneja (ALTER TABLE)."""
+    migrations = [
+        "ALTER TABLE anonymizer_jobs ADD COLUMN IF NOT EXISTS input_path VARCHAR(512)",
+    ]
+    for sql in migrations:
+        try:
+            db.session.execute(db.text(sql))
+        except Exception as e:
+            logging.warning(f"MIGRATION_SKIP: {e}")
+    db.session.commit()
+
+
 def _seed_anonymizer_packages():
     """Inserta paquetes por defecto si aún no existen (idempotente por nombre)."""
     defaults = [
@@ -9309,6 +9322,7 @@ def init_app_once():
             with app.app_context():
                 db.create_all()
                 logging.info("Database tables created successfully")
+                _run_schema_migrations()
                 _seed_anonymizer_packages()
         else:
             logging.warning("DATABASE_URL not set - skipping database initialization")
