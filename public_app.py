@@ -1,8 +1,7 @@
 """
-Anonimizador Legal Público - App para Render + Blueprint para Replit
-=====================================================================
-Flujo: SUBIR → PREVIEW COMPLETO → LISTA (seleccionar/deseleccionar) → APLICAR → DESCARGAR
-Confidencialidad real: solo archivos temporales en /tmp, borrados siempre en finally
+Anonimizador Legal - Blueprint con autenticación y créditos por páginas
+=======================================================================
+Flujo: LOGIN → SUBIR → CONTAR PÁGINAS → RESERVAR CRÉDITOS → REVIEW → APLICAR → COBRAR → DESCARGAR
 """
 
 import os
@@ -15,14 +14,14 @@ import traceback
 import zipfile
 from io import BytesIO
 from datetime import datetime
-from flask import Flask, Blueprint, render_template, request, send_file, jsonify
+from flask import Flask, Blueprint, render_template, request, send_file, jsonify, redirect, url_for, flash
+from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import final auditor for 0-leak guarantee
 try:
     from final_auditor import audit_document, log_audit_result
     FINAL_AUDITOR_AVAILABLE = True
@@ -30,12 +29,17 @@ except ImportError:
     FINAL_AUDITOR_AVAILABLE = False
     logger.warning("Final auditor not available")
 
+from credit_utils import (
+    get_or_create_credits, ensure_trial, count_pages,
+    check_and_reserve_pages, charge_pages, release_reservation
+)
+
 anonymizer_bp = Blueprint("anonymizer", __name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {'doc', 'docx', 'pdf', 'txt'}
 
@@ -545,81 +549,116 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
 # ============================================================================
 
 @anonymizer_bp.route("/health")
-@app.route("/health")
 def health():
-    """Health check endpoint."""
     return "ok"
 
 
 @anonymizer_bp.route("/")
-@app.route("/")
+@login_required
 def index():
-    """Página principal de subida."""
     openai_available = check_openai_available()
-    return render_template("anonymizer_standalone.html", 
-                           openai_available=openai_available)
+    credits = ensure_trial(current_user.id)
+    return render_template("anonymizer_standalone.html",
+                           openai_available=openai_available,
+                           credits=credits)
 
 
 @anonymizer_bp.route("/anonymizer")
-@app.route("/anonymizer")
+@login_required
 def anonymizer_home():
-    """Alias para página principal."""
     openai_available = check_openai_available()
+    credits = ensure_trial(current_user.id)
     return render_template("anonymizer_standalone.html",
-                           openai_available=openai_available)
+                           openai_available=openai_available,
+                           credits=credits)
 
 
 @anonymizer_bp.route("/anonymizer/process", methods=["POST"])
-@app.route("/anonymizer/process", methods=["POST"])
+@login_required
 def anonymizer_process():
     """
-    Procesa archivo y muestra página de revisión.
-    Guarda archivo temporal que será borrado en /apply.
+    Procesa archivo: contar páginas, reservar créditos, detectar PII, mostrar review.
     """
-    if not check_openai_available():
-        return render_error("El servicio no está disponible en este momento. Contacte al administrador.", 503)
-    
+    from models import db, AnonymizerJob
+
+    credits = ensure_trial(current_user.id)
+
     if 'file' not in request.files:
         return render_error("No se seleccionó ningún archivo")
-    
+
     file = request.files['file']
     if not file or not file.filename:
         return render_error("El archivo está vacío")
-    
+
     filename = secure_filename(file.filename)
     ext = get_extension(filename)
-    
+
     if not allowed_file(filename):
         return render_error(f"Formato no soportado: .{ext}. Use DOCX, PDF o TXT")
-    
-    # Get options from form
+
     strict_mode = request.form.get('strict_mode', 'true').lower() == 'true'
     export_csv = request.form.get('export_csv', 'false').lower() == 'true'
-    
+
     job_id = str(uuid.uuid4())
     temp_input = os.path.join(tempfile.gettempdir(), f"in_{job_id}_{filename}")
-    
+
     try:
         file.save(temp_input)
         file_size = os.path.getsize(temp_input)
-        logger.info(f"UPLOAD | job={job_id} | file={filename} | ext={ext} | size={file_size}")
-        
+        logger.info(f"UPLOAD | job={job_id} | user={current_user.id} | file={filename} | ext={ext} | size={file_size}")
+
         valid, error_msg = validate_file_format(temp_input, ext)
         if not valid:
             safe_remove(temp_input)
             return render_error(error_msg)
-        
+
+        pages_needed = count_pages(temp_input, ext)
+
+        job = AnonymizerJob(
+            job_id=job_id,
+            user_id=current_user.id,
+            filename_original=filename,
+            ext=ext,
+            pages_counted=pages_needed,
+            status='created'
+        )
+        db.session.add(job)
+        db.session.commit()
+
+        can_reserve, current_balance = check_and_reserve_pages(current_user.id, job_id, pages_needed)
+
+        if not can_reserve:
+            job.status = 'blocked'
+            db.session.commit()
+            safe_remove(temp_input)
+            pages_missing = pages_needed - current_balance
+            page_method = "páginas reales" if ext == "pdf" else "equivalente por contenido (500 palabras = 1 página)"
+            return render_template("insufficient_pages.html",
+                pages_needed=pages_needed,
+                pages_balance=current_balance,
+                pages_missing=pages_missing,
+                filename=filename,
+                ext=ext,
+                page_method=page_method
+            )
+
+        job.status = 'reserved'
+        db.session.commit()
+
         full_text = extract_text(temp_input, ext)
-        
+
         if not full_text or len(full_text.strip()) < 10:
+            release_reservation(current_user.id, job_id)
+            job.status = 'failed'
+            db.session.commit()
             safe_remove(temp_input)
             return render_error("No se pudo leer el contenido del documento")
-        
+
         from detector_capas import detect_all_pii
         entities, detect_meta = detect_all_pii(full_text)
         all_entities = normalize_entities(entities)
         all_entities = deduplicate_entities(all_entities)
-        
+
         openai_review_items = []
         try:
             from detector_openai import detect_with_openai, merge_openai_with_local, is_openai_available
@@ -627,9 +666,9 @@ def anonymizer_process():
                 logger.info(f"OPENAI_DETECT | job={job_id} | starting OpenAI detection")
                 openai_entities, openai_review_items = detect_with_openai(full_text)
                 if openai_entities:
-                    entities_dict = [{'type': e.get('type'), 'value': e.get('value'), 
+                    entities_dict = [{'type': e.get('type'), 'value': e.get('value'),
                                      'start': e.get('start', 0), 'end': e.get('end', 0),
-                                     'source': e.get('source', 'local'), 
+                                     'source': e.get('source', 'local'),
                                      'confidence': e.get('confidence', 1.0)} for e in all_entities]
                     merged = merge_openai_with_local(entities_dict, openai_entities, full_text)
                     all_entities = normalize_entities(merged)
@@ -637,40 +676,44 @@ def anonymizer_process():
                     logger.info(f"OPENAI_MERGE | job={job_id} | openai_entities={len(openai_entities)} | review={len(openai_review_items)} | total_after_merge={len(all_entities)}")
         except Exception as e:
             logger.warning(f"OPENAI_DETECT_FAIL | job={job_id} | error={str(e)}")
-        
+
         confirmed = []
         needs_review = []
-        
+
         for i, ent in enumerate(all_entities):
             ent['index'] = i
             conf = ent.get('confidence', 1.0)
-            
             if conf >= 0.80:
                 ent['status'] = 'confirmed'
                 confirmed.append(ent)
             elif conf >= 0.50:
                 ent['status'] = 'needs_review'
                 needs_review.append(ent)
-        
+
         entities_all = confirmed + needs_review
-        
+
         confirmed_by_type = {}
         needs_review_by_type = {}
-        
+
         for e in confirmed:
             t = e['type']
             if t not in confirmed_by_type:
                 confirmed_by_type[t] = []
             confirmed_by_type[t].append(e)
-        
+
         for e in needs_review:
             t = e['type']
             if t not in needs_review_by_type:
                 needs_review_by_type[t] = []
             needs_review_by_type[t].append(e)
-        
+
+        job.status = 'reviewed'
+        db.session.commit()
+
         logger.info(f"DETECT_OK | job={job_id} | confirmed={len(confirmed)} | needs_review={len(needs_review)}")
-        
+
+        credits_refreshed = get_or_create_credits(current_user.id)
+
         return render_template("anonymizer_review.html",
             temp_input_path=temp_input,
             ext=ext,
@@ -686,10 +729,20 @@ def anonymizer_process():
             confirmed_count=len(confirmed),
             needs_review_count=len(needs_review),
             strict_mode=strict_mode,
-            export_csv=export_csv
+            export_csv=export_csv,
+            pages_counted=pages_needed,
+            pages_balance=credits_refreshed.pages_balance
         )
-        
+
     except Exception as e:
+        try:
+            release_reservation(current_user.id, job_id)
+            job_rec = AnonymizerJob.query.filter_by(job_id=job_id).first()
+            if job_rec and job_rec.status not in ('success', 'charged'):
+                job_rec.status = 'failed'
+                db.session.commit()
+        except Exception:
+            pass
         safe_remove(temp_input)
         logger.error(f"PROCESS_ERROR | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
@@ -711,26 +764,52 @@ def get_result_paths(job_id):
     }
 
 @anonymizer_bp.route("/anonymizer/apply", methods=["POST"])
-@app.route("/anonymizer/apply", methods=["POST"])
+@login_required
 def anonymizer_apply():
     """
-    Aplica anonimización y muestra página de resultados.
+    Aplica anonimización, cobra créditos y muestra resultados.
     """
     import html as html_lib
-    
-    if not check_openai_available():
-        return render_error("El servicio no está disponible en este momento.", 503)
-    
+    from models import db, AnonymizerJob
+
     temp_input = request.form.get('temp_input_path', '')
     ext = request.form.get('ext', 'docx')
     original_filename = request.form.get('original_filename', 'documento')
     selected_entities_json = request.form.get('selected_entities_json', '[]')
     export_csv = request.form.get('export_csv', 'false').lower() == 'true'
-    
+    job_id = request.form.get('job_id', '')
+
+    if not job_id:
+        return render_error("Sesión inválida. Suba el documento nuevamente.")
+
+    job = AnonymizerJob.query.filter_by(job_id=job_id).first()
+    if not job or job.user_id != current_user.id:
+        logger.warning(f"APPLY_OWNERSHIP_FAIL | job={job_id} | user={current_user.id}")
+        return render_error("No tiene permiso para procesar este documento.", 403)
+
+    if job.pages_charged > 0 or job.status == 'success':
+        logger.warning(f"APPLY_ALREADY_CHARGED | job={job_id} | user={current_user.id}")
+        return render_error("Este documento ya fue procesado. Suba uno nuevo.")
+
+    from models import PageReservation
+    reservation = PageReservation.query.filter_by(job_id=job_id, user_id=current_user.id).first()
+    if not reservation or reservation.status != 'reserved':
+        logger.warning(f"APPLY_NO_RESERVATION | job={job_id} | user={current_user.id} | reservation={reservation.status if reservation else 'none'}")
+        return render_error("Reserva de créditos no encontrada. Suba el documento nuevamente.")
+
+    if reservation.pages_reserved != job.pages_counted:
+        logger.warning(f"APPLY_PAGES_MISMATCH | job={job_id} | reserved={reservation.pages_reserved} | counted={job.pages_counted}")
+        release_reservation(current_user.id, job_id)
+        job.status = 'failed'
+        db.session.commit()
+        return render_error("Error de consistencia en créditos. Suba el documento nuevamente.")
+
     if not temp_input or not os.path.exists(temp_input):
+        release_reservation(current_user.id, job_id)
+        job.status = 'failed'
+        db.session.commit()
         return render_error("Sesión expirada. Suba el documento nuevamente.")
-    
-    job_id = str(uuid.uuid4())
+
     output_ext = get_output_extension(ext)
     temp_output = os.path.join(tempfile.gettempdir(), f"out_{job_id}.{output_ext}")
     
@@ -827,13 +906,15 @@ def anonymizer_apply():
                 logger.info(f"AUDIT_AUTOFIX_TXT | job={job_id} | saved corrected text")
             
             if not audit_result.is_safe:
-                # Documento no seguro - bloquear descarga INCONDICIONALMENTE
                 logger.error(f"AUDIT_UNSAFE | job={job_id} | remaining_leaks={audit_result.remaining_leaks}")
                 safe_remove(temp_output)
-                
+                release_reservation(current_user.id, job_id)
+                job.status = 'failed'
+                db.session.commit()
+
                 leak_types = list(set(l['type'] for l in audit_result.leaks_found))
                 types_list = [f"{t} (posibles fugas)" for t in leak_types]
-                
+
                 return render_template("anonymizer_blocked.html",
                     residual_types=types_list,
                     total_residual=audit_result.remaining_leaks,
@@ -918,20 +999,23 @@ def anonymizer_apply():
         with open(result_paths['doc'], 'wb') as f:
             f.write(output_bytes)
         
+        charge_pages(current_user.id, job_id, stage="apply")
+
         meta_data = {
             'download_name': download_name,
             'output_ext': output_ext,
             'report_json': report_json,
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.now().isoformat(),
+            'user_id': current_user.id
         }
         with open(result_paths['meta'], 'w', encoding='utf-8') as f:
             json.dump(meta_data, f, ensure_ascii=False)
-        
+
         safe_remove(temp_input)
         safe_remove(temp_output)
-        
-        logger.info(f"RESULTS_PAGE | job={job_id} | replaced={replaced_count}")
-        
+
+        logger.info(f"RESULTS_PAGE | job={job_id} | user={current_user.id} | replaced={replaced_count}")
+
         return render_template("anonymizer_results.html",
             job_id=job_id,
             total_replaced=replaced_count,
@@ -942,28 +1026,43 @@ def anonymizer_apply():
             report_url=f"/anonymizer/report/{job_id}",
             output_ext=output_ext
         )
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"APPLY_FAIL | job={job_id} | reason=json_error | error={e}")
         logger.error(traceback.format_exc())
+        release_reservation(current_user.id, job_id)
+        job.status = 'failed'
+        db.session.commit()
         safe_remove(temp_input)
         return render_error("Error procesando la selección de entidades. Intente nuevamente.")
-    
+
     except Exception as e:
         logger.error(f"APPLY_FAIL | job={job_id} | error={e}")
         logger.error(traceback.format_exc())
+        try:
+            release_reservation(current_user.id, job_id)
+            job.status = 'failed'
+            db.session.commit()
+        except Exception:
+            pass
         safe_remove(temp_input)
         safe_remove(temp_output)
         return render_error("No se pudo generar el archivo final. Verifique el documento e intente nuevamente.")
 
 
 @anonymizer_bp.route("/anonymizer/download/<job_id>")
-@app.route("/anonymizer/download/<job_id>")
+@login_required
 def anonymizer_download(job_id):
     """
     Download the anonymized document with FINAL GUARANTEE.
-    Auditor runs JUST BEFORE serving to ensure 0 leaks in the actual downloaded file.
+    Validates ownership before serving.
     """
+    from models import AnonymizerJob
+    job = AnonymizerJob.query.filter_by(job_id=job_id).first()
+    if not job or job.user_id != current_user.id:
+        logger.warning(f"DOWNLOAD_OWNERSHIP_FAIL | job={job_id} | user={current_user.id}")
+        return render_error("No tiene permiso para descargar este documento.", 403)
+
     result_paths = get_result_paths(job_id)
     
     if not os.path.exists(result_paths['doc']) or not os.path.exists(result_paths['meta']):
@@ -1087,9 +1186,14 @@ def anonymizer_download(job_id):
 
 
 @anonymizer_bp.route("/anonymizer/report/<job_id>")
-@app.route("/anonymizer/report/<job_id>")
+@login_required
 def anonymizer_report(job_id):
     """Download the anonymization report."""
+    from models import AnonymizerJob
+    job = AnonymizerJob.query.filter_by(job_id=job_id).first()
+    if not job or job.user_id != current_user.id:
+        return render_error("No tiene permiso para descargar este reporte.", 403)
+
     result_paths = get_result_paths(job_id)
     
     if not os.path.exists(result_paths['meta']):

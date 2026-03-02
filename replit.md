@@ -1,18 +1,42 @@
 # Anonimizador Legal + Plataforma de Centros de Conciliación
 
 ## Overview
-This project now includes a standalone **Legal Document Anonymizer** as its main feature (accessible at `/`). The anonymizer automatically detects and replaces personal identifiable information (PII) in legal documents using regex-based patterns, without requiring any paid external services.
+This project includes a **Legal Document Anonymizer** as its main feature (accessible at `/`, requires login). The anonymizer detects and replaces PII in legal documents using regex-based patterns and optional AI enhancement.
 
 The platform also includes a multi-tenant SaaS system for Conciliation Centers, accessible via `/dashboard-app` for authenticated users.
 
 ## Legal Anonymizer (Main Feature)
-- **URL**: `/` (home page) or `/anonymizer`
+- **URL**: `/` (home page) or `/anonymizer` — **requires authentication**
 - **Supported formats**: DOCX and PDF (text-based)
-- **PII Detection**: 21+ entity categories including DNI, RUC, emails, phones, addresses, names, EXPEDIENTE, RESOLUCION, PARTIDA, CASILLA, TRIBUNAL, SALA, JUZGADO, FISCALIA, FIRMA, SELLO, HUELLA, PLACA, ACTA, CUENTA, COLEGIATURA
+- **PII Detection**: 21+ entity categories including DNI, RUC, emails, phones, addresses, names, etc.
 - **Placeholders**: `{{DNI_1}}`, `{{PERSONA_1}}`, `{{EMAIL_1}}`, etc.
 - **Output**: Anonymized document + detailed report (JSON/TXT)
-- **Privacy**: Files processed in memory, auto-deleted after 30 minutes
+- **Privacy**: Files processed in memory, auto-deleted after processing
 - **Default**: 100% local processing (no API calls). Optional OpenAI enhancement available
+
+### Credit System (Pages-Based Monetization)
+- **Model**: Credits per USER (not tenant), measured in document pages
+- **Trial**: 40 free pages on first use (configurable via `TRIAL_PAGES_DEFAULT` env var)
+- **PDF**: Charged by real page count (PyPDF2/fitz)
+- **DOCX/TXT**: Charged by content equivalence (ceil(words/500) = 1 page)
+- **Flow**: Upload → Count Pages → Reserve Credits → Review → Apply → Charge → Download
+- **Idempotency**: Double-submit protection via PageReservation (same job_id won't charge twice)
+- **Ownership**: Each job is tied to user_id; download/report requires ownership validation
+
+### Auth System
+- **Login**: `/login` (existing Flask-Login infrastructure)
+- **Register**: `/registro_usuario` (simple user registration, no tenant required)
+- **Logout**: `/logout`
+- All anonymizer routes require `@login_required`
+- Unauthenticated access redirects to `/login?next=...`
+
+### Credit Models (PostgreSQL)
+| Model | Purpose |
+|-------|---------|
+| `UserCredits` | Per-user balance: pages_balance, pages_used_total, trial_granted_at |
+| `AnonymizerJob` | Job tracking: job_id, user_id, pages_counted, pages_charged, status |
+| `PageUsageLog` | Audit trail: every credit action (reserved/charged/released/blocked) |
+| `PageReservation` | Idempotency: reserves pages at upload, charges at apply, releases on failure |
 
 ### Environment Variables
 | Variable | Default | Description |
@@ -25,6 +49,7 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 | `STRICT_ZERO_LEAKS` | `0` | Apply hard-redaction patterns as fallback (1=on) |
 | `USE_LOCAL_NER` | `0` | Enable local trained NER model (1=on, 0=off) |
 | `LOCAL_NER_MODEL_PATH` | `models/ner_v1` | Path to the spaCy NER model directory |
+| `TRIAL_PAGES_DEFAULT` | `40` | Free pages for new users on first use |
 
 ### Triple-Layer Zero-Leak Guarantee
 1. **Processing Audit**: 8-stage detection pipeline with auto-fix
@@ -45,6 +70,7 @@ The platform also includes a multi-tenant SaaS system for Conciliation Centers, 
 - `detector_capas.py`: 8-stage detection pipeline
 - `detector_ner_local.py`: Optional local trained NER detector (spaCy model, feature-flagged)
 - `detector_openai.py`: Optional OpenAI-enhanced detection with pre-redaction privacy
+- `credit_utils.py`: Credit system utilities (trial, page counting, reserve/charge/release)
 - `legal_filters.py`: Anti-over-anonymization with legal whitelist
 - `final_auditor.py`: Final audit with auto-fix for leaked PII (21+ categories)
 - `processor_docx.py`: Run-aware DOCX replacement with hard-redaction fallback

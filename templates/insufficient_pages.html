@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saldo insuficiente - Anonimizador Legal | APC Jurídica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { 'inter': ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            'apc': {
+              'red': '#B30000',
+              'red-dark': '#8B0000',
+              'red-light': '#FEF2F2',
+              'black': '#0B0B0B',
+              'gray-bg': '#F5F5F5',
+              'gray-text': '#6F6F6F',
+              'gray-border': '#E5E5E5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-apc-gray-bg font-inter min-h-screen flex items-center justify-center">
+  <div class="max-w-lg w-full mx-4">
+    <div class="bg-white rounded-2xl shadow-lg p-8 text-center">
+      <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-exclamation-triangle text-apc-red text-2xl"></i>
+      </div>
+
+      <h1 class="text-2xl font-bold text-apc-black mb-2">Saldo insuficiente</h1>
+      <p class="text-apc-gray-text mb-6">No tienes suficientes páginas para procesar este documento.</p>
+
+      <div class="bg-gray-50 rounded-xl p-5 mb-6 text-left">
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-sm text-gray-600">Documento:</span>
+          <span class="text-sm font-medium text-apc-black">{{ filename }}</span>
+        </div>
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-sm text-gray-600">Páginas requeridas:</span>
+          <span class="text-sm font-semibold text-apc-red">{{ pages_needed }}</span>
+        </div>
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-sm text-gray-600">Tu saldo actual:</span>
+          <span class="text-sm font-semibold text-apc-black">{{ pages_balance }}</span>
+        </div>
+        <hr class="my-3 border-gray-200">
+        <div class="flex justify-between items-center">
+          <span class="text-sm text-gray-600">Páginas faltantes:</span>
+          <span class="text-sm font-bold text-apc-red">{{ pages_missing }}</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-3">
+          <i class="fas fa-info-circle mr-1"></i>
+          Cálculo: {{ page_method }}
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <a href="/pricing" class="w-full bg-apc-red text-white py-3 rounded-xl font-semibold hover:bg-apc-red-dark flex items-center justify-center gap-2">
+          <i class="fas fa-shopping-cart"></i>
+          Adquirir más páginas
+        </a>
+        <a href="/anonymizer" class="w-full border-2 border-gray-200 py-3 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2">
+          <i class="fas fa-arrow-left"></i>
+          Volver al anonimizador
+        </a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

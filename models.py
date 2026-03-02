@@ -1916,6 +1916,62 @@ class PlanConfiguration(db.Model):
         db.session.commit()
 
 
+class UserCredits(db.Model):
+    __tablename__ = 'user_credits'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    pages_balance = db.Column(db.Integer, default=0, nullable=False)
+    pages_used_total = db.Column(db.Integer, default=0, nullable=False)
+    trial_granted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('credits', uselist=False, lazy='joined'))
+
+
+class AnonymizerJob(db.Model):
+    __tablename__ = 'anonymizer_jobs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    filename_original = db.Column(db.String(255))
+    ext = db.Column(db.String(10))
+    pages_counted = db.Column(db.Integer, default=0)
+    pages_charged = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default='created')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('anonymizer_jobs', lazy='dynamic'))
+
+
+class PageUsageLog(db.Model):
+    __tablename__ = 'page_usage_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    job_id = db.Column(db.String(64), nullable=False, index=True)
+    stage = db.Column(db.String(20))
+    pages = db.Column(db.Integer, default=0)
+    action = db.Column(db.String(20), nullable=False)
+    detail = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PageReservation(db.Model):
+    __tablename__ = 'page_reservations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    job_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    pages_reserved = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default='reserved')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TipoActa(db.Model):
     """Catálogo de tipos de acta para Centros de Conciliación."""
     __tablename__ = 'tipos_acta'

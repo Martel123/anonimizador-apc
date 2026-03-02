@@ -374,17 +374,44 @@
     </div>
 
     <!-- Action Buttons -->
+    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-600">
+            <i class="fas fa-file-alt mr-1"></i>
+            <span class="font-medium">{{ original_filename }}</span>
+          </div>
+          <div class="text-sm text-gray-600">
+            <i class="fas fa-copy mr-1"></i>
+            Páginas: <span class="font-semibold text-apc-black">{{ pages_counted }}</span>
+            {% if ext != 'pdf' %}
+            <span class="text-xs text-gray-400 ml-1">(equivalente por contenido)</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="text-sm">
+          <i class="fas fa-wallet mr-1 text-apc-red"></i>
+          Saldo actual: <span class="font-semibold text-apc-black">{{ pages_balance }}</span> páginas
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">
+        <i class="fas fa-info-circle mr-1"></i>
+        Se descontarán <strong>{{ pages_counted }}</strong> página(s) al generar el documento final.
+      </p>
+    </div>
+
     <form id="applyForm" action="/anonymizer/apply" method="POST">
       <input type="hidden" name="temp_input_path" value="{{ temp_input_path }}">
       <input type="hidden" name="ext" value="{{ ext }}">
       <input type="hidden" name="original_filename" value="{{ original_filename }}">
+      <input type="hidden" name="job_id" value="{{ job_id }}">
       <input type="hidden" name="selected_entities_json" id="selectedEntitiesJson" value="[]">
       <input type="hidden" name="export_csv" value="{{ export_csv }}">
 
       <div class="flex gap-4">
         <button type="submit" id="applyBtn" class="flex-1 bg-apc-red text-white py-4 rounded-xl font-semibold hover:bg-apc-red-dark flex items-center justify-center gap-2 text-lg">
           <i class="fas fa-shield-alt"></i>
-          Aplicar anonimización
+          Aplicar anonimización ({{ pages_counted }} pág.)
         </button>
         <a href="/anonymizer" class="px-8 py-4 border-2 border-gray-200 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 text-center">
           Cancelar

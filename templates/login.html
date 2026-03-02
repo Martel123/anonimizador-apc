@@ -62,10 +62,14 @@
                     Iniciar Sesión
                 </button>
             </form>
-            <div class="mt-6 text-center">
-                <a href="{{ url_for('forgot_password') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+            <div class="mt-6 text-center space-y-2">
+                <a href="{{ url_for('forgot_password') }}" class="block text-blue-600 hover:text-blue-800 font-medium">
                     ¿Olvidaste tu contraseña?
                 </a>
+                <p class="text-sm text-gray-500">
+                    ¿No tienes cuenta?
+                    <a href="{{ url_for('registro_usuario', next=request.args.get('next', '')) }}" class="text-blue-600 hover:text-blue-800 font-medium">Regístrate gratis</a>
+                </p>
             </div>
         </div>
     </div>

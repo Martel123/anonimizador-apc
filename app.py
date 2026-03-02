@@ -44,7 +44,7 @@ import anonymizer as anon_module
 import anonymizer_robust as anon_robust
 from public_app import anonymizer_bp
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation
 import qrcode
 import threading
 import queue
@@ -1586,9 +1586,12 @@ os.makedirs(ANONYMIZER_OUTPUT_DIR, exist_ok=True)
 # ============================================================================
 # ANONYMIZER ROUTES - DISABLED (now using anonymizer_bp from public_app.py)
 # ============================================================================
-# @app.route("/")
-# def index():
-#     return redirect(url_for('anonymizer_home'))
+
+@app.route("/app-home")
+@login_required
+def index():
+    return redirect("/")
+
 
 
 # @app.route("/anonymizer")
@@ -2766,6 +2769,51 @@ def registro():
         return redirect(url_for('index'))
     
     return render_template("registro.html")
+
+
+@app.route("/registro_usuario", methods=["GET", "POST"])
+def registro_usuario():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        password_confirm = request.form.get("password_confirm", "")
+
+        if not username or not email or not password:
+            flash("Todos los campos son obligatorios.", "error")
+            return render_template("registro_usuario.html")
+
+        if password != password_confirm:
+            flash("Las contraseñas no coinciden.", "error")
+            return render_template("registro_usuario.html")
+
+        if len(password) < 6:
+            flash("La contraseña debe tener al menos 6 caracteres.", "error")
+            return render_template("registro_usuario.html")
+
+        if User.query.filter_by(email=email).first():
+            flash("Ya existe una cuenta con este email.", "error")
+            return render_template("registro_usuario.html")
+
+        user = User(
+            username=username,
+            email=email,
+            role='usuario_estudio',
+            activo=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        login_user(user)
+        next_page = request.args.get('next')
+        flash("Cuenta creada exitosamente.", "success")
+        return redirect(next_page or url_for('index'))
+
+    return render_template("registro_usuario.html")
 
 
 @app.route("/registro_estudio", methods=["GET", "POST"])

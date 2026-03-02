@@ -1,0 +1,195 @@
+ACTÚA COMO: Ingeniero senior (Flask + Flask-Login + SQLAlchemy + PostgreSQL) trabajando en un SaaS en producción.
+
+OBJETIVO: Convertir el ANONIMIZADOR (public_app.py) en un módulo solo para usuarios autenticados, y agregar monetización por páginas (créditos por usuario) con trial inicial. NO integrar pagos aún en este Prompt 1 (eso será Prompt 2). Este prompt debe quedar estable, seguro y con logs.
+
+CONTEXTO DEL PROYECTO (ya analizado):
+- Endpoint anonimizador activo:
+  - POST /anonymizer/process (review) -> public_app.py anonymizer_process()
+  - POST /anonymizer/apply (genera output) -> public_app.py anonymizer_apply()
+  - GET /anonymizer/download/<job_id>
+- El flujo actual guarda archivos en /tmp y usa job_id uuid.
+- Existe infraestructura de usuarios/roles/superadmin en el proyecto (Flask-Login y decoradores super_admin_required).
+- DB es PostgreSQL (DATABASE_URL).
+- El conteo de páginas PDF existe en algunos módulos como validación (MAX_PDF_PAGES), pero NO hay créditos ni cobro por páginas.
+
+REQUISITOS DE NEGOCIO (FIJOS):
+1) El anonimizador SOLO se puede usar si el usuario está logueado (login obligatorio).
+2) Créditos por USUARIO (no tenant).
+3) Trial: asignar 40 páginas gratis UNA sola vez por usuario (en su primera sesión/primer uso).
+   - Debe quedar implementado de forma que luego se pueda cambiar desde SuperAdmin (por ahora valor default 40).
+4) Cobro por PÁGINAS REALES:
+   - PDF: páginas reales exactas (len(PdfReader.pages) o fitz), consistente y estable.
+   - DOCX: NO existe “página real” confiable sin render. En Prompt 1 implementar “equivalente por palabras”:
+     - pages = max(1, ceil(word_count/500))
+     - En UI indicar “DOCX se calcula por equivalencia de contenido”.
+   - TXT: estimación por palabras similar.
+5) El sistema debe bloquear si saldo < páginas requeridas. NO procesar si no alcanza.
+6) Idempotencia: el mismo job_id NO debe descontar dos veces en el mismo stage (process/apply). Manejar doble submit.
+
+REQUISITOS TÉCNICOS (IMPLEMENTAR TODO AHORA):
+A) AUTH: Login / Register / Logout (mínimo viable, limpio)
+- Verifica si ya existen rutas y templates de login/register. Si existen, reutilízalos.
+- Si NO existen, implementa:
+  - GET/POST /login
+  - GET/POST /register
+  - POST /logout
+- Usa Flask-Login correctamente (login_user, logout_user, @login_required, current_user).
+- Password hashing seguro (werkzeug.security generate_password_hash/check_password_hash).
+- Redirección con parámetro next:
+  - Si entra sin login a /anonymizer o hace POST a /anonymizer/process o /anonymizer/apply, redirigir a /login?next=...
+  - Tras login, volver a next.
+
+B) PROTEGER ANONIMIZADOR
+- Asegurar @login_required en:
+  - GET /anonymizer (si existe página)
+  - POST /anonymizer/process
+  - POST /anonymizer/apply
+  - GET /anonymizer/download/<job_id>
+- Importante: en download, validar que el job_id pertenezca al usuario si implementamos ownership (ver logs más abajo). Si no hay ownership ahora, implementarlo.
+
+C) MODELOS NUEVOS (SQLAlchemy) PARA CRÉDITOS Y LOGS
+Crear en models.py (o donde esté centralizado) los siguientes modelos:
+
+1) UserCredits:
+- id (pk)
+- user_id (fk a User, unique)
+- pages_balance (int, default 0)
+- pages_used_total (int, default 0)
+- trial_granted_at (datetime nullable)
+- created_at, updated_at
+
+2) AnonymizerJob:
+- id (pk)
+- job_id (string uuid, unique, indexed)
+- user_id (fk a User, indexed)
+- filename_original (string)
+- ext (string)
+- pages_counted (int)
+- pages_charged (int default 0)
+- status (string: "created","reviewed","processing","success","failed","blocked")
+- created_at, updated_at
+
+3) PageUsageLog:
+- id (pk)
+- user_id (fk)
+- job_id (string uuid, indexed)
+- stage (string: "process" | "apply")
+- pages (int)
+- action (string: "counted"|"reserved"|"charged"|"released"|"blocked"|"failed")
+- detail (text nullable)
+- created_at
+
+4) (Opcional pero recomendado) PageReservation:
+- id (pk)
+- user_id (fk)
+- job_id (string uuid, unique)
+- pages_reserved (int)
+- status ("reserved"|"released"|"charged")
+- created_at, updated_at
+
+Decisión: Si puedes asegurar idempotencia solo con AnonymizerJob + logs, puedes omitir PageReservation, pero debe quedar robusto ante doble submit. Si dudas, implementa PageReservation.
+
+D) FUNCIONES UTILITARIAS (EN un módulo utils o dentro del blueprint anonimizador, pero limpio)
+Implementa:
+
+1) get_or_create_credits(user_id)
+2) ensure_trial(user_id):
+   - si trial_granted_at es NULL => sumar +40 pages_balance y set trial_granted_at = now
+   - loguear en PageUsageLog (action="charged", detail="trial")
+3) count_pages(file_path, ext) -> int
+   - PDF: contar páginas reales exactas (elige UNA librería confiable ya presente, ideal PyPDF2 ya usado).
+   - DOCX: contar palabras (python-docx si está, o tu extractor actual) y convertir a páginas equivalentes.
+   - TXT: palabras -> páginas equivalentes.
+4) check_and_reserve_pages(user_id, job_id, pages_needed):
+   - Validar pages_balance >= pages_needed, si no => bloquear.
+   - Registrar reserva/idempotencia por job_id.
+5) charge_pages(user_id, job_id, pages_to_charge, stage):
+   - Descontar pages_balance, aumentar pages_used_total, marcar job pages_charged.
+   - Garantizar que no se cobre dos veces (por stage o por job_id).
+6) release_reservation_if_needed(user_id, job_id) si falla antes de cobrar.
+
+E) INTEGRACIÓN EN EL FLUJO EXISTENTE (public_app.py)
+Modificar el flujo actual:
+
+1) En anonymizer_process() (POST /anonymizer/process):
+- Debe requerir login.
+- Al inicio, llamar ensure_trial(current_user.id).
+- Recibir file, crear job_id, guardar temp_input.
+- Contar páginas con count_pages(temp_input, ext) antes de detectar PII.
+- Crear/actualizar AnonymizerJob con:
+  - job_id, user_id, filename, ext, pages_counted, status="created"
+- Validar saldo:
+  - Si no alcanza:
+    - marcar job status="blocked"
+    - log PageUsageLog(action="blocked")
+    - responder con template “insufficient_pages.html” (crear si no existe) mostrando:
+      - pages_needed, pages_balance, pages_missing
+      - botón hacia página de planes (por ahora un placeholder /pricing o /anonymizer/plans)
+    - NO continuar a detección, NO continuar a render de review.
+- Si alcanza:
+  - reservar páginas para el job (para evitar doble consumo en apply)
+  - log PageUsageLog(action="reserved")
+  - continuar con el flujo normal (extract_text -> detect -> render anonymizer_review.html)
+  - actualizar job status a "reviewed" cuando se renderiza review.
+
+2) En anonymizer_apply() (POST /anonymizer/apply):
+- Debe requerir login.
+- Validar que el job_id pertenezca al current_user (ownership).
+- Antes de aplicar entidades y generar output, verificar que la reserva exista y corresponde a pages_counted.
+- Al finalizar exitosamente el procesamiento (después de auditoría final y output generado):
+  - cobrar (charge_pages) exactamente pages_counted (o pages_charged = pages_counted)
+  - marcar reserva como charged
+  - job status="success"
+  - log PageUsageLog(action="charged", stage="apply")
+- Si falla:
+  - job status="failed"
+  - liberar reserva (release) para que no se pierdan páginas si no se generó output
+  - log PageUsageLog(action="failed" + "released")
+
+3) En download (GET /anonymizer/download/<job_id>):
+- Requiere login.
+- Verificar ownership: AnonymizerJob.user_id == current_user.id.
+- Si no coincide, 403.
+
+F) UI MÍNIMA (SIN DISEÑO COMPLEJO, PERO CLARA)
+En templates:
+1) En la pantalla review (anonymizer_review.html), mostrar:
+- “Documento: X”
+- “Páginas: N”
+- “Saldo actual: Y”
+- “Se descontarán N páginas al generar el documento final”
+2) Crear template insufficient_pages.html:
+- Mensaje claro
+- Mostrar pages_needed, balance, missing
+- Botón “Ver planes” (link placeholder: /pricing o /super_admin/planes solo para admin; para usuarios: /pricing público)
+3) Si ya existe página /pricing de la plataforma, reutilízala y agrega un link para comprar luego (en Prompt 2).
+
+G) SUPERADMIN: NO hardcodear credenciales
+- IMPORTANTE: NO hardcodear email/contraseña en código.
+- Si ya existe un usuario super_admin (por role), usarlo.
+- Si no existe, crear un comando/seed seguro (por ejemplo flask CLI o script) que:
+  - promueva por email a super_admin si existe
+  - o cree uno si no existe
+- El email que debe poder ser super_admin (si existe en DB) es: marcelo.martel.orellano@gmail.com
+- NO almacenar contraseñas en repositorio. Solo permitir setear/crear password manualmente al registrar o mediante flujo de reset (si existe).
+
+H) PRUEBAS (DEBEN QUEDAR DOCUMENTADAS)
+Al final entrega pasos exactos:
+1) Crear usuario normal, iniciar sesión, verificar que recibe 40 páginas una vez.
+2) Subir PDF de 2 páginas => pasa a review, apply => descuenta 2 páginas.
+3) Subir PDF de más páginas que saldo => debe bloquear sin procesar.
+4) Reintentar apply doble click => NO debe descontar doble.
+5) Intentar descargar job_id de otro usuario => 403.
+
+I) CALIDAD Y SEGURIDAD
+- Manejar errores con try/except y logs.
+- Nunca confiar en datos del frontend para pages.
+- Evitar SQLAlchemy session issues.
+- Mantener el estilo del proyecto.
+- Lista final de archivos tocados y cambios.
+
+ENTREGABLE FINAL:
+- Código implementado y funcional.
+- Templates mínimos creados/reutilizados.
+- Migraciones/creación de tablas listo.
+- Documentación de prueba.

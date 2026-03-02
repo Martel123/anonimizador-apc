@@ -144,9 +144,22 @@
             <p class="text-xs text-gray-400">Elimina datos sensibles sin guardar información ni reescribir documentos</p>
           </div>
         </div>
-        <div class="flex items-center space-x-2 text-sm text-gray-400">
-          <i class="fas fa-lock text-apc-red"></i>
-          <span class="hidden sm:inline">Procesamiento seguro</span>
+        <div class="flex items-center space-x-4">
+          {% if credits %}
+          <div class="flex items-center space-x-2 text-sm bg-white bg-opacity-10 px-3 py-1.5 rounded-lg">
+            <i class="fas fa-wallet text-apc-red"></i>
+            <span class="text-gray-300">Saldo:</span>
+            <span class="text-white font-semibold">{{ credits.pages_balance }}</span>
+            <span class="text-gray-400">pág.</span>
+          </div>
+          {% endif %}
+          <div class="flex items-center space-x-2 text-sm text-gray-400">
+            <i class="fas fa-user text-gray-500"></i>
+            <span class="hidden sm:inline text-gray-300">{{ current_user.email }}</span>
+          </div>
+          <a href="/logout" class="text-gray-400 hover:text-white text-sm">
+            <i class="fas fa-sign-out-alt"></i>
+          </a>
         </div>
       </div>
     </div>
@@ -161,6 +174,10 @@
         <h2 class="text-2xl font-bold text-gray-900 mb-3">Anonimiza tus documentos legales</h2>
         <p class="text-sm text-apc-gray-text max-w-xl mx-auto">
           Sube un documento DOCX o PDF y nuestro sistema identificará automáticamente datos personales usando IA y reglas especializadas para documentos legales peruanos.
+        </p>
+        <p class="text-xs text-gray-400 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>
+          PDF: se cobra por páginas reales. DOCX/TXT: se calcula por equivalencia de contenido (500 palabras = 1 página).
         </p>
       </div>
 
