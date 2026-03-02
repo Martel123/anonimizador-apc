@@ -13,11 +13,10 @@ import logging
 from typing import Dict, List, Tuple, Set, Any, Optional
 from collections import defaultdict
 from dataclasses import dataclass, field
-# =====================================================
-# COLEGIOS DE ABOGADOS + ENTIDADES PÚBLICAS (ENTIDAD->ENTIDAD)
-# =====================================================
+# ===============================
+# COLEGIOS DE ABOGADOS (ENTIDAD)
+# ===============================
 
-# ----------- COLEGIOS DE ABOGADOS (abreviaturas) -----------
 COLEGIOS_ABOGADOS_ABREV = {
     "CAL":  "Colegio de Abogados de Lima",
     "CALN": "Colegio de Abogados de Lima Norte",
@@ -36,10 +35,10 @@ COLEGIOS_ABOGADOS_ABREV = {
 def normalize_abbrev(s: str) -> str:
     return s.replace(".", "").replace(" ", "").upper()
 
-# Detecta: "CAL: COLEGIO DE ABOGADOS DE LIMA"  -> ENTIDAD + ENTIDAD
+# Detecta: "CAL: Juan Perez..." => ENTIDAD + ENTIDAD (según tu regla)
 PAT_COLEGIO_ENTIDAD = re.compile(
     r"\b([A-Z](?:\.?[A-Z]){1,5}\.?)\s*[:\-]?\s*"
-    r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,15})\b"
+    r"([A-ZÁÉÍÓÚÑ&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ&“”\"().,\-]+){1,11})\b"
 )
 
 def detectar_colegio_entidad(text: str):
@@ -47,14 +46,17 @@ def detectar_colegio_entidad(text: str):
     for m in PAT_COLEGIO_ENTIDAD.finditer(text):
         abrev = normalize_abbrev(m.group(1))
         if abrev in COLEGIOS_ABOGADOS_ABREV:
-            s1, e1 = m.span(1)
-            s2, e2 = m.span(2)
+            s1, e1 = m.span(1)  # abreviatura
+            s2, e2 = m.span(2)  # “nombre” siguiente
             resultados.append((s1, e1, "ENTIDAD"))
             resultados.append((s2, e2, "ENTIDAD"))
     return resultados
 
 
-# ----------- ENTIDADES PÚBLICAS / NOTARIALES (triggers) -----------
+# =====================================================
+# ENTIDADES PÚBLICAS / NOTARIALES -> ENTIDAD + ENTIDAD
+# =====================================================
+
 TRIGGERS_ENTIDAD = [
     # Justicia
     r"JUZGADO", r"SALA", r"CORTE\s+SUPERIOR", r"PODER\s+JUDICIAL",
@@ -104,8 +106,8 @@ def detectar_entidad_publica_entidad(text: str):
         resultados.append((s1, e1, "ENTIDAD"))
         resultados.append((s2, e2, "ENTIDAD"))
 
-    resultados = sorted(set(resultados), key=lambda x: (x[0], x[1], x[2]))
-    return resultados
+    return sorted(set(resultados), key=lambda x: (x[0], x[1], x[2]))
+
 
 
 # ============================================================================
@@ -685,7 +687,26 @@ EXCLUDED_WORDS = {
     'CAJAMARCA', 'HUANUCO', 'HUANCAVELICA', 'APURIMAC', 'MADRE', 'DIOS',
     'MARTIN', 'SAN', 'DOCTOR', 'DOCTORA', 'ABOGADO', 'ABOGADA',
     'MENOR', 'MENORES', 'HIJOS', 'HIJAS', 'PADRE', 'MADRE', 'CONYUGE',
-    'ESPOSO', 'ESPOSA', 'CONVIVIENTE', 'HEREDERO', 'HEREDEROS', 'PETITORIO'
+    'ESPOSO', 'ESPOSA', 'CONVIVIENTE', 'HEREDERO', 'HEREDEROS', 'PETITORIO','SUMARIO', 'RESUMEN', 'OBJETO', 'OBJETO DE LA DEMANDA', 'OBJETO DEL PROCESO',
+    'HECHOS QUE MOTIVAN', 'HECHOS MATERIA', 'FUNDAMENTOS FÁCTICOS', 'FUNDAMENTOS FACTICOS',
+    'FUNDAMENTOS JURIDICOS', 'JURÍDICOS',
+    'BASE LEGAL', 'MARCO NORMATIVO', 'SUSTENTO', 'SUSTENTO LEGAL',
+    'PUNTOS', 'CONTROVERTIDOS', 'PUNTOS CONTROVERTIDOS',
+    'MEDIOS', 'PRUEBA', 'PRUEBAS', 'PROBATORIA', 'PROBATORIOS',
+    'OFRECIMIENTO', 'OFRECIMIENTO DE PRUEBAS', 'OFRECIMIENTO DE MEDIOS',
+    'ANEXO', 'ANEXOS', 'DOCUMENTOS', 'DOCUMENTAL', 'DOCUMENTALES','ADMISIÓN', 'ADMISION', 'ADMITA', 'ADMITIR', 'ADMITIRLA', 'ADMÍTASE', 'ADMITASE',
+    'TRASLADO', 'CORRER', 'CORRA', 'CÓRRASE', 'CORRASE', 'CÓRRASE TRASLADO', 'CORRASE TRASLADO',
+    'NOTIFICAR', 'NOTIFICACIÓN', 'NOTIFICACION', 'SEÑÁLESE', 'SEÑALESE', 'SE SIRVA',
+    'PROVEER', 'PROVÉASE', 'PROVEASE','CONTESTACIÓN', 'CONTESTACION', 'CONTESTAR', 'ABSOLUCIÓN', 'ABSOLUCION',
+    'EXCEPCIÓN', 'EXCEPCION', 'OPOSICIÓN', 'OPOSICION', 'TACHA', 'TACHAS',
+    'ACLARACIÓN', 'ACLARACION', 'INTEGRACIÓN', 'INTEGRACION',
+    'SUBSANACIÓN', 'SUBSANACION', 'PRECISIÓN', 'PRECISION', 'AMPLIACIÓN', 'AMPLIACION',
+    'CORRECCIÓN', 'CORRECCION', 'RECTIFICACIÓN', 'RECTIFICACION', 'RESUELVE', 'SE RESUELVE', 'SE DISPONE', 'SE ORDENA',
+    'AUTO', 'AUTO FINAL', 'AUTO ADMISORIO', 'AUTO DE SANEAMIENTO',
+    'SENTENCIA', 'SENTENCIA FINAL', 'SENTENCIA DE VISTA','FISCALÍA', 'FISCALIA', 'UNIDAD', 'ÁREA', 'AREA', 'OFICINA',
+    'SECRETARÍA', 'SECRETARIA', 'MESA', 'PARTES', 'MESA DE PARTES',
+    'JUZGADO', 'SALA', 'DESPACHO','ASUNTO', 'MATERIA', 'REFERENCIA', 'REFIERE', 'DICE', 'DIGO',
+    'SEGUIDAMENTE', 'CONSIDERACIONES', 'CONCLUSIONES'
 }
 
 EXCLUDED_PHRASES = {
@@ -712,7 +733,41 @@ EXCLUDED_PHRASES = {
     'EL RECURRENTE', 'LA RECURRENTE', 'EL SOLICITANTE', 'LA SOLICITANTE',
     'PARTE ACTORA', 'PARTE DEMANDADA', 'INVOCANDO INTERÉS', 'INVOCANDO INTERES',
     'DATOS DEL DEMANDADO', 'DATOS DEL DEMANDANTE', 'DATOS DE LA DEMANDADA',
-    'DATOS Y DOMICILIO', 'DOMICILIO PROCESAL', 'DOMICILIO REAL',
+    'DATOS Y DOMICILIO', 'DOMICILIO PROCESAL', 'DOMICILIO REAL','INTERPONGO LA PRESENTE DEMANDA',
+    'INTERPONGO LA PRESENTE DEMANDA DE',
+    'INTERPONGO LA PRESENTE DENUNCIA',
+    'INTERPONGO LA PRESENTE DENUNCIA POR',
+    'FORMULO LA PRESENTE DEMANDA',
+    'FORMULO LA PRESENTE DEMANDA DE',
+    'PRESENTO LA PRESENTE DEMANDA',
+    'PRESENTO LA PRESENTE DEMANDA DE',
+    'PRESENTO LA PRESENTE DENUNCIA',
+    'PRESENTO LA PRESENTE DENUNCIA POR',
+    'DEDUZCO DEMANDA',
+    'DEDUZCO DEMANDA DE',
+    'PROMUEVO DEMANDA',
+    'PROMUEVO DEMANDA DE',
+    'PLANTEO DEMANDA',
+    'PLANTEO DEMANDA DE','INTERPONGO RECURSO DE APELACION',
+    'INTERPONGO RECURSO DE APELACIÓN',
+    'INTERPONGO RECURSO DE NULIDAD',
+    'INTERPONGO RECURSO DE CASACION',
+    'INTERPONGO RECURSO DE CASACIÓN',
+    'RECURSO DE APELACION',
+    'RECURSO DE APELACIÓN',
+    'RECURSO DE NULIDAD',
+    'RECURSO DE CASACION',
+    'RECURSO DE CASACIÓN','FUNDAMENTOS DE HECHOS',
+    'FUNDAMENTOS DE DERECHO Y HECHO',
+    'FUNDAMENTOS DE HECHO Y DERECHO',
+    'HECHOS Y FUNDAMENTOS DE DERECHO',
+    'OFRECIMIENTO DE MEDIOS PROBATORIOS',
+    'OFRECIMIENTO DE PRUEBAS',
+    'MEDIOS DE PRUEBA',
+    'MEDIOS PROBATORIOS OFRECIDOS',
+    'ANEXOS QUE SE ACOMPAÑAN',
+    'ANEXOS QUE ADJUNTO',
+    'DOCUMENTOS QUE ADJUNTO'
 }
 
 # Disparadores de contexto para personas
@@ -730,35 +785,54 @@ PERSON_TRIGGERS = {
     'acreedor', 'acreedora', 'deudor', 'deudora',
     'denunciante', 'denunciado', 'denunciada',
     'imputado', 'imputada', 'procesado', 'procesada',
-    'agraviado', 'agraviada', 'víctima', 'victima',
+    'agraviado', 'agraviada', 'víctima', 'victima','actor', 'actora', 'demandado(a)', 'demandante(s)',
+    'patrocinante', 'patrocinado', 'patrocinada',
+    'defendido', 'defendida',
+    'denunciante', 'denunciado', 'denunciada',
+    'imputado', 'imputada', 'investigado', 'investigada',
+    'agraviado', 'agraviada',
+    'hermano', 'hermana',
+    'suscrito por', 'suscrita por'
 }
 
 
-def is_excluded_word(text: str) -> bool:
+def is_excluded_word(value: str) -> bool:
     """
-    Verifica si un texto está en la lista de exclusión.
-    Incluye palabras individuales y frases jurídicas completas.
+    True => NO se debe tratar como PERSONA (ni como "nombre")
+    Maneja palabras sueltas y también FRASES (encabezados legales).
     """
-    normalized = ' '.join(text.upper().split())
-    
-    if normalized in EXCLUDED_PHRASES:
+    if not value:
         return True
-    
-    words = normalized.split()
-    
-    if len(words) == 1:
-        return words[0] in EXCLUDED_WORDS
-    
-    if len(words) <= 4:
-        excluded_count = sum(1 for w in words if w in EXCLUDED_WORDS)
-        if excluded_count == len(words):
+
+    v = re.sub(r"\s+", " ", value.strip())
+    v_up = v.upper()
+
+    # 1) Si es exactamente una palabra prohibida
+    if v_up in EXCLUDED_WORDS:
+        return True
+
+    # 2) Si es una FRASE: si la mayoría de palabras son legales -> excluir
+    words = re.findall(r"[A-ZÁÉÍÓÚÑ]+", v_up)
+    if len(words) >= 2:
+        hits = sum(1 for w in words if w in EXCLUDED_WORDS)
+        ratio = hits / max(1, len(words))
+
+        # Si 60% o más son palabras “legales/encabezado”, NO es nombre
+        if ratio >= 0.60:
             return True
-    
-    for phrase in EXCLUDED_PHRASES:
-        if phrase in normalized:
+
+        # Reglas duras: si contiene estas palabras, casi seguro es encabezado, no persona
+        HARD = {
+            "PENSION", "PENSIÓN", "ALIMENTOS", "REDUCCION", "REDUCCIÓN",
+            "MONTO", "SITUACION", "SITUACIÓN", "ECONOMICA", "ECONÓMICA",
+            "PETITORIO", "FUNDAMENTOS", "HECHOS", "ANEXOS", "PRUEBAS",
+            "PRETENSION", "PRETENSIÓN"
+        }
+        if any(w in HARD for w in words):
             return True
-    
+
     return False
+
 
 
 def has_trigger_nearby(text: str, start: int, window: int = 100) -> bool:
@@ -1111,20 +1185,27 @@ def detect_all_pii(text: str, apply_filters: bool = True) -> Tuple[List[Entity],
         logging.warning(f"Local NER failed (non-critical): {e}")
     
     metadata['total_before_merge'] = len(all_entities)
-    
-    # CAPA 4: Merge y deduplicación
+
+    # CAPA 7: Merge
     merged = merge_entities(all_entities)
     metadata['total_after_merge'] = len(merged)
-    
-    # CAPA 5: Filtros anti-sobreanonimización
+
+    # CAPA 6: filtros legales
     if apply_filters:
         filtered, filter_stats = apply_legal_filters(merged)
+
+        # FILTRO FINAL IGNORE
+        filtered = [e for e in filtered if not is_excluded_word(e.value)]
+
         metadata['filter_stats'] = filter_stats
         metadata['total_after_filter'] = len(filtered)
         return filtered, metadata
-    
+
+    # Sin filtros
+    merged = [e for e in merged if not is_excluded_word(e.value)]
     metadata['total_after_filter'] = len(merged)
     return merged, metadata
+
 
 
 def post_scan_final(text: str) -> Tuple[bool, List[Dict]]:
