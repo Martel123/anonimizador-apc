@@ -1941,6 +1941,7 @@ class AnonymizerJob(db.Model):
     pages_counted = db.Column(db.Integer, default=0)
     pages_charged = db.Column(db.Integer, default=0)
     status = db.Column(db.String(20), default='created')
+    input_path = db.Column(db.String(512))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

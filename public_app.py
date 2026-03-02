@@ -14,10 +14,9 @@ import traceback
 import zipfile
 from io import BytesIO
 from datetime import datetime
-from flask import Flask, Blueprint, render_template, request, send_file, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, send_file, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,11 +34,6 @@ from credit_utils import (
 )
 
 anonymizer_bp = Blueprint("anonymizer", __name__)
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {'doc', 'docx', 'pdf', 'txt'}
 
@@ -620,7 +614,8 @@ def anonymizer_process():
             filename_original=filename,
             ext=ext,
             pages_counted=pages_needed,
-            status='created'
+            status='created',
+            input_path=temp_input
         )
         db.session.add(job)
         db.session.commit()
@@ -715,7 +710,6 @@ def anonymizer_process():
         credits_refreshed = get_or_create_credits(current_user.id)
 
         return render_template("anonymizer_review.html",
-            temp_input_path=temp_input,
             ext=ext,
             original_filename=filename,
             job_id=job_id,
@@ -772,7 +766,6 @@ def anonymizer_apply():
     import html as html_lib
     from models import db, AnonymizerJob
 
-    temp_input = request.form.get('temp_input_path', '')
     ext = request.form.get('ext', 'docx')
     original_filename = request.form.get('original_filename', 'documento')
     selected_entities_json = request.form.get('selected_entities_json', '[]')
@@ -804,7 +797,12 @@ def anonymizer_apply():
         db.session.commit()
         return render_error("Error de consistencia en créditos. Suba el documento nuevamente.")
 
-    if not temp_input or not os.path.exists(temp_input):
+    # Obtener ruta del input desde DB (nunca del cliente)
+    temp_input = job.input_path or ''
+    _tmpdir = os.path.realpath(tempfile.gettempdir())
+    _input_real = os.path.realpath(temp_input) if temp_input else ''
+    if not temp_input or not _input_real.startswith(_tmpdir) or not os.path.exists(temp_input):
+        logger.warning(f"APPLY_INPUT_MISSING | job={job_id} | path={temp_input!r}")
         release_reservation(current_user.id, job_id)
         job.status = 'failed'
         db.session.commit()
@@ -824,6 +822,9 @@ def anonymizer_apply():
         
         if not selected_entities:
             safe_remove(temp_input)
+            release_reservation(current_user.id, job_id)
+            job.status = 'failed'
+            db.session.commit()
             return render_error("No se seleccionaron entidades para anonimizar.")
         
         if ext == 'docx':
@@ -833,11 +834,18 @@ def anonymizer_apply():
         
         if not os.path.exists(temp_output):
             logger.error(f"APPLY_FAIL | job={job_id} | reason=output_not_created")
+            release_reservation(current_user.id, job_id)
+            job.status = 'failed'
+            db.session.commit()
             return render_error("No se pudo generar el archivo final. Intente nuevamente.")
-        
+
         output_size = os.path.getsize(temp_output)
         if output_size == 0:
             logger.error(f"APPLY_FAIL | job={job_id} | reason=output_empty")
+            safe_remove(temp_output)
+            release_reservation(current_user.id, job_id)
+            job.status = 'failed'
+            db.session.commit()
             return render_error("No se pudo generar el archivo final. Intente nuevamente.")
         
         logger.info(f"APPLY_DONE | job={job_id} | replaced={replaced_count} | output_size={output_size}")
@@ -1221,8 +1229,3 @@ def anonymizer_report(job_id):
         return render_error("Error al descargar el reporte. Por favor procese el documento nuevamente.")
 
 
-app.register_blueprint(anonymizer_bp)
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
