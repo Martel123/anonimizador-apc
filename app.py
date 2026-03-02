@@ -2931,9 +2931,8 @@ def registro_usuario():
         db.session.commit()
 
         login_user(user)
-        next_page = request.args.get('next')
         flash("Cuenta creada exitosamente.", "success")
-        return redirect(next_page or url_for('index'))
+        return redirect(url_for('anonymizer.anonymizer_onboarding'))
 
     return render_template("registro_usuario.html")
 

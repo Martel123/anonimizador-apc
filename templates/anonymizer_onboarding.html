@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bienvenido — APC Anonimizador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      background: #0B0B0B;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; }
+    header a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 0.85rem; }
+    header a:hover { color: #fff; }
+
+    .main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+    .card {
+      background: #fff;
+      border: 1px solid #E5E5E5;
+      border-radius: 16px;
+      padding: 48px 40px;
+      max-width: 540px;
+      width: 100%;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      background: #FEF2F2;
+      color: #B30000;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 8px; }
+    .sub { color: #6F6F6F; font-size: 0.95rem; margin-bottom: 36px; line-height: 1.5; }
+
+    .options { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .option {
+      border: 2px solid #E5E5E5;
+      border-radius: 12px;
+      padding: 24px 20px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .option.featured { border-color: #B30000; }
+
+    .option-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; color: #6F6F6F; text-transform: uppercase; }
+    .option-title { font-size: 1rem; font-weight: 700; }
+    .option-desc { font-size: 0.82rem; color: #6F6F6F; line-height: 1.4; }
+    .option-pages { font-size: 1.4rem; font-weight: 700; color: #B30000; margin-top: 4px; }
+
+    .btn {
+      margin-top: 12px;
+      display: block;
+      text-align: center;
+      padding: 10px 0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      width: 100%;
+    }
+    .btn-primary { background: #B30000; color: #fff; }
+    .btn-primary:hover { background: #8B0000; }
+    .btn-secondary { background: #F2F2F2; color: #0B0B0B; }
+    .btn-secondary:hover { background: #E5E5E5; }
+
+    .already { margin-top: 24px; font-size: 0.82rem; color: #6F6F6F; }
+    .already a { color: #B30000; text-decoration: none; }
+
+    @media (max-width: 500px) {
+      .options { grid-template-columns: 1fr; }
+      .card { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo">APC Anonimizador</span>
+  <a href="/logout">Salir</a>
+</header>
+
+<div class="main">
+  <div class="card">
+    <div class="badge">Bienvenido</div>
+    <h1>¿Cómo quieres empezar?</h1>
+    <p class="sub">Elige tu opción para comenzar a anonimizar documentos legales.</p>
+
+    <div class="options">
+      <div class="option featured">
+        <div class="option-label">Gratuito</div>
+        <div class="option-title">Prueba gratis</div>
+        <div class="option-desc">Sin tarjeta. Solo para conocer el sistema.</div>
+        <div class="option-pages">40 páginas</div>
+        <form action="/anonymizer/onboarding/free" method="POST">
+          <button type="submit" class="btn btn-primary"
+            {% if trial_claimed %}disabled title="Trial ya aplicado"{% endif %}>
+            {% if trial_claimed %}Trial aplicado{% else %}Usar gratis{% endif %}
+          </button>
+        </form>
+      </div>
+
+      <div class="option">
+        <div class="option-label">De pago</div>
+        <div class="option-title">Elegir plan</div>
+        <div class="option-desc">Desde S/ 15. Acceso completo sin límite de tiempo.</div>
+        <div class="option-pages">300+</div>
+        <a href="/anonymizer/plans" class="btn btn-secondary">Ver planes</a>
+      </div>
+    </div>
+
+    {% if trial_claimed %}
+    <div class="already">Tu trial ya fue aplicado. <a href="/anonymizer">Ir al anonimizador →</a></div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

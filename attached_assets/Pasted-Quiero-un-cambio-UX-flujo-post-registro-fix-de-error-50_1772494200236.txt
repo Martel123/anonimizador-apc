@@ -1,0 +1,75 @@
+Quiero un cambio UX + flujo post-registro + fix de error 500 en anonimizador.
+IMPORTANTE para reducir costo: NO analices todo el repo. NO reescribas archivos enteros.
+Solo toca lo mínimo en:
+- templates del anonimizador (landing + base/header si existe)
+- public_app.py (rutas nuevas y validaciones)
+- app.py (solo si ahí está login/register redirects)
+- templates nuevos: onboarding.html y account.html
+
+REQUISITOS:
+
+A) HEADER (en todas las páginas del anonimizador)
+Agregar dos botones visibles:
+1) “Cuenta” -> /account
+2) “Conseguir más páginas” -> /anonymizer/plans
+
+Si ya existe un header/nav en templates del anonimizador, modifica ese.
+Si no existe base template, implementa el header solo en las páginas clave (landing anonimizador, review, result, plans).
+
+B) PÁGINA “CUENTA” /account (login_required)
+Crear ruta GET /account:
+Mostrar:
+- Email del usuario
+- pages_balance (UserCredits)
+- trial_granted_at
+- Últimas 10 compras (AnonymizerPurchase: amount_pen, pages_added, created_at, status)
+- Últimos 10 consumos (PageUsageLog: job_id, pages, action, created_at)
+- Recomendación simple de compra:
+  - Si pages_balance < 20 -> sugerir paquete 300
+  - Si pages_balance entre 20 y 200 -> sugerir paquete 800
+  - Si pages_balance > 200 -> sugerir paquete 2000
+Y botón grande “Comprar más páginas” -> /anonymizer/plans
+
+C) ONBOARDING POST-REGISTRO
+Después de que un usuario se registre, NO mandarlo directo al anonimizador.
+Mandarlo a /onboarding (login_required).
+
+Crear ruta GET /onboarding:
+Mostrar 2 opciones:
+1) “Usar gratis (40 páginas)” botón -> POST /onboarding/free
+   - Debe llamar ensure_trial(current_user.id) (idempotente)
+   - Redirigir a /anonymizer
+2) “Elegir plan pagado” botón -> /anonymizer/plans
+
+Crear ruta POST /onboarding/free (login_required) para aplicar trial y redirigir.
+
+Modificar el flujo post-register:
+- si el registro actual usa /register o ruta similar, al completar registro: redirect a /onboarding.
+- Si hay varios registros (tenant), solo aplicar a registro de usuario simple.
+
+D) ARREGLAR ERROR 500 AL ANONIMIZAR (CRÍTICO)
+En public_app.py, en la ruta POST /anonymizer/process:
+- Si llega GET accidental -> redirect /anonymizer (no 500)
+- Validar que request.files contenga “file”
+- Validar que file.filename exista
+- Si falla: mostrar mensaje (flash o render) y volver al landing /anonymizer
+- Confirmar que el form de upload tenga:
+  method="POST"
+  enctype="multipart/form-data"
+  input name="file"
+Si falta, corregir el template.
+
+También envolver el bloque principal en try/except para que:
+- No se caiga el server
+- Si hay reserva creada y se produce error antes de review, liberar reserva y marcar job failed
+
+E) DONE
+- Un usuario nuevo: se registra -> va a /onboarding -> elige gratis -> entra al anonimizador.
+- Header muestra “Cuenta” y “Conseguir más páginas”.
+- /account muestra resumen de saldo + compras + consumos.
+- Subir archivo por el form NO debe dar 500 si falta archivo; debe mostrar error amigable.
+
+Al final, dame:
+- Archivos tocados
+- Rutas añadidas
+- Qué template contiene el header

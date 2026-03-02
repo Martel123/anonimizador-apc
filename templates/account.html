@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi Cuenta — APC Anonimizador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+
+    header {
+      background: #0B0B0B;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; }
+    header nav { display: flex; align-items: center; gap: 20px; }
+    header a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 0.85rem; }
+    header a:hover { color: #fff; }
+    .btn-header {
+      background: #B30000;
+      color: #fff !important;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .btn-header:hover { background: #8B0000; }
+
+    .container { max-width: 760px; margin: 0 auto; padding: 36px 20px 80px; }
+
+    .page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+    .page-email { color: #6F6F6F; font-size: 0.9rem; margin-bottom: 28px; }
+
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6F6F6F; margin-bottom: 12px; }
+
+    .balance-card {
+      background: #0B0B0B;
+      color: #fff;
+      border-radius: 14px;
+      padding: 28px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .balance-num { font-size: 3rem; font-weight: 800; line-height: 1; color: #fff; }
+    .balance-label { font-size: 0.9rem; color: rgba(255,255,255,0.55); margin-top: 4px; }
+    .balance-meta { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-top: 6px; }
+
+    .btn-big {
+      display: inline-block;
+      background: #B30000;
+      color: #fff;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-big:hover { background: #8B0000; }
+
+    .suggestion {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 0.88rem;
+      color: #7F1D1D;
+      margin-bottom: 20px;
+    }
+    .suggestion strong { color: #B30000; }
+
+    .table-wrap {
+      background: #fff;
+      border: 1px solid #E5E5E5;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; padding: 10px 16px; background: #F9F9F9; color: #6F6F6F; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #E5E5E5; }
+    td { padding: 10px 16px; border-bottom: 1px solid #F2F2F2; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .badge-paid { background: #D1FAE5; color: #065F46; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .badge-failed { background: #FEE2E2; color: #991B1B; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .badge-pending { background: #FEF3C7; color: #92400E; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .empty { padding: 20px 16px; color: #9CA3AF; font-size: 0.85rem; text-align: center; }
+    .action-tag { background: #E5E7EB; color: #374151; padding: 2px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 500; }
+    .job-id { font-family: monospace; font-size: 0.75rem; color: #9CA3AF; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+    .back { display: inline-flex; align-items: center; gap: 6px; color: #6F6F6F; font-size: 0.85rem; text-decoration: none; margin-bottom: 20px; }
+    .back:hover { color: #0B0B0B; }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo">APC Anonimizador</span>
+  <nav>
+    <a href="/anonymizer/plans" class="btn-header">+ Conseguir páginas</a>
+    <a href="/anonymizer">Anonimizador</a>
+    <a href="/logout">Salir</a>
+  </nav>
+</header>
+
+<div class="container">
+  <a href="/anonymizer" class="back">← Volver al anonimizador</a>
+
+  <div class="page-title">Mi Cuenta</div>
+  <div class="page-email">{{ user_email }}</div>
+
+  <div class="section">
+    <div class="section-title">Saldo de páginas</div>
+    <div class="balance-card">
+      <div>
+        <div class="balance-num">{{ credits.pages_balance }}</div>
+        <div class="balance-label">páginas disponibles</div>
+        {% if credits.trial_granted_at %}
+        <div class="balance-meta">Trial activado el {{ credits.trial_granted_at.strftime('%d/%m/%Y') }}</div>
+        {% endif %}
+        <div class="balance-meta">Usadas en total: {{ credits.pages_used_total }} págs.</div>
+      </div>
+      <a href="/anonymizer/plans" class="btn-big">Comprar más páginas</a>
+    </div>
+  </div>
+
+  {% if credits.pages_balance < 20 %}
+  <div class="suggestion">
+    Tu saldo está bajo. Te recomendamos el paquete de <strong>{{ suggested_package_pages }} páginas</strong> para continuar trabajando sin interrupciones.
+    <a href="/anonymizer/plans" style="color:#B30000;font-weight:600;text-decoration:none;margin-left:6px;">Ver planes →</a>
+  </div>
+  {% elif credits.pages_balance <= 200 %}
+  <div class="suggestion">
+    Tienes pocas páginas. El paquete de <strong>{{ suggested_package_pages }} páginas</strong> es una buena opción para trabajo continuo.
+    <a href="/anonymizer/plans" style="color:#B30000;font-weight:600;text-decoration:none;margin-left:6px;">Ver planes →</a>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <div class="section-title">Últimas compras</div>
+    <div class="table-wrap">
+      {% if purchases %}
+      <table>
+        <thead>
+          <tr>
+            <th>Paquete / Monto</th>
+            <th>Páginas</th>
+            <th>Fecha</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in purchases %}
+          <tr>
+            <td>S/ {{ "%.2f"|format(p.amount_pen) }}</td>
+            <td>+{{ p.pages_added }}</td>
+            <td>{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>
+              {% if p.status == 'paid' %}<span class="badge-paid">Pagado</span>
+              {% elif p.status == 'failed' %}<span class="badge-failed">Fallido</span>
+              {% else %}<span class="badge-pending">Pendiente</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Sin compras aún.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Últimos consumos</div>
+    <div class="table-wrap">
+      {% if usage_logs %}
+      <table>
+        <thead>
+          <tr>
+            <th>Job / Referencia</th>
+            <th>Páginas</th>
+            <th>Acción</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in usage_logs %}
+          <tr>
+            <td><span class="job-id">{{ log.job_id }}</span></td>
+            <td>{{ log.pages }}</td>
+            <td><span class="action-tag">{{ log.action }}</span></td>
+            <td>{{ log.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Sin actividad aún.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+</body>
+</html>

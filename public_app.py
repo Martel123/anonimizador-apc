@@ -567,7 +567,55 @@ def anonymizer_home():
                            credits=credits)
 
 
-@anonymizer_bp.route("/anonymizer/process", methods=["POST"])
+@anonymizer_bp.route("/anonymizer/onboarding", methods=["GET"])
+@login_required
+def anonymizer_onboarding():
+    """Onboarding post-registro para usuarios del anonimizador."""
+    from credit_utils import get_or_create_credits
+    credits = get_or_create_credits(current_user.id)
+    trial_claimed = credits.trial_granted_at is not None
+    return render_template("anonymizer_onboarding.html", trial_claimed=trial_claimed)
+
+
+@anonymizer_bp.route("/anonymizer/onboarding/free", methods=["POST"])
+@login_required
+def anonymizer_onboarding_free():
+    """Aplica el trial gratuito y redirige al anonimizador."""
+    ensure_trial(current_user.id)
+    return redirect(url_for('anonymizer.anonymizer_home'))
+
+
+@anonymizer_bp.route("/account")
+@login_required
+def account():
+    """Página de cuenta del usuario: saldo, compras y consumos."""
+    from models import AnonymizerPurchase, PageUsageLog
+    from credit_utils import get_or_create_credits
+
+    credits = get_or_create_credits(current_user.id)
+    purchases = AnonymizerPurchase.query.filter_by(user_id=current_user.id)\
+        .order_by(AnonymizerPurchase.created_at.desc()).limit(10).all()
+    usage_logs = PageUsageLog.query.filter_by(user_id=current_user.id)\
+        .order_by(PageUsageLog.created_at.desc()).limit(10).all()
+
+    balance = credits.pages_balance
+    if balance < 20:
+        suggested_package_pages = 300
+    elif balance <= 200:
+        suggested_package_pages = 800
+    else:
+        suggested_package_pages = 2000
+
+    return render_template("account.html",
+        credits=credits,
+        purchases=purchases,
+        usage_logs=usage_logs,
+        suggested_package_pages=suggested_package_pages,
+        user_email=getattr(current_user, 'email', '') or '',
+    )
+
+
+@anonymizer_bp.route("/anonymizer/process", methods=["GET", "POST"])
 @login_required
 def anonymizer_process():
     """
@@ -575,7 +623,14 @@ def anonymizer_process():
     """
     from models import db, AnonymizerJob
 
-    credits = ensure_trial(current_user.id)
+    if request.method == "GET":
+        return redirect(url_for('anonymizer.anonymizer_home'))
+
+    try:
+        credits = ensure_trial(current_user.id)
+    except Exception as e:
+        logger.error(f"ENSURE_TRIAL_ERROR | user={current_user.id} | error={e}")
+        credits = None
 
     if 'file' not in request.files:
         return render_error("No se seleccionó ningún archivo")
