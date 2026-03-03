@@ -42,7 +42,6 @@ def get_openai_client(timeout=120.0):
 
 import anonymizer as anon_module
 import anonymizer_robust as anon_robust
-from public_app import anonymizer_bp
 
 from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation, AnonymizerPackage, AnonymizerPurchase, LoginAttempt, CreditCode, CreditRedemption, RewardToken
 import qrcode
@@ -58,11 +57,22 @@ log_level = logging.DEBUG if os.environ.get("FLASK_DEBUG", "false").lower() == "
 logging.basicConfig(level=log_level)
 
 app = Flask(__name__)
-
+from public_app import anonymizer_bp
+app.register_blueprint(anonymizer_bp)
 app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(32).hex()
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+_db_url = (
+    os.environ.get("SQLALCHEMY_DATABASE_URI")
+    or os.environ.get("DATABASE_URL")
+    or os.environ.get("RENDER_DATABASE_URL")
+)
+if _db_url and _db_url.startswith("postgres://"):
+    _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+if not _db_url:
+    import logging as _log
+    _log.error("DATABASE_URL missing in environment — database will not be available")
+app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
@@ -71,8 +81,6 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["ENABLE_2FA"] = False
 app.config["LOGIN_MAX_ATTEMPTS"] = int(os.environ.get("LOGIN_MAX_ATTEMPTS", "5"))
 app.config["LOGIN_LOCKOUT_MINUTES"] = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "15"))
-
-app.register_blueprint(anonymizer_bp)
 
 db.init_app(app)
 

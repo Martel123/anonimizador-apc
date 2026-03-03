@@ -33,15 +33,21 @@ anonymizer_robust.py    # Orquestador robusto
 1. Crea un nuevo "Web Service" en Render
 2. Conecta tu repositorio de GitHub
 3. Configura:
-   - **Build Command**: `pip install -r requirements_render.txt && python -m spacy download es_core_news_sm`
-   - **Start Command**: `gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 main_render:app`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 app:app`
    - **Environment**: Python 3.11
 
 ### Variables de Entorno
 
 | Variable | Descripción | Requerida |
 |----------|-------------|-----------|
-| `SESSION_SECRET` | Clave secreta para sesiones Flask | Sí (Render puede generarla) |
+| `SESSION_SECRET` | Clave secreta para sesiones Flask | Sí |
+| `DATABASE_URL` | URL PostgreSQL: `postgresql://user:pass@host:port/db` | Sí |
+| `OPENAI_API_KEY` | Clave OpenAI para funciones de IA | Sí |
+| `REWARD_API_KEY` | Clave Bearer para `/api/rewards/issue` | Sí |
+| `PUBLIC_APP_URL` | URL pública de la app (ej: https://miapp.onrender.com) | Sí |
+
+> **Nota**: Si la URL de la base de datos comienza con `postgres://`, el código la convierte automáticamente a `postgresql://` (requerido por SQLAlchemy).
 
 ## Características
 

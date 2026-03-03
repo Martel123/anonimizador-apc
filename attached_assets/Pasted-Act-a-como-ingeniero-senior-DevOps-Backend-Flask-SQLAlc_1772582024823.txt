@@ -1,0 +1,96 @@
+Actúa como ingeniero senior DevOps + Backend (Flask + SQLAlchemy + Render). 
+Necesito que arregles DEFINITIVAMENTE el deploy en Render y que la app sirva los endpoints correctos.
+
+CONTEXTO / ERRORES REALES
+1) Render antes falló con:
+   - "Failed to find attribute 'app' in 'public_app'"
+   Esto pasó porque el Procfile/Start Command apuntaba a public_app:app, pero public_app.py NO expone un objeto Flask `app` (expone un Blueprint).
+
+2) Luego Render falla con:
+   - "Error: Either 'SQLALCHEMY_DATABASE_URI' or 'SQLALCHEMY_BINDS' must be set."
+   Esto significa que en Render NO está llegando la variable de entorno que el código usa para conectar DB.
+   En app.py el código hace:
+     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+   Pero en Render Environment Variables NO existe DATABASE_URL (solo hay OPENAI_API_KEY, PUBLIC_APP_URL, PYTHON_VERSION, REWARD_API_KEY, SESSION_SECRET, etc).
+
+3) Local/Replit preview ya levanta, pero en Render:
+   - /api/rewards/issue devuelve 404 (cuando debería existir y en GET debería dar 405 si solo es POST).
+   Esto indica que o) no se desplegó el commit correcto, o) está levantando el entrypoint equivocado, o) el blueprint no quedó registrado, o) hay mismatch por Procfile/Start command.
+
+OBJETIVO FINAL (CRITERIO DE “LISTO”)
+A) Render debe iniciar con gunicorn apuntando al Flask app correcto.
+B) La app NO debe crashear por DB.
+C) El endpoint /api/rewards/issue debe existir:
+   - GET -> debe devolver 405 (Method Not Allowed) o redirigir si hay auth, pero NO 404.
+   - POST -> debe responder (ideal 401/403/200 según auth), pero NO 404.
+D) No debe haber doble registro del mismo blueprint (ya ocurrió el error: “name 'anonymizer' is already registered”).
+
+ARCHIVOS CLAVE EN EL REPO (NO INVENTES, REVÍSALOS)
+- app.py  (debe contener `app = Flask(__name__)`)
+- public_app.py (debe contener `anonymizer_bp = Blueprint("anonymizer", __name__)` y rutas como @anonymizer_bp.route("/api/rewards/issue", methods=["POST"]))
+- Procfile
+- README_RENDER.md
+- requirements.txt / requirements_public.txt
+- models.py (db = SQLAlchemy())
+
+TAREAS EXACTAS (HAZLAS EN ESTE ORDEN)
+1) ENTRYPOINT ÚNICO Y PROFESIONAL
+   - Asegura que Render SIEMPRE arranque con: `app:app`
+   - Revisa Procfile: si dice `public_app:app`, cámbialo a:
+     web: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 app:app
+   - Revisa README_RENDER.md si recomienda otra cosa: debe quedar consistente.
+   - Asegura que no exista otro arranque alterno (por ejemplo main.py importando app) que Render pudiera usar por accidente.
+
+2) FIX DEFINITIVO DB (CAUSA #1 DEL CRASH EN RENDER)
+   - En app.py, cambia la línea de SQLAlchemy a un fallback robusto:
+     *Debe aceptar cualquiera de estas env vars*:
+       SQLALCHEMY_DATABASE_URI
+       DATABASE_URL
+       RENDER_DATABASE_URL (si existiera)
+   - Si la URL empieza con "postgres://" reemplázala por "postgresql://" (compatibilidad SQLAlchemy).
+   - Si al final sigue None -> lanza un error claro en logs: “DATABASE_URL missing in environment”.
+
+   Ejemplo requerido (ajústalo a este repo):
+     raw = (os.environ.get("SQLALCHEMY_DATABASE_URI")
+            or os.environ.get("DATABASE_URL")
+            or os.environ.get("RENDER_DATABASE_URL"))
+     if raw and raw.startswith("postgres://"):
+         raw = raw.replace("postgres://", "postgresql://", 1)
+     app.config["SQLALCHEMY_DATABASE_URI"] = raw
+
+3) BLUEPRINT REGISTRATION (CAUSA #2: rutas 404 / doble blueprint)
+   - En app.py debe registrarse EXACTAMENTE UNA VEZ el blueprint que viene de public_app.py:
+       from public_app import anonymizer_bp
+       app.register_blueprint(anonymizer_bp)
+   - Asegúrate que NO exista otro register_blueprint más abajo (bórralo si existe).
+   - Confirma que public_app.py NO registra la app (solo define blueprint). Perfecto.
+
+4) TEST RUTAS (PRUEBA REAL, NO TEÓRICA)
+   - Agrega una ruta simple de salud en app.py para confirmar que Render está sirviendo EL MISMO CÓDIGO:
+       @app.get("/health")
+       def health(): return "ok", 200
+   - En Render, /health debe devolver 200.
+   - Verifica que /api/rewards/issue existe (GET 405 esperado si es POST only).
+   - Si el endpoint está dentro de blueprint con prefix, identifica el prefix real y documenta la URL final.
+
+5) DOCUMENTA QUÉ ENV VARS HAY QUE PONER EN RENDER (PARA QUE NO GASTE MÁS EN PRUEBAS)
+   - Lista exacta de variables requeridas:
+       SESSION_SECRET (ok)
+       OPENAI_API_KEY (si tu negocio lo exige)
+       REWARD_API_KEY (si el endpoint la valida)
+       DATABASE_URL o SQLALCHEMY_DATABASE_URI (OBLIGATORIA PARA QUE NO CRASHEE)
+   - Indica exactamente cuál setear y con qué formato (postgresql://user:pass@host:port/db)
+
+6) SALIDA / ENTREGABLE
+   - Devuélveme:
+     a) diff o cambios concretos en app.py y Procfile
+     b) comando exacto Start Command recomendado para Render
+     c) checklist final de pruebas con URLs esperadas y status codes
+     d) explicación corta (1 párrafo) de la causa raíz: entrypoint incorrecto + env var DB ausente.
+
+RESTRICCIONES
+- No rehagas el proyecto.
+- No cambies la arquitectura, solo corrige entrypoint, env vars y registro de blueprint.
+- Todo debe quedar estable y repetible (una sola forma correcta).
+
+Empieza inspeccionando el repo y ejecuta estos cambios de forma determinística.
