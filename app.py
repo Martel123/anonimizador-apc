@@ -58,6 +58,7 @@ log_level = logging.DEBUG if os.environ.get("FLASK_DEBUG", "false").lower() == "
 logging.basicConfig(level=log_level)
 
 app = Flask(__name__)
+
 app.secret_key = os.environ.get("SESSION_SECRET") or os.urandom(32).hex()
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
@@ -67,7 +68,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-app.config["ENABLE_2FA"] = os.environ.get("ENABLE_2FA", "0") == "1"
+app.config["ENABLE_2FA"] = False
 app.config["LOGIN_MAX_ATTEMPTS"] = int(os.environ.get("LOGIN_MAX_ATTEMPTS", "5"))
 app.config["LOGIN_LOCKOUT_MINUTES"] = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "15"))
 
@@ -2739,6 +2740,8 @@ def login():
         return redirect(url_for('index'))
 
     if request.method == "POST":
+        session.pop("pending_2fa_user_id", None)
+        session.pop("next_after_2fa", None)
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         ip = request.remote_addr or "unknown"
@@ -2754,19 +2757,6 @@ def login():
 
         user = User.query.filter_by(email=email, activo=True).first()
         if user and user.check_password(password):
-            if app.config.get("ENABLE_2FA", False) and user.twofa_enabled:
-                session['pending_2fa_user_id'] = user.id
-                next_page = request.args.get('next')
-                if next_page:
-                    session['next_after_2fa'] = next_page
-                return redirect(url_for('verificar_2fa'))
-
-            if app.config.get("ENABLE_2FA", False) and user.requires_2fa() and not user.twofa_enabled:
-                user.last_login = datetime.utcnow()
-                db.session.commit()
-                login_user(user)
-                flash("Tu rol requiere autenticación de dos factores. Por favor configúrala ahora.", "warning")
-                return redirect(url_for('activar_2fa'))
 
             known_ips = LoginAttempt.last_successful_ips(email, limit=5)
             ip_unusual = bool(known_ips and ip not in known_ips)
@@ -3236,6 +3226,10 @@ def desactivar_2fa():
 @app.route("/verificar_2fa", methods=["GET", "POST"])
 def verificar_2fa():
     """2FA deshabilitado — redirige siempre a /login."""
+    if not app.config.get("ENABLE_2FA", False):
+        session.pop("pending_2fa_user_id", None)
+        session.pop("next_after_2fa", None)
+        return redirect(url_for("login"))
     session.pop('pending_2fa_user_id', None)
     session.pop('next_after_2fa', None)
     return redirect(url_for('login'))
