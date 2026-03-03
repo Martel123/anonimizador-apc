@@ -2042,3 +2042,45 @@ class AnonymizerPurchase(db.Model):
 
     user = db.relationship('User', backref=db.backref('anonymizer_purchases', lazy='dynamic'))
     package = db.relationship('AnonymizerPackage', backref=db.backref('purchases', lazy='dynamic'))
+
+
+class LoginAttempt(db.Model):
+    """Registro de intentos de login (exitosos y fallidos) para rate limiting y auditoría."""
+    __tablename__ = 'login_attempts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=True, index=True)
+    ip = db.Column(db.String(64), nullable=False, index=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)
+    reason = db.Column(db.String(100), nullable=True)
+    ip_unusual = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    @classmethod
+    def recent_failures(cls, email, ip, minutes=15):
+        """Cuenta fallos recientes por (email+ip) O por ip sola."""
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+        return cls.query.filter(
+            cls.created_at >= cutoff,
+            cls.success == False,
+            db.or_(
+                db.and_(cls.email == email, cls.ip == ip),
+                cls.ip == ip
+            )
+        ).count()
+
+    @classmethod
+    def last_successful_ips(cls, email, limit=5):
+        """Últimas IPs con login exitoso para el email dado."""
+        rows = cls.query.filter_by(email=email, success=True)\
+            .order_by(cls.created_at.desc()).limit(limit * 3).all()
+        seen, ips = set(), []
+        for r in rows:
+            if r.ip not in seen:
+                seen.add(r.ip)
+                ips.append(r.ip)
+            if len(ips) >= limit:
+                break
+        return ips

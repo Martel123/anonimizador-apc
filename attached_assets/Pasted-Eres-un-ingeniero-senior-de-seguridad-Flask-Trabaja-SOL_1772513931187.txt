@@ -1,0 +1,74 @@
+Eres un ingeniero senior de seguridad + Flask. Trabaja SOLO en este repo y SOLO en auth. Objetivo: eliminar 2FA definitivamente y agregar hardening (password policy, rate limit de login, logging y alertas por IP rara). No inventes archivos que no existan sin justificar. Haz cambios pequeños, claros y testeables.
+
+REGLAS
+- NO uses librerías externas nuevas (sin pip install). Todo con stdlib + lo que ya tenga el repo.
+- NO rompas rutas existentes. Si hay ruta /verificar_2fa, debe quedar redireccionando a /login.
+- Todo configurable por variables/flags.
+- Al final dame: (1) lista de archivos tocados, (2) diffs o bloques de código completos para copy/paste, (3) pasos exactos para probar en Replit.
+
+PASO 0: Inspección
+1) Encuentra dónde está el login (ruta POST), dónde se verifica contraseña, y dónde se redirige a /verificar_2fa.
+2) Busca referencias: verificar_2fa, two_factor, 2fa, pyotp, otp, totp.
+
+PASO 1: Deshabilitar 2FA “para siempre”
+A) Backend:
+- Agrega flag global: app.config["ENABLE_2FA"] = False
+- Rodea toda lógica de 2FA con if app.config.get("ENABLE_2FA", False)
+- Si hay verificación/post-login que redirige a /verificar_2fa, debe quedar desactivado.
+B) Ruta:
+- Mantén /verificar_2fa pero reemplázala para que haga return redirect(url_for("login")) (o "/login").
+C) DB:
+- Agrega un script utilitario (o comando copy-pasteable) para apagar 2FA en todos los usuarios si existen columnas como: two_factor_enabled, two_factor_secret, twofa_*.
+- Si no existen esas columnas, no falles.
+
+PASO 2: Política de contraseña fuerte (registro y reset)
+Implementa función:
+- mínimo 10 caracteres
+- al menos 1 mayúscula, 1 minúscula, 1 número, 1 símbolo
+- NO permitir contraseñas comunes básicas ("password", "123456", "qwerty", "admin", etc.)
+Aplica validación:
+- En registro (y reset si existe)
+- Mensaje de error claro y humano
+
+PASO 3: Máximo 5 intentos de login (anti brute force)
+Sin librerías externas.
+- Crea tabla LoginAttempt (SQLAlchemy) o usa una tabla existente si hay algo similar.
+Campos recomendados:
+  id, email (nullable), ip, user_agent (nullable), success (bool),
+  created_at (datetime), reason (str nullable)
+- Regla:
+  Si en los últimos 15 minutos hay >= 5 intentos fallidos para (email+ip) o para ip sola -> bloquear login temporalmente (HTTP 429 o flash message).
+- Cuando bloqueo: registrar reason="rate_limited".
+
+PASO 4: Logs de login
+- Agrega tabla LoginEvent o reutiliza LoginAttempt para también registrar exitosos.
+- En cada login exitoso y fallido guarda: email, ip, user_agent, timestamp, success, reason.
+- Asegura que el log no guarde contraseñas ni tokens.
+
+PASO 5: Alertas por “IP rara”
+Sin servicios externos.
+Implementación simple:
+- En login exitoso, compara la IP actual con las últimas IPs exitosas del usuario (por ejemplo últimas 5).
+- Si IP nueva y usuario ya tenía historial, marca evento con flag "ip_unusual" y muestra un banner en UI después del login:
+  “Nuevo inicio de sesión desde una IP no habitual: X. Si no fuiste tú, cambia tu contraseña.”
+- (Opcional) Si existe mailer en el repo, también envía correo; si no, no inventes.
+- También agrega un endpoint /account/security (protegido) donde el usuario vea: últimos 10 logins + IPs.
+
+PASO 6: UI mínima
+- En la pantalla de login, muestra mensajes de:
+  - “Demasiados intentos. Intenta en 15 minutos.”
+  - “Email o contraseña incorrectos.”
+- En el header del anonimizador ya existe “Cuenta” y “Saldo”. Agrega un link "Seguridad" que lleve a /account/security (si aplica).
+
+PASO 7: Pruebas manuales (pasos exactos)
+- Probar que /verificar_2fa redirige a /login
+- Probar registro con password débil (bloquea) y fuerte (ok)
+- Probar 5 logins fallidos y luego bloqueo
+- Probar login exitoso y revisar que se registró en tabla
+- Probar IP inusual (simular cambiando header X-Forwarded-For si hay ProxyFix o usando curl)
+
+ENTREGABLES
+- Código completo de los cambios en app.py/public_app.py y models.py (o donde corresponda).
+- Si agregas modelos nuevos, asegúrate de que el startup cree tablas o que exista migración segura (si el repo usa db.create_all, ok).
+- No dejes el sistema en estado “broken” si faltan columnas.
+- Si hay configuración de ProxyFix, respeta request.remote_addr correctamente.

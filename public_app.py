@@ -615,6 +615,16 @@ def account():
     )
 
 
+@anonymizer_bp.route("/account/security")
+@login_required
+def account_security():
+    """Historial de los últimos 10 logins del usuario."""
+    from models import LoginAttempt
+    logs = LoginAttempt.query.filter_by(email=current_user.email)\
+        .order_by(LoginAttempt.created_at.desc()).limit(10).all()
+    return render_template("account_security.html", login_logs=logs)
+
+
 @anonymizer_bp.route("/anonymizer/process", methods=["GET", "POST"])
 @login_required
 def anonymizer_process():

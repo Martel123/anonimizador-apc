@@ -44,7 +44,7 @@ import anonymizer as anon_module
 import anonymizer_robust as anon_robust
 from public_app import anonymizer_bp
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation, AnonymizerPackage, AnonymizerPurchase
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation, AnonymizerPackage, AnonymizerPurchase, LoginAttempt
 import qrcode
 import threading
 import queue
@@ -67,6 +67,9 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+app.config["ENABLE_2FA"] = os.environ.get("ENABLE_2FA", "0") == "1"
+app.config["LOGIN_MAX_ATTEMPTS"] = int(os.environ.get("LOGIN_MAX_ATTEMPTS", "5"))
+app.config["LOGIN_LOCKOUT_MINUTES"] = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "15"))
 
 app.register_blueprint(anonymizer_bp)
 
@@ -188,6 +191,51 @@ def require_feature(feature_name):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+
+_WEAK_PASSWORDS = {
+    "password", "password1", "password123", "123456", "123456789", "12345678",
+    "qwerty", "qwerty123", "admin", "admin123", "letmein", "welcome", "monkey",
+    "dragon", "master", "login", "pass", "abc123", "iloveyou", "sunshine",
+}
+
+def validate_password_strength(password):
+    """
+    Valida política de contraseña.
+    Retorna (ok: bool, mensaje: str).
+    Requisitos: min 10 chars, 1 mayúscula, 1 minúscula, 1 número, 1 símbolo.
+    """
+    if len(password) < 10:
+        return False, "La contraseña debe tener al menos 10 caracteres."
+    if not re.search(r'[A-Z]', password):
+        return False, "La contraseña debe incluir al menos una letra mayúscula."
+    if not re.search(r'[a-z]', password):
+        return False, "La contraseña debe incluir al menos una letra minúscula."
+    if not re.search(r'\d', password):
+        return False, "La contraseña debe incluir al menos un número."
+    if not re.search(r'[^A-Za-z0-9]', password):
+        return False, "La contraseña debe incluir al menos un símbolo (ej: !@#$%)."
+    if password.lower() in _WEAK_PASSWORDS:
+        return False, "Esa contraseña es demasiado común. Elige una más segura."
+    return True, ""
+
+
+def _record_login_attempt(email, ip, user_agent, success, reason=None, ip_unusual=False):
+    """Guarda un intento de login sin propagar errores."""
+    try:
+        attempt = LoginAttempt(
+            email=email,
+            ip=ip,
+            user_agent=user_agent[:500] if user_agent else None,
+            success=success,
+            reason=reason,
+            ip_unusual=ip_unusual,
+        )
+        db.session.add(attempt)
+        db.session.commit()
+    except Exception as exc:
+        logging.warning(f"_record_login_attempt failed: {exc}")
+        db.session.rollback()
 
 
 def log_audit(tenant_id, evento, descripcion=None, extra_data=None, user_id=None):
@@ -2689,36 +2737,60 @@ def generador():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    
+
     if request.method == "POST":
-        email = request.form.get("email", "").strip()
+        email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
-        
+        ip = request.remote_addr or "unknown"
+        ua = request.headers.get("User-Agent", "")
+
+        max_attempts = app.config["LOGIN_MAX_ATTEMPTS"]
+        lockout_mins = app.config["LOGIN_LOCKOUT_MINUTES"]
+        failures = LoginAttempt.recent_failures(email, ip, minutes=lockout_mins)
+        if failures >= max_attempts:
+            _record_login_attempt(email, ip, ua, success=False, reason="rate_limited")
+            flash(f"Demasiados intentos fallidos. Por favor espera {lockout_mins} minutos e intenta de nuevo.", "error")
+            return render_template("login.html")
+
         user = User.query.filter_by(email=email, activo=True).first()
         if user and user.check_password(password):
-            if user.twofa_enabled:
+            if app.config.get("ENABLE_2FA", False) and user.twofa_enabled:
                 session['pending_2fa_user_id'] = user.id
                 next_page = request.args.get('next')
                 if next_page:
                     session['next_after_2fa'] = next_page
                 return redirect(url_for('verificar_2fa'))
-            
-            if user.requires_2fa() and not user.twofa_enabled:
+
+            if app.config.get("ENABLE_2FA", False) and user.requires_2fa() and not user.twofa_enabled:
                 user.last_login = datetime.utcnow()
                 db.session.commit()
                 login_user(user)
                 flash("Tu rol requiere autenticación de dos factores. Por favor configúrala ahora.", "warning")
                 return redirect(url_for('activar_2fa'))
-            
+
+            known_ips = LoginAttempt.last_successful_ips(email, limit=5)
+            ip_unusual = bool(known_ips and ip not in known_ips)
+
             user.last_login = datetime.utcnow()
             db.session.commit()
             login_user(user)
+
+            _record_login_attempt(email, ip, ua, success=True, reason=None, ip_unusual=ip_unusual)
+
+            if ip_unusual:
+                flash(f"Nuevo inicio de sesión desde una IP no habitual: {ip}. Si no fuiste tú, cambia tu contraseña.", "warning")
+
             flash("Sesión iniciada correctamente.", "success")
             next_page = request.args.get('next')
             return redirect(next_page or url_for('index'))
         else:
-            flash("Email o contraseña incorrectos.", "error")
-    
+            _record_login_attempt(email, ip, ua, success=False, reason="bad_credentials")
+            remaining = max(0, max_attempts - failures - 1)
+            if remaining > 0:
+                flash(f"Email o contraseña incorrectos. Te quedan {remaining} intento(s) antes del bloqueo temporal.", "error")
+            else:
+                flash("Email o contraseña incorrectos. Has alcanzado el límite de intentos. Espera 15 minutos.", "error")
+
     return render_template("login.html")
 
 
@@ -2816,12 +2888,13 @@ def reset_password(token):
         password = request.form.get("password", "")
         password_confirm = request.form.get("password_confirm", "")
         
-        if not password or len(password) < 8:
-            flash("La contraseña debe tener al menos 8 caracteres.", "error")
-            return render_template("reset_password.html", token=token)
-        
         if password != password_confirm:
             flash("Las contraseñas no coinciden.", "error")
+            return render_template("reset_password.html", token=token)
+
+        pw_ok, pw_msg = validate_password_strength(password)
+        if not pw_ok:
+            flash(pw_msg, "error")
             return render_template("reset_password.html", token=token)
         
         user.set_password(password)
@@ -2912,8 +2985,9 @@ def registro_usuario():
             flash("Las contraseñas no coinciden.", "error")
             return render_template("registro_usuario.html")
 
-        if len(password) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "error")
+        pw_ok, pw_msg = validate_password_strength(password)
+        if not pw_ok:
+            flash(pw_msg, "error")
             return render_template("registro_usuario.html")
 
         if User.query.filter_by(email=email).first():
@@ -2956,9 +3030,10 @@ def registro_estudio():
         if password != password_confirm:
             flash("Las contraseñas no coinciden.", "error")
             return render_template("registro_estudio.html")
-        
-        if len(password) < 6:
-            flash("La contraseña debe tener al menos 6 caracteres.", "error")
+
+        pw_ok, pw_msg = validate_password_strength(password)
+        if not pw_ok:
+            flash(pw_msg, "error")
             return render_template("registro_estudio.html")
         
         if User.query.filter_by(email=email).first():
@@ -3160,68 +3235,10 @@ def desactivar_2fa():
 
 @app.route("/verificar_2fa", methods=["GET", "POST"])
 def verificar_2fa():
-    """Second step of login: verify 2FA code."""
-    if 'pending_2fa_user_id' not in session:
-        return redirect(url_for('login'))
-    
-    user_id = session['pending_2fa_user_id']
-    user = User.query.get(user_id)
-    
-    if not user:
-        session.pop('pending_2fa_user_id', None)
-        return redirect(url_for('login'))
-    
-    failed_attempts = TwoFALog.count_recent_failures(user_id)
-    if failed_attempts >= 5:
-        flash("Demasiados intentos fallidos. Intenta de nuevo en 15 minutos.", "error")
-        return render_template("verificar_2fa.html", locked=True)
-    
-    if request.method == "POST":
-        codigo = request.form.get("codigo", "").strip().replace(" ", "").replace("-", "")
-        use_backup = request.form.get("use_backup") == "1"
-        
-        if not codigo:
-            flash("Ingresa un código.", "error")
-            return render_template("verificar_2fa.html", locked=False)
-        
-        success = False
-        event_type = 'verify_attempt'
-        
-        if use_backup:
-            codigo = codigo.upper()
-            if "-" not in codigo and len(codigo) == 8:
-                codigo = f"{codigo[:4]}-{codigo[4:]}"
-            success = user.verify_backup_code(codigo)
-            event_type = 'backup_used'
-        else:
-            success = user.verify_totp(codigo)
-        
-        TwoFALog.log_event(
-            user_id=user_id,
-            event_type=event_type,
-            success=success,
-            ip=request.remote_addr,
-            user_agent=request.headers.get('User-Agent', '')[:500]
-        )
-        
-        if success:
-            user.twofa_last_verified_at = datetime.utcnow()
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-            
-            session.pop('pending_2fa_user_id', None)
-            login_user(user)
-            
-            flash("Sesión iniciada correctamente.", "success")
-            next_page = session.pop('next_after_2fa', None)
-            return redirect(next_page or url_for('index'))
-        else:
-            db.session.commit()
-            remaining = 5 - failed_attempts - 1
-            flash(f"Código incorrecto. Te quedan {remaining} intentos.", "error")
-            return render_template("verificar_2fa.html", locked=False)
-    
-    return render_template("verificar_2fa.html", locked=False)
+    """2FA deshabilitado — redirige siempre a /login."""
+    session.pop('pending_2fa_user_id', None)
+    session.pop('next_after_2fa', None)
+    return redirect(url_for('login'))
 
 
 @app.route("/admin/reset_2fa/<int:user_id>", methods=["POST"])
@@ -9277,6 +9294,19 @@ def _run_schema_migrations():
     """Aplica migraciones de columnas que db.create_all() no maneja (ALTER TABLE)."""
     migrations = [
         "ALTER TABLE anonymizer_jobs ADD COLUMN IF NOT EXISTS input_path VARCHAR(512)",
+        """CREATE TABLE IF NOT EXISTS login_attempts (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255),
+            ip VARCHAR(64) NOT NULL,
+            user_agent VARCHAR(500),
+            success BOOLEAN NOT NULL DEFAULT FALSE,
+            reason VARCHAR(100),
+            ip_unusual BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_login_attempts_email ON login_attempts(email)",
+        "CREATE INDEX IF NOT EXISTS ix_login_attempts_ip ON login_attempts(ip)",
+        "CREATE INDEX IF NOT EXISTS ix_login_attempts_created_at ON login_attempts(created_at)",
     ]
     for sql in migrations:
         try:

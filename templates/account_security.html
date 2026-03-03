@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seguridad — APC Anonimizador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+
+    header {
+      background: #0B0B0B;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; }
+    header nav { display: flex; align-items: center; gap: 20px; }
+    header a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 0.85rem; }
+    header a:hover { color: #fff; }
+    .btn-header {
+      background: #B30000;
+      color: #fff !important;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    main { max-width: 800px; margin: 40px auto; padding: 0 16px 60px; }
+
+    h1 { font-size: 1.5rem; font-weight: 700; color: #0B0B0B; margin-bottom: 6px; }
+    .subtitle { color: #6F6F6F; font-size: 0.9rem; margin-bottom: 32px; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #E5E5E5;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #0B0B0B; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; color: #6F6F6F; font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E5E5E5; }
+    td { padding: 10px 12px; border-bottom: 1px solid #F2F2F2; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #FAFAFA; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-success { background: #D1FAE5; color: #065F46; }
+    .badge-error { background: #FEE2E2; color: #991B1B; }
+    .badge-warn { background: #FEF3C7; color: #92400E; }
+
+    .alert-warn {
+      background: #FEF3C7;
+      border: 1px solid #F59E0B;
+      color: #92400E;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .empty { color: #6F6F6F; text-align: center; padding: 24px 0; font-size: 0.875rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: #6F6F6F; font-size: 0.85rem; text-decoration: none; margin-bottom: 24px; }
+    .back-link:hover { color: #0B0B0B; }
+    .ip-unusual { color: #B45309; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/anonymizer" class="logo">APC Jurídica</a>
+  <nav>
+    <a href="/anonymizer">Inicio</a>
+    <a href="/account">Cuenta</a>
+    <a href="/account/security" style="color:#fff;"><i class="fas fa-shield-alt"></i> Seguridad</a>
+    <a href="/anonymizer/plans" class="btn-header">+ Conseguir páginas</a>
+    <a href="/logout"><i class="fas fa-sign-out-alt"></i></a>
+  </nav>
+</header>
+
+<main>
+  <a href="/account" class="back-link"><i class="fas fa-chevron-left"></i> Volver a Mi Cuenta</a>
+
+  <h1><i class="fas fa-shield-alt" style="color:#B30000;margin-right:8px;"></i>Actividad de Seguridad</h1>
+  <p class="subtitle">Últimos 10 accesos a tu cuenta. Si ves una IP que no reconoces, cambia tu contraseña.</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div style="margin-bottom:16px;padding:12px 16px;border-radius:8px;font-size:0.875rem;
+        {% if category == 'error' %}background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;
+        {% elif category == 'warning' %}background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;
+        {% else %}background:#D1FAE5;color:#065F46;border:1px solid #6EE7B7;{% endif %}">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="card">
+    <h2><i class="fas fa-history" style="color:#B30000;margin-right:6px;"></i>Historial de accesos</h2>
+    {% if login_logs %}
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha y hora</th>
+          <th>IP</th>
+          <th>Resultado</th>
+          <th>Motivo</th>
+          <th>Dispositivo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in login_logs %}
+        <tr>
+          <td style="color:#6F6F6F;white-space:nowrap;">
+            {{ log.created_at.strftime('%d/%m/%Y %H:%M') if log.created_at else '—' }}
+          </td>
+          <td>
+            {% if log.ip_unusual %}
+              <span class="ip-unusual" title="IP no habitual">
+                <i class="fas fa-exclamation-triangle"></i> {{ log.ip }}
+              </span>
+            {% else %}
+              {{ log.ip }}
+            {% endif %}
+          </td>
+          <td>
+            {% if log.success %}
+              <span class="badge badge-success">Exitoso</span>
+            {% else %}
+              <span class="badge badge-error">Fallido</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.reason == 'bad_credentials' %}
+              Credenciales incorrectas
+            {% elif log.reason == 'rate_limited' %}
+              <span class="badge badge-warn">Bloqueado</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td style="color:#9CA3AF;font-size:0.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ log.user_agent[:60] if log.user_agent else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty"><i class="fas fa-check-circle" style="color:#10B981;"></i> No hay accesos registrados aún.</p>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:20px;background:#fff;border:1px solid #E5E5E5;border-radius:12px;padding:20px;">
+    <h2 style="font-size:1rem;font-weight:600;margin-bottom:12px;color:#0B0B0B;">
+      <i class="fas fa-key" style="color:#B30000;margin-right:6px;"></i>Cambiar contraseña
+    </h2>
+    <p style="font-size:0.875rem;color:#6F6F6F;margin-bottom:16px;">
+      Si sospechas de acceso no autorizado, cambia tu contraseña de inmediato.
+    </p>
+    <a href="/forgot_password" style="display:inline-block;background:#B30000;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-size:0.875rem;font-weight:600;">
+      <i class="fas fa-key"></i> Cambiar contraseña
+    </a>
+  </div>
+</main>
+
+</body>
+</html>

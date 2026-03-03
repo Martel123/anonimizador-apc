@@ -106,6 +106,50 @@ USE_LOCAL_NER=1 python smoke_test_local_ner.py
 
 **Important:** Training data must NOT come from user-uploaded documents. Use only manually curated, synthetic, or public legal text examples.
 
+## Auth Security Hardening
+
+### 2FA
+- **Disabled permanently** via `app.config["ENABLE_2FA"] = False` (env var `ENABLE_2FA=1` to re-enable)
+- `/verificar_2fa` route kept alive but always redirects to `/login` — no broken links
+
+### Password Policy (registro + reset_password)
+- Minimum 10 characters
+- At least 1 uppercase, 1 lowercase, 1 digit, 1 symbol
+- Blocks common passwords (password, 123456, qwerty, admin, etc.)
+- Function: `validate_password_strength(password)` → `(ok: bool, msg: str)`
+
+### Login Rate Limiting (anti brute-force, no external libs)
+- Model: `LoginAttempt` (table `login_attempts`) — covers both attempts and events
+- Rule: ≥5 failed attempts in 15 min from same email+IP or IP alone → HTTP 429 flash + logged as `reason="rate_limited"`
+- Configurable: `LOGIN_MAX_ATTEMPTS` (default 5), `LOGIN_LOCKOUT_MINUTES` (default 15)
+- Remaining attempts shown on each failed login
+
+### Login Event Logging
+- Every login attempt (success + failure) recorded: email, ip, user_agent, success, reason, ip_unusual, created_at
+- Helper: `_record_login_attempt(email, ip, ua, success, reason, ip_unusual)`
+
+### IP Unusual Detection
+- On successful login, compares current IP vs last 5 successful IPs for that email
+- If IP is new and user has history → sets `ip_unusual=True` + flash warning banner
+- Uses Resend mailer if available (existing integration)
+
+### Security UI
+- `/account/security` — protected route showing last 10 logins with IP, result, reason, device
+- Header of anonymizer has "Seguridad" link → `/account/security`
+- Login page shows remaining attempts + lockout message via flash
+
+### New DB Model
+| Model | Table | Purpose |
+|-------|-------|---------|
+| `LoginAttempt` | `login_attempts` | Rate limiting + audit log for all login events |
+
+### Environment Variables
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_2FA` | `0` | Enable 2FA system (0=off, 1=on) |
+| `LOGIN_MAX_ATTEMPTS` | `5` | Failed attempts before lockout |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | Lockout window in minutes |
+
 ## Original Platform Overview
 This project is a multi-tenant SaaS web platform built with Flask, designed for Conciliation Centers. It enables multiple centers to register, each operating with isolated data, including templates, users, documents, and styles. Each tenant benefits from customizable branding (logo, contact information) and the system supports three distinct user roles, along with a subscription-based plan system (Basic, Medium, Advanced) that gates access to features like user count, document limits, and AI argumentation. The platform aims to streamline document generation, improve legal argumentation with AI, and provide a comprehensive management system for conciliation processes.
 
