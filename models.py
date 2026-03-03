@@ -1801,6 +1801,7 @@ class PlanConfiguration(db.Model):
     max_documentos_mes = db.Column(db.Integer, default=50)
     max_plantillas = db.Column(db.Integer, default=5)
     precio_mensual = db.Column(db.Float, default=0)
+    pages_included = db.Column(db.Integer, default=0)
     features = db.Column(db.Text)  # JSON string of features
     descripcion = db.Column(db.Text)
     orden = db.Column(db.Integer, default=0)

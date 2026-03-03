@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planes — Superadmin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+    header { background: #0B0B0B; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; text-decoration: none; }
+    header nav { display: flex; align-items: center; gap: 20px; }
+    header a { color: rgba(255,255,255,.65); text-decoration: none; font-size: .85rem; }
+    header a:hover, header a.active { color: #fff; }
+    main { max-width: 1100px; margin: 32px auto; padding: 0 16px 60px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    h1 { font-size: 1.4rem; font-weight: 700; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; background: #B30000; color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-size: .875rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .btn:hover { background: #990000; }
+    .flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: .875rem; }
+    .flash-success { background: #D1FAE5; color: #065F46; border: 1px solid #6EE7B7; }
+    .flash-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #E5E5E5; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: #6F6F6F; font-weight: 500; padding: 10px 16px; border-bottom: 1px solid #E5E5E5; background: #FAFAFA; }
+    td { padding: 11px 16px; border-bottom: 1px solid #F2F2F2; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #FAFAFA; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-on  { background: #D1FAE5; color: #065F46; }
+    .badge-off { background: #FEE2E2; color: #991B1B; }
+    .badge-default { background: #EEF2FF; color: #4338CA; }
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn-ghost { background: transparent; color: #6F6F6F; border: 1px solid #E5E5E5; padding: 5px 12px; border-radius: 6px; font-size: .8rem; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn-ghost:hover { border-color: #B30000; color: #B30000; }
+    .btn-danger { background: transparent; color: #991B1B; border: 1px solid #FECACA; padding: 5px 12px; border-radius: 6px; font-size: .8rem; cursor: pointer; }
+    .btn-danger:hover { background: #FEE2E2; }
+    .features-preview { display: flex; flex-wrap: wrap; gap: 4px; }
+    .feat-tag { background: #F3F4F6; color: #374151; padding: 2px 6px; border-radius: 4px; font-size: .72rem; }
+    .key-mono { font-family: monospace; font-size: .82rem; color: #6F6F6F; }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/super_admin" class="logo">APC · Superadmin</a>
+  <nav>
+    <a href="/super_admin">Dashboard</a>
+    <a href="/superadmin/plans" class="active">Planes</a>
+    <a href="/superadmin/users">Usuarios</a>
+    <a href="/superadmin/codes">Códigos</a>
+    <a href="/logout">Salir</a>
+  </nav>
+</header>
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="page-header">
+    <h1><i class="fas fa-layer-group" style="color:#B30000;margin-right:8px;"></i>Gestión de Planes</h1>
+    <a href="/superadmin/plans/create" class="btn"><i class="fas fa-plus"></i> Nuevo plan</a>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre / Clave</th>
+          <th>Precio (PEN)</th>
+          <th>Páginas incluidas</th>
+          <th>Usuarios máx.</th>
+          <th>Docs/mes</th>
+          <th>Orden</th>
+          <th>Features</th>
+          <th>Estado</th>
+          <th>Centros</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in planes %}
+        <tr>
+          <td>
+            <div style="font-weight:600;">{{ plan.nombre }}</div>
+            <div class="key-mono">{{ plan.plan_key }}</div>
+            {% if plan.plan_key in ['basico','medio','avanzado'] %}
+              <span class="badge badge-default">Predeterminado</span>
+            {% endif %}
+          </td>
+          <td>S/ {{ "%.2f"|format(plan.precio_mensual) }}</td>
+          <td>{{ plan.pages_included or 0 }}</td>
+          <td>{{ plan.max_usuarios }}</td>
+          <td>{{ plan.max_documentos_mes }}</td>
+          <td>{{ plan.orden }}</td>
+          <td>
+            <div class="features-preview">
+              {% set flist = plan.get_features_list() %}
+              {% if flist %}
+                {% for feat in flist[:3] %}
+                  <span class="feat-tag">{{ feat }}</span>
+                {% endfor %}
+                {% if flist|length > 3 %}
+                  <span class="feat-tag">+{{ flist|length - 3 }}</span>
+                {% endif %}
+              {% else %}
+                <span style="color:#9CA3AF;font-size:.8rem;">—</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            {% if plan.activo %}
+              <span class="badge badge-on">Activo</span>
+            {% else %}
+              <span class="badge badge-off">Inactivo</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center;">{{ tenants_por_plan.get(plan.plan_key, 0) }}</td>
+          <td>
+            <div class="actions">
+              <a href="/superadmin/plans/{{ plan.id }}/edit" class="btn-ghost">
+                <i class="fas fa-edit"></i> Editar
+              </a>
+              {% if plan.plan_key not in ['basico','medio','avanzado'] %}
+              <form method="POST" action="/superadmin/plans/{{ plan.id }}/delete"
+                    onsubmit="return confirm('¿Desactivar el plan «{{ plan.nombre }}»? Los centros que ya lo usan no se verán afectados.');">
+                <button type="submit" class="btn-danger">
+                  <i class="fas fa-ban"></i> Desactivar
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" style="text-align:center;color:#9CA3AF;padding:28px;">Sin planes. Crea el primero.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin-top:14px;font-size:.8rem;color:#9CA3AF;">
+    <i class="fas fa-info-circle"></i>
+    Los planes predeterminados (basico, medio, avanzado) no pueden desactivarse.
+    Los planes inactivos no aparecen en el proceso de registro de nuevos centros.
+  </p>
+</main>
+</body>
+</html>

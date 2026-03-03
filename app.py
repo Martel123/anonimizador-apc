@@ -9290,6 +9290,7 @@ def _run_schema_migrations():
         "ALTER TABLE anonymizer_jobs ADD COLUMN IF NOT EXISTS input_path VARCHAR(512)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS unlimited_access BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS override_pages_limit INTEGER",
+        "ALTER TABLE plan_configurations ADD COLUMN IF NOT EXISTS pages_included INTEGER DEFAULT 0",
         """CREATE TABLE IF NOT EXISTS credit_codes (
             id SERIAL PRIMARY KEY,
             code VARCHAR(64) UNIQUE NOT NULL,
@@ -9408,6 +9409,112 @@ def init_app_once():
         logging.exception("INIT_ERROR: %s", e)
 
 init_app_once()
+
+
+@app.route("/superadmin/plans")
+@super_admin_required
+def superadmin_plans():
+    """Lista todos los planes (activos e inactivos)."""
+    from models import PlanConfiguration
+    PlanConfiguration.initialize_defaults()
+    planes = PlanConfiguration.query.order_by(PlanConfiguration.orden).all()
+    tenants_por_plan = {p.plan_key: Tenant.query.filter_by(plan=p.plan_key).count() for p in planes}
+    return render_template("superadmin_plans.html",
+                           planes=planes,
+                           tenants_por_plan=tenants_por_plan,
+                           features_disponibles=PlanConfiguration.FEATURES_DISPONIBLES)
+
+
+@app.route("/superadmin/plans/create", methods=["GET", "POST"])
+@super_admin_required
+def superadmin_plans_create():
+    """Formulario para crear un plan nuevo."""
+    from models import PlanConfiguration
+    import json as _json
+    if request.method == "POST":
+        plan_key = re.sub(r'[^a-z0-9_]', '', request.form.get('plan_key', '').strip().lower())
+        nombre = request.form.get('nombre', '').strip()
+        if not plan_key or not nombre:
+            flash("La clave y el nombre son obligatorios.", "error")
+            return render_template("superadmin_plans_form.html",
+                                   plan=None, features_disponibles=PlanConfiguration.FEATURES_DISPONIBLES)
+        if PlanConfiguration.query.filter_by(plan_key=plan_key).first():
+            flash("Ya existe un plan con esa clave.", "error")
+            return render_template("superadmin_plans_form.html",
+                                   plan=None, features_disponibles=PlanConfiguration.FEATURES_DISPONIBLES)
+        max_orden = db.session.query(db.func.max(PlanConfiguration.orden)).scalar() or 0
+        plan = PlanConfiguration(
+            plan_key=plan_key,
+            nombre=nombre,
+            max_usuarios=int(request.form.get('max_usuarios', 2)),
+            max_documentos_mes=int(request.form.get('max_documentos_mes', 50)),
+            max_plantillas=int(request.form.get('max_plantillas', 5)),
+            precio_mensual=float(request.form.get('precio_mensual', 0) or 0),
+            pages_included=int(request.form.get('pages_included', 0) or 0),
+            descripcion=request.form.get('descripcion', '').strip(),
+            features=_json.dumps(request.form.getlist('features')),
+            orden=int(request.form.get('orden', max_orden + 1) or max_orden + 1),
+            activo=request.form.get('activo') == '1',
+        )
+        db.session.add(plan)
+        db.session.commit()
+        log_audit(tenant_id=None, evento='plan.create',
+                  descripcion=f"Plan '{plan.nombre}' ({plan.plan_key}) creado. Precio: S/{plan.precio_mensual}, Páginas: {plan.pages_included}",
+                  user_id=current_user.id)
+        flash(f"Plan '{plan.nombre}' creado correctamente.", "success")
+        return redirect(url_for('superadmin_plans'))
+    return render_template("superadmin_plans_form.html",
+                           plan=None, features_disponibles=PlanConfiguration.FEATURES_DISPONIBLES)
+
+
+@app.route("/superadmin/plans/<int:plan_id>/edit", methods=["GET", "POST"])
+@super_admin_required
+def superadmin_plans_edit(plan_id):
+    """Formulario para editar un plan existente."""
+    from models import PlanConfiguration
+    import json as _json
+    plan = PlanConfiguration.query.get_or_404(plan_id)
+    if request.method == "POST":
+        plan.nombre = request.form.get('nombre', plan.nombre).strip()
+        plan.precio_mensual = float(request.form.get('precio_mensual', plan.precio_mensual) or plan.precio_mensual)
+        plan.pages_included = int(request.form.get('pages_included', plan.pages_included or 0) or 0)
+        plan.max_usuarios = int(request.form.get('max_usuarios', plan.max_usuarios))
+        plan.max_documentos_mes = int(request.form.get('max_documentos_mes', plan.max_documentos_mes))
+        plan.max_plantillas = int(request.form.get('max_plantillas', plan.max_plantillas))
+        plan.descripcion = request.form.get('descripcion', plan.descripcion or '').strip()
+        plan.orden = int(request.form.get('orden', plan.orden) or plan.orden)
+        plan.activo = request.form.get('activo') == '1'
+        plan.set_features_list(request.form.getlist('features'))
+        db.session.commit()
+        log_audit(tenant_id=None, evento='plan.update',
+                  descripcion=f"Plan '{plan.nombre}' ({plan.plan_key}) actualizado. Precio: S/{plan.precio_mensual}, Páginas: {plan.pages_included}, Activo: {plan.activo}",
+                  user_id=current_user.id)
+        flash(f"Plan '{plan.nombre}' actualizado.", "success")
+        return redirect(url_for('superadmin_plans'))
+    return render_template("superadmin_plans_form.html",
+                           plan=plan, features_disponibles=PlanConfiguration.FEATURES_DISPONIBLES)
+
+
+@app.route("/superadmin/plans/<int:plan_id>/delete", methods=["POST"])
+@super_admin_required
+def superadmin_plans_delete(plan_id):
+    """Soft delete: marca el plan como inactivo."""
+    from models import PlanConfiguration
+    plan = PlanConfiguration.query.get_or_404(plan_id)
+    if plan.plan_key in ['basico', 'medio', 'avanzado']:
+        flash("Los planes predeterminados no pueden eliminarse.", "error")
+        return redirect(url_for('superadmin_plans'))
+    tenants_using = Tenant.query.filter_by(plan=plan.plan_key).count()
+    if tenants_using > 0:
+        flash(f"No se puede eliminar '{plan.nombre}': {tenants_using} centro(s) lo usan activamente.", "error")
+        return redirect(url_for('superadmin_plans'))
+    plan.activo = False
+    db.session.commit()
+    log_audit(tenant_id=None, evento='plan.delete',
+              descripcion=f"Plan '{plan.nombre}' ({plan.plan_key}) desactivado (soft delete).",
+              user_id=current_user.id)
+    flash(f"Plan '{plan.nombre}' desactivado (soft delete).", "success")
+    return redirect(url_for('superadmin_plans'))
 
 
 @app.route("/superadmin/users")
