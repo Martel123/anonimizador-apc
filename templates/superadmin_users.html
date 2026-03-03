@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuarios — Superadmin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+    header { background: #0B0B0B; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; }
+    header nav { display: flex; align-items: center; gap: 20px; }
+    header a { color: rgba(255,255,255,.65); text-decoration: none; font-size: .85rem; }
+    header a:hover, header a.active { color: #fff; }
+    main { max-width: 1100px; margin: 32px auto; padding: 0 16px 60px; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 24px; }
+    .flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: .875rem; }
+    .flash-success { background: #D1FAE5; color: #065F46; border: 1px solid #6EE7B7; }
+    .flash-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06); font-size: .85rem; }
+    th { text-align: left; color: #6F6F6F; font-weight: 500; padding: 10px 14px; border-bottom: 1px solid #E5E5E5; background: #FAFAFA; }
+    td { padding: 10px 14px; border-bottom: 1px solid #F2F2F2; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-sa { background: #FEF3C7; color: #92400E; }
+    .badge-unlimited { background: #D1FAE5; color: #065F46; }
+    input[type=number] { width: 80px; padding: 4px 8px; border: 1px solid #E5E5E5; border-radius: 6px; font-size: .85rem; }
+    .btn-sm { background: #B30000; color: #fff; border: none; padding: 5px 12px; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; }
+    .btn-sm:hover { background: #990000; }
+    select { padding: 4px 8px; border: 1px solid #E5E5E5; border-radius: 6px; font-size: .85rem; }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/super_admin" class="logo">APC · Superadmin</a>
+  <nav>
+    <a href="/super_admin">Dashboard</a>
+    <a href="/super_admin/planes">Planes</a>
+    <a href="/superadmin/users" class="active">Usuarios</a>
+    <a href="/superadmin/codes">Códigos</a>
+    <a href="/logout">Salir</a>
+  </nav>
+</header>
+<main>
+  <h1><i class="fas fa-users" style="color:#B30000;margin-right:8px;"></i>Gestión de Usuarios</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+  <table>
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Rol</th>
+        <th>Saldo páginas</th>
+        <th>Acceso ilimitado</th>
+        <th>Override límite</th>
+        <th>Guardar</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>
+          {{ user.email }}
+          {% if user.role == 'super_admin' %}<span class="badge badge-sa">SA</span>{% endif %}
+          {% if user.unlimited_access %}<span class="badge badge-unlimited">∞</span>{% endif %}
+        </td>
+        <td>{{ user.role }}</td>
+        <td>{{ credits_map.get(user.id).pages_balance if credits_map.get(user.id) else '—' }}</td>
+        <td>
+          {% if user.role != 'super_admin' %}
+          <form method="POST" action="/superadmin/users/{{ user.id }}/edit" style="display:inline;">
+            <input type="hidden" name="unlimited_access" value="{{ '1' if user.unlimited_access else '0' }}">
+            <input type="hidden" name="override_pages_limit" value="{{ user.override_pages_limit or '' }}">
+          </form>
+          {{ 'Sí' if user.unlimited_access else 'No' }}
+          {% else %}
+          <span style="color:#9CA3AF;">—</span>
+          {% endif %}
+        </td>
+        <td>{{ user.override_pages_limit or '—' }}</td>
+        <td>
+          {% if user.role != 'super_admin' %}
+          <form method="POST" action="/superadmin/users/{{ user.id }}/edit" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <label style="font-size:.8rem;">
+              <input type="checkbox" name="unlimited_access" value="1" {% if user.unlimited_access %}checked{% endif %}> Ilimitado
+            </label>
+            <input type="number" name="override_pages_limit" value="{{ user.override_pages_limit or '' }}" placeholder="Override" min="0">
+            <button type="submit" class="btn-sm">Guardar</button>
+          </form>
+          {% else %}
+          <span style="color:#9CA3AF;font-size:.8rem;">Protegido</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:#9CA3AF;padding:24px;">Sin usuarios.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</main>
+</body>
+</html>

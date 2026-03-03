@@ -44,7 +44,7 @@ import anonymizer as anon_module
 import anonymizer_robust as anon_robust
 from public_app import anonymizer_bp
 
-from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation, AnonymizerPackage, AnonymizerPurchase, LoginAttempt
+from models import db, User, DocumentRecord, Plantilla, Modelo, Estilo, CampoPlantilla, Tenant, Case, CaseAssignment, CaseDocument, Task, FinishedDocument, ImagenModelo, CaseAttachment, ModeloTabla, ReviewSession, ReviewIssue, TwoFALog, EstiloDocumento, PricingConfig, PricingAddon, CheckoutSession, Subscription, ActivationToken, TaskDocument, TaskReminder, CalendarEvent, EventAttendee, UserArgumentationStyle, ArgumentationSession, ArgumentationMessage, ArgumentationJob, AgentSession, AgentMessage, LegalStrategy, CostEstimate, CaseEvent, CaseType, CaseCustomField, CaseCustomFieldValue, AuditLog, TipoActa, FormResponse, UserCredits, AnonymizerJob, PageUsageLog, PageReservation, AnonymizerPackage, AnonymizerPurchase, LoginAttempt, CreditCode, CreditRedemption, RewardToken
 import qrcode
 import threading
 import queue
@@ -9288,6 +9288,43 @@ def _run_schema_migrations():
     """Aplica migraciones de columnas que db.create_all() no maneja (ALTER TABLE)."""
     migrations = [
         "ALTER TABLE anonymizer_jobs ADD COLUMN IF NOT EXISTS input_path VARCHAR(512)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS unlimited_access BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS override_pages_limit INTEGER",
+        """CREATE TABLE IF NOT EXISTS credit_codes (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(64) UNIQUE NOT NULL,
+            credit_amount INTEGER NOT NULL,
+            max_uses INTEGER NOT NULL DEFAULT 1,
+            uses_count INTEGER NOT NULL DEFAULT 0,
+            expires_at TIMESTAMP,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_by_id INTEGER REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS credit_redemptions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            credit_code_id INTEGER NOT NULL REFERENCES credit_codes(id),
+            redeemed_at TIMESTAMP DEFAULT NOW(),
+            ip VARCHAR(64),
+            user_agent VARCHAR(500),
+            CONSTRAINT uq_user_credit_code UNIQUE (user_id, credit_code_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS reward_tokens (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            external_user_key VARCHAR(255) NOT NULL,
+            lesson_id VARCHAR(255) NOT NULL,
+            credit_amount INTEGER NOT NULL,
+            token_hash VARCHAR(64) UNIQUE NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'issued',
+            issued_at TIMESTAMP DEFAULT NOW(),
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            issued_ip VARCHAR(64),
+            used_ip VARCHAR(64),
+            CONSTRAINT uq_user_lesson UNIQUE (user_id, lesson_id)
+        )""",
         """CREATE TABLE IF NOT EXISTS login_attempts (
             id SERIAL PRIMARY KEY,
             email VARCHAR(255),
@@ -9329,6 +9366,22 @@ def _seed_anonymizer_packages():
         logging.error(f"SEED_PACKAGES_ERROR: {e}")
 
 
+SUPERADMIN_EMAIL = "marcelo.martel.orellano@gmail.com"
+
+def _ensure_superadmin_role():
+    """Garantiza que el email absoluto del superadmin siempre tenga role=super_admin."""
+    try:
+        user = User.query.filter_by(email=SUPERADMIN_EMAIL).first()
+        if user and user.role != 'super_admin':
+            user.role = 'super_admin'
+            db.session.commit()
+            logging.info(f"SUPERADMIN_ENFORCED | email={SUPERADMIN_EMAIL}")
+        elif user:
+            logging.info(f"SUPERADMIN_OK | email={SUPERADMIN_EMAIL}")
+    except Exception as e:
+        logging.warning(f"SUPERADMIN_ENSURE_FAIL: {e}")
+
+
 def init_app_once():
     """Initialize app directories and database (if configured)."""
     try:
@@ -9348,12 +9401,92 @@ def init_app_once():
                 logging.info("Database tables created successfully")
                 _run_schema_migrations()
                 _seed_anonymizer_packages()
+                _ensure_superadmin_role()
         else:
             logging.warning("DATABASE_URL not set - skipping database initialization")
     except Exception as e:
         logging.exception("INIT_ERROR: %s", e)
 
 init_app_once()
+
+
+@app.route("/superadmin/users")
+@super_admin_required
+def superadmin_users():
+    """Gestión de usuarios: ver créditos, asignar límites, acceso ilimitado."""
+    users = User.query.order_by(User.created_at.desc()).all()
+    credits_map = {c.user_id: c for c in UserCredits.query.all()}
+    return render_template("superadmin_users.html", users=users, credits_map=credits_map)
+
+
+@app.route("/superadmin/users/<int:user_id>/edit", methods=["POST"])
+@super_admin_required
+def superadmin_user_edit(user_id):
+    """Editar override_pages_limit y unlimited_access de un usuario."""
+    user = User.query.get_or_404(user_id)
+    if user.email == SUPERADMIN_EMAIL:
+        flash("No puedes editar al superadmin principal.", "error")
+        return redirect(url_for('superadmin_users'))
+    unlimited = request.form.get("unlimited_access") == "1"
+    override_raw = request.form.get("override_pages_limit", "").strip()
+    override = int(override_raw) if override_raw.isdigit() else None
+    user.unlimited_access = unlimited
+    user.override_pages_limit = override
+    db.session.commit()
+    flash(f"Usuario {user.email} actualizado.", "success")
+    return redirect(url_for('superadmin_users'))
+
+
+@app.route("/superadmin/codes")
+@super_admin_required
+def superadmin_codes():
+    """Gestión de códigos de crédito."""
+    codes = CreditCode.query.order_by(CreditCode.created_at.desc()).all()
+    return render_template("superadmin_codes.html", codes=codes, now=datetime.utcnow())
+
+
+@app.route("/superadmin/codes/create", methods=["POST"])
+@super_admin_required
+def superadmin_code_create():
+    """Crear un código de crédito."""
+    code_str = request.form.get("code", "").strip().upper()
+    if not code_str:
+        import secrets as _secrets
+        code_str = _secrets.token_urlsafe(8).upper()
+    credit_amount = int(request.form.get("credit_amount", 50))
+    max_uses = int(request.form.get("max_uses", 1))
+    expires_days = request.form.get("expires_days", "").strip()
+    expires_at = None
+    if expires_days and expires_days.isdigit():
+        from datetime import timedelta
+        expires_at = datetime.utcnow() + timedelta(days=int(expires_days))
+    if CreditCode.query.filter_by(code=code_str).first():
+        flash("Ya existe un código con ese nombre. Elige otro.", "error")
+        return redirect(url_for('superadmin_codes'))
+    code = CreditCode(
+        code=code_str,
+        credit_amount=credit_amount,
+        max_uses=max_uses,
+        expires_at=expires_at,
+        is_active=True,
+        created_by_id=current_user.id,
+    )
+    db.session.add(code)
+    db.session.commit()
+    flash(f"Código {code_str} creado con {credit_amount} páginas.", "success")
+    return redirect(url_for('superadmin_codes'))
+
+
+@app.route("/superadmin/codes/<int:code_id>/toggle", methods=["POST"])
+@super_admin_required
+def superadmin_code_toggle(code_id):
+    """Activar/desactivar un código."""
+    code = CreditCode.query.get_or_404(code_id)
+    code.is_active = not code.is_active
+    db.session.commit()
+    estado = "activado" if code.is_active else "desactivado"
+    flash(f"Código {code.code} {estado}.", "success")
+    return redirect(url_for('superadmin_codes'))
 
 
 @app.route("/health")

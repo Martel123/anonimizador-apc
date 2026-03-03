@@ -1,157 +1,9 @@
 # Anonimizador Legal + Plataforma de Centros de Conciliación
 
 ## Overview
-This project includes a **Legal Document Anonymizer** as its main feature (accessible at `/`, requires login). The anonymizer detects and replaces PII in legal documents using regex-based patterns and optional AI enhancement.
+This project features a Legal Document Anonymizer and a multi-tenant SaaS platform for Conciliation Centers. The anonymizer detects and replaces Personally Identifiable Information (PII) in legal documents (DOCX and PDF) using regex patterns and optional AI enhancement, ensuring privacy by processing files in memory and auto-deleting them. The platform also offers a robust credit system for monetization, based on document page usage.
 
-The platform also includes a multi-tenant SaaS system for Conciliation Centers, accessible via `/dashboard-app` for authenticated users.
-
-## Legal Anonymizer (Main Feature)
-- **URL**: `/` (home page) or `/anonymizer` — **requires authentication**
-- **Supported formats**: DOCX and PDF (text-based)
-- **PII Detection**: 21+ entity categories including DNI, RUC, emails, phones, addresses, names, etc.
-- **Placeholders**: `{{DNI_1}}`, `{{PERSONA_1}}`, `{{EMAIL_1}}`, etc.
-- **Output**: Anonymized document + detailed report (JSON/TXT)
-- **Privacy**: Files processed in memory, auto-deleted after processing
-- **Default**: 100% local processing (no API calls). Optional OpenAI enhancement available
-
-### Credit System (Pages-Based Monetization)
-- **Model**: Credits per USER (not tenant), measured in document pages
-- **Trial**: 40 free pages on first use (configurable via `TRIAL_PAGES_DEFAULT` env var)
-- **PDF**: Charged by real page count (PyPDF2/fitz)
-- **DOCX/TXT**: Charged by content equivalence (ceil(words/500) = 1 page)
-- **Flow**: Upload → Count Pages → Reserve Credits → Review → Apply → Charge → Download
-- **Idempotency**: Double-submit protection via PageReservation (same job_id won't charge twice)
-- **Ownership**: Each job is tied to user_id; download/report requires ownership validation
-
-### Auth System
-- **Login**: `/login` (existing Flask-Login infrastructure)
-- **Register**: `/registro_usuario` (simple user registration, no tenant required)
-- **Logout**: `/logout`
-- All anonymizer routes require `@login_required`
-- Unauthenticated access redirects to `/login?next=...`
-
-### Credit Models (PostgreSQL)
-| Model | Purpose |
-|-------|---------|
-| `UserCredits` | Per-user balance: pages_balance, pages_used_total, trial_granted_at |
-| `AnonymizerJob` | Job tracking: job_id, user_id, pages_counted, pages_charged, status |
-| `PageUsageLog` | Audit trail: every credit action (reserved/charged/released/blocked) |
-| `PageReservation` | Idempotency: reserves pages at upload, charges at apply, releases on failure |
-
-### Environment Variables
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `USE_OPENAI_DETECT` | `0` | Enable OpenAI-enhanced detection (1=on, 0=off) |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model for detection (cost-effective) |
-| `OPENAI_TIMEOUT_SECONDS` | `30` | Timeout per API call |
-| `OPENAI_CHUNK_TOKENS` | `3000` | Tokens per chunk for processing |
-| `OPENAI_CONCURRENCY` | `2` | Parallel chunk processing |
-| `STRICT_ZERO_LEAKS` | `0` | Apply hard-redaction patterns as fallback (1=on) |
-| `USE_LOCAL_NER` | `0` | Enable local trained NER model (1=on, 0=off) |
-| `LOCAL_NER_MODEL_PATH` | `models/ner_v1` | Path to the spaCy NER model directory |
-| `TRIAL_PAGES_DEFAULT` | `40` | Free pages for new users on first use |
-
-### Triple-Layer Zero-Leak Guarantee
-1. **Processing Audit**: 8-stage detection pipeline with auto-fix
-2. **Download Audit**: Final scan before file delivery (warning if leaks found)
-3. **Hard-Redaction Fallback**: Emergency pattern-based redaction (STRICT_ZERO_LEAKS=1)
-
-### Detection Pipeline (8 Stages)
-1. **Preprocesamiento**: Text extraction preserving structure
-2. **Regex Determinístico**: Email, phone, DNI, addresses (mandatory, cannot fail)
-3. **Secciones Obligatorias**: Forced PII extraction in DATOS DEL DEMANDANTE sections
-4. **Contexto Legal**: Trigger words (doña, don, identificado, etc.)
-5. **NER**: spaCy support for recall (not authoritative) + optional local trained NER (USE_LOCAL_NER=1)
-6. **Filtro Anti-Sobreanonimización**: Legal whitelist with 200+ phrases
-7. **Merge y Consistencia**: Token deduplication
-8. **Auditor Final**: 0-leak guarantee with auto-fix
-
-### Key Modules
-- `detector_capas.py`: 8-stage detection pipeline
-- `detector_ner_local.py`: Optional local trained NER detector (spaCy model, feature-flagged)
-- `detector_openai.py`: Optional OpenAI-enhanced detection with pre-redaction privacy
-- `credit_utils.py`: Credit system utilities (trial, page counting, reserve/charge/release)
-- `legal_filters.py`: Anti-over-anonymization with legal whitelist
-- `final_auditor.py`: Final audit with auto-fix for leaked PII (21+ categories)
-- `processor_docx.py`: Run-aware DOCX replacement with hard-redaction fallback
-- `test_final_auditor.py`: 61 unit tests for PII detection
-- `train_ner.py`: Script to train the local NER model from `training_data/train.jsonl`
-- `smoke_test_local_ner.py`: Quick test for the local NER detector
-
-### Local NER Model (Optional)
-The system supports an optional locally-trained spaCy NER model for improved entity detection.
-
-**Training:**
-```bash
-# Add training data to training_data/train.jsonl (JSONL format)
-# Each line: {"text": "...", "entities": [[start, end, "LABEL"], ...]}
-python train_ner.py
-```
-
-**Activating:**
-```bash
-USE_LOCAL_NER=1
-LOCAL_NER_MODEL_PATH=models/ner_v1  # default
-```
-
-**Deactivating (no code changes needed):**
-```bash
-USE_LOCAL_NER=0  # or simply unset the variable
-```
-
-**Testing:**
-```bash
-USE_LOCAL_NER=1 python smoke_test_local_ner.py
-```
-
-**Important:** Training data must NOT come from user-uploaded documents. Use only manually curated, synthetic, or public legal text examples.
-
-## Auth Security Hardening
-
-### 2FA
-- **Disabled permanently** via `app.config["ENABLE_2FA"] = False` (env var `ENABLE_2FA=1` to re-enable)
-- `/verificar_2fa` route kept alive but always redirects to `/login` — no broken links
-
-### Password Policy (registro + reset_password)
-- Minimum 10 characters
-- At least 1 uppercase, 1 lowercase, 1 digit, 1 symbol
-- Blocks common passwords (password, 123456, qwerty, admin, etc.)
-- Function: `validate_password_strength(password)` → `(ok: bool, msg: str)`
-
-### Login Rate Limiting (anti brute-force, no external libs)
-- Model: `LoginAttempt` (table `login_attempts`) — covers both attempts and events
-- Rule: ≥5 failed attempts in 15 min from same email+IP or IP alone → HTTP 429 flash + logged as `reason="rate_limited"`
-- Configurable: `LOGIN_MAX_ATTEMPTS` (default 5), `LOGIN_LOCKOUT_MINUTES` (default 15)
-- Remaining attempts shown on each failed login
-
-### Login Event Logging
-- Every login attempt (success + failure) recorded: email, ip, user_agent, success, reason, ip_unusual, created_at
-- Helper: `_record_login_attempt(email, ip, ua, success, reason, ip_unusual)`
-
-### IP Unusual Detection
-- On successful login, compares current IP vs last 5 successful IPs for that email
-- If IP is new and user has history → sets `ip_unusual=True` + flash warning banner
-- Uses Resend mailer if available (existing integration)
-
-### Security UI
-- `/account/security` — protected route showing last 10 logins with IP, result, reason, device
-- Header of anonymizer has "Seguridad" link → `/account/security`
-- Login page shows remaining attempts + lockout message via flash
-
-### New DB Model
-| Model | Table | Purpose |
-|-------|-------|---------|
-| `LoginAttempt` | `login_attempts` | Rate limiting + audit log for all login events |
-
-### Environment Variables
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_2FA` | `0` | Enable 2FA system (0=off, 1=on) |
-| `LOGIN_MAX_ATTEMPTS` | `5` | Failed attempts before lockout |
-| `LOGIN_LOCKOUT_MINUTES` | `15` | Lockout window in minutes |
-
-## Original Platform Overview
-This project is a multi-tenant SaaS web platform built with Flask, designed for Conciliation Centers. It enables multiple centers to register, each operating with isolated data, including templates, users, documents, and styles. Each tenant benefits from customizable branding (logo, contact information) and the system supports three distinct user roles, along with a subscription-based plan system (Basic, Medium, Advanced) that gates access to features like user count, document limits, and AI argumentation. The platform aims to streamline document generation, improve legal argumentation with AI, and provide a comprehensive management system for conciliation processes.
+The multi-tenant SaaS component, accessible via `/dashboard-app`, provides tools for Conciliation Centers, including dynamic document generation, AI-powered legal argumentation, and comprehensive management features. It supports customizable branding, role-based access control, and subscription-based feature gating. The overall vision is to streamline legal document processing and enhance legal argumentation through advanced AI capabilities, targeting legal professionals and conciliation centers.
 
 ## User Preferences
 I prefer detailed explanations and an iterative development approach. I expect the agent to ask before making major changes and to provide clear reasoning for its suggestions. I want the agent to prioritize secure, multi-tenant architectural solutions.
@@ -159,37 +11,29 @@ I prefer detailed explanations and an iterative development approach. I expect t
 ## System Architecture
 
 ### UI/UX Decisions
-The Legal Anonymizer uses the **APC Jurídica** brand identity with a corporate, serious, professional aesthetic:
-- **Typography**: Inter font family (system-ui fallback)
-- **Color Palette**: 
-  - Background: #F2F2F2 (gray), Cards: #FFFFFF (white)
-  - Header: #0B0B0B (black), Primary action: #B30000 (APC red)
-  - Borders: #E5E5E5, Secondary text: #6F6F6F
-- **Style**: Soft rounded corners (12px), subtle shadows, no gradients/glassmorphism
-- **Components**: White cards on gray background, black header with APC logo
-- **Design file**: See `design_guidelines.md` for complete specifications
-
-The platform (dashboard) uses Tailwind CSS with Roboto font. Each tenant can customize branding (logo, colors).
+The Legal Anonymizer uses the **APC Jurídica** brand identity, featuring a corporate, professional aesthetic with the Inter font family, a color palette centered on `#F2F2F2` (background), `#FFFFFF` (cards), `#0B0B0B` (header), and `#B30000` (primary action). It employs soft rounded corners (12px) and subtle shadows. The dashboard utilizes Tailwind CSS with Roboto font, allowing tenant-specific branding customization.
 
 ### Technical Implementations
-The core application is built with Flask, leveraging Flask-Login for authentication and Flask-SQLAlchemy for ORM. PostgreSQL (hosted on Neon) is used as the primary database. Document generation is handled by `python-docx`, and AI capabilities are powered by the OpenAI API (specifically `gpt-4o`). Gunicorn serves the application.
+The application is built with Flask, utilizing Flask-Login for authentication and Flask-SQLAlchemy for ORM. PostgreSQL (Neon) serves as the primary database. Document generation is handled by `python-docx`. AI capabilities are powered by the OpenAI API (specifically `gpt-4o`), and Gunicorn serves the application.
 
 ### Feature Specifications
-- **Multi-Tenancy:** Data isolation is enforced using `tenant_id` on all primary tables and separate document storage folders.
-- **Role-Based Access Control:** Three roles: `super_admin` (platform owner), `admin_estudio` (center administrator), and `usuario_estudio` (conciliator/collaborator), with specific decorators for access control.
-- **Subscription Management:** Features are gated based on a tenant's subscription plan (Basic, Medium, Advanced), controlling user limits, document generation, and access to AI argumentation.
-- **Audit Logging:** Comprehensive logging of significant events per tenant, including user actions and plan changes.
-- **Dynamic Document Generation:** Users can select templates, fill dynamic fields, and generate professional `.docx` documents with tenant-specific branding (logo, contact info, styles).
-- **AI Argumentation Module:** An asynchronous system using a background worker for enhancing legal documents. It allows specific sections (Facts, Grounds, Petition) to be improved, detects user intent (explanation vs. modification), and formats output with tenant-specific styles.
-- **Legal AI Agent (APC IA):** An intelligent agent built with OpenAI function calling, offering a ChatGPT-like interface for legal professionals. It can execute specialized tools for case information retrieval, document management, document generation, strategy drafting, task creation, and cost estimation.
+- **Legal Anonymizer**: Detects and redacts 21+ categories of PII, outputting anonymized documents and reports. Features a triple-layer zero-leak guarantee with an 8-stage detection pipeline and optional local/OpenAI NER enhancement. Monetized via a page-based credit system.
+- **Multi-Tenancy**: Enforced data isolation per tenant using `tenant_id` across all primary tables and separate document storage.
+- **Role-Based Access Control**: `super_admin`, `admin_estudio`, and `usuario_estudio` roles with specific access decorators.
+- **Subscription Management**: Features gated by tenant subscription plans (Basic, Medium, Advanced).
+- **Audit Logging**: Comprehensive logging of significant events per tenant.
+- **Dynamic Document Generation**: Allows users to select templates, fill dynamic fields, and generate `.docx` documents with tenant-specific branding.
+- **AI Argumentation Module**: Asynchronous background worker system for enhancing legal document sections (Facts, Grounds, Petition) with AI, detecting user intent and formatting output.
+- **Legal AI Agent (APC IA)**: An intelligent agent using OpenAI function calling for legal professionals, offering tools for case information retrieval, document management, generation, strategy drafting, task creation, and cost estimation.
+- **Auth Security Hardening**: Includes robust password policies (min. 10 chars, complexity requirements), login rate limiting (anti-brute-force), login event logging, and unusual IP detection.
 
 ### System Design Choices
-- **Database Schema:** A normalized PostgreSQL database schema includes tables for `tenants`, `audit_logs`, `tipos_acta` (document types), `users`, `document_records`, `plantillas` (templates), `estilos` (styles), `campos_plantilla` (template fields), and `estilos_documento` (document styling preferences), all designed with `tenant_id` for isolation.
-- **Asynchronous Processing:** The AI Argumentation module utilizes background workers to handle long-running tasks, preventing UI timeouts and ensuring a smooth user experience.
-- **Security:** All data access is filtered by `tenant_id` and `user_id` to ensure strict multi-tenant and user-level isolation. Two-factor authentication (2FA) is supported for enhanced user security.
+- **Database Schema**: Normalized PostgreSQL schema with `tenant_id` for isolation across tables like `tenants`, `users`, `document_records`, `plantillas`, etc.
+- **Asynchronous Processing**: Background workers handle long-running tasks for AI argumentation.
+- **Security**: Strict data access filtering by `tenant_id` and `user_id` ensures multi-tenant and user-level isolation. Two-factor authentication (2FA) is supported.
 
 ## External Dependencies
-- **PostgreSQL:** For database management (hosted on Neon).
-- **OpenAI API:** For AI functionalities, including document argumentation and the APC IA agent (using `gpt-4o`).
-- **Gunicorn:** As the WSGI HTTP Server.
-- **python-docx:** For programmatic creation and modification of Word documents.
+- **PostgreSQL**: Hosted on Neon for database management.
+- **OpenAI API**: Used for AI functionalities, including document argumentation and the APC IA agent (`gpt-4o`).
+- **Gunicorn**: Serves as the WSGI HTTP Server.
+- **python-docx**: Used for programmatic creation and modification of Word documents.

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canjear Recompensa — APC Jurídica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: #fff; border-radius: 16px; padding: 40px; max-width: 420px; width: 90%; box-shadow: 0 4px 16px rgba(0,0,0,.08); text-align: center; }
+    .logo { font-size: 1rem; font-weight: 700; color: #B30000; margin-bottom: 24px; display: block; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: #6F6F6F; font-size: .9rem; margin-bottom: 28px; }
+    .status-box { border-radius: 10px; padding: 16px; margin-bottom: 24px; font-size: .9rem; }
+    .status-success { background: #D1FAE5; color: #065F46; border: 1px solid #6EE7B7; }
+    .status-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .balance { font-size: 2rem; font-weight: 700; color: #0B0B0B; }
+    .balance-label { font-size: .85rem; color: #6F6F6F; margin-top: 4px; }
+    .btn { display: inline-block; margin-top: 20px; background: #B30000; color: #fff; text-decoration: none; padding: 11px 24px; border-radius: 8px; font-size: .9rem; font-weight: 600; }
+    .btn:hover { background: #990000; }
+    .loading { display: none; }
+    .spinner { border: 3px solid #F2F2F2; border-top-color: #B30000; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="card">
+  <span class="logo">APC Jurídica</span>
+  <h1>Canjear recompensa</h1>
+  <p class="subtitle">Estás a punto de recibir páginas de crédito por completar una lección.</p>
+
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <p style="color:#6F6F6F;">Procesando...</p>
+  </div>
+
+  <div id="result"></div>
+
+  <a href="/account" class="btn">Ir a mi cuenta</a>
+</div>
+
+<script>
+  const token = {{ token | tojson }};
+
+  async function redeemToken() {
+    if (!token) {
+      document.getElementById('result').innerHTML = '<div class="status-box status-error">Token no proporcionado. Verifica el enlace.</div>';
+      return;
+    }
+    document.getElementById('loading').style.display = 'block';
+    try {
+      const resp = await fetch('/api/rewards/redeem', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token})
+      });
+      const data = await resp.json();
+      document.getElementById('loading').style.display = 'none';
+      if (resp.ok) {
+        document.getElementById('result').innerHTML = `
+          <div class="status-box status-success">
+            <div class="balance">+${data.credited_amount}</div>
+            <div class="balance-label">páginas añadidas a tu cuenta</div>
+            <div style="margin-top:12px;font-size:.85rem;">Nuevo saldo: <strong>${data.new_balance} páginas</strong></div>
+          </div>`;
+      } else {
+        const msgs = {
+          token_invalid: 'Token inválido o no encontrado.',
+          token_already_used: 'Este token ya fue canjeado anteriormente.',
+          token_expired: 'El token expiró. Contacta a soporte.',
+          rate_limited: 'Demasiados intentos. Espera un momento.',
+        };
+        const msg = msgs[data.error] || data.detail || 'Error al procesar el canje.';
+        document.getElementById('result').innerHTML = `<div class="status-box status-error">${msg}</div>`;
+      }
+    } catch(e) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('result').innerHTML = '<div class="status-box status-error">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+
+  redeemToken();
+</script>
+</body>
+</html>

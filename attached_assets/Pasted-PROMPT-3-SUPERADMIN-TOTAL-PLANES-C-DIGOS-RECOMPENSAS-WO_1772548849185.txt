@@ -1,0 +1,261 @@
+PROMPT 3 — SUPERADMIN TOTAL + PLANES + CÓDIGOS + RECOMPENSAS WORDPRESS (IMPLEMENTACIÓN SEGURA)
+
+ROL:
+Eres un Senior Backend Engineer + Security Engineer.
+Trabaja sobre la app existente. NO reescribas la arquitectura.
+Detecta automáticamente si es Flask/FastAPI/Express y usa el ORM existente.
+
+---------------------------------------------------------
+IDENTIDAD SUPERADMIN
+---------------------------------------------------------
+
+Email absoluto:
+marcelo.martel.orellano@gmail.com
+
+Regla:
+Ese email SIEMPRE debe tener role="super_admin".
+Superadmin no tiene límites en anonimizador ni consumo de créditos.
+
+---------------------------------------------------------
+PARTE A — SUPERADMIN AVANZADO
+---------------------------------------------------------
+
+1) Decorador superadmin_required
+- current_user.is_authenticated
+- role == "super_admin"
+- abort(403) si falla
+- loggear intento
+
+2) Superadmin sin límites
+En cualquier control de:
+- pages_limit
+- credits_balance
+- plan restrictions
+
+Agregar:
+
+if current_user.role == "super_admin":
+    permitir acceso ilimitado
+    no descontar créditos
+
+3) Gestión de Planes
+Permitir:
+- Crear planes
+- Editar planes
+- Eliminar (soft delete)
+- Cambiar precio
+- Cambiar pages_limit
+- Cambiar features
+- Activar/Desactivar
+
+Rutas:
+GET /superadmin/plans
+POST /superadmin/plans/create
+POST /superadmin/plans/<id>/edit
+POST /superadmin/plans/<id>/delete
+
+4) Gestión de Usuarios
+Permitir:
+- Crear usuarios
+- Asignar plan
+- Asignar override_pages_limit
+- Asignar unlimited_access
+- Ver créditos
+
+---------------------------------------------------------
+PARTE B — CÓDIGOS MANUALES DE CRÉDITO
+---------------------------------------------------------
+
+Modelo CreditCode:
+- id
+- code (string unique)
+- credit_amount
+- max_uses
+- uses_count
+- expires_at
+- is_active
+- created_by
+- created_at
+
+Modelo CreditRedemption:
+- id
+- user_id
+- credit_code_id
+- redeemed_at
+- ip
+- user_agent
+
+Validaciones:
+- no expirado
+- no excede max_uses
+- no usado previamente por mismo usuario
+
+Ruta:
+POST /redeem-code
+
+---------------------------------------------------------
+PARTE C — RECOMPENSAS AUTOMÁTICAS WORDPRESS
+---------------------------------------------------------
+
+OBJETIVO:
+Cuando WordPress (Tutor LMS) detecte clase completada,
+llamará a backend para emitir token único de crédito.
+
+---------------------------------------------------------
+SEGURIDAD
+---------------------------------------------------------
+
+Variables de entorno:
+
+REWARD_API_KEY
+PUBLIC_APP_URL
+
+Validar header:
+Authorization: Bearer <REWARD_API_KEY>
+
+---------------------------------------------------------
+MODELO reward_tokens
+---------------------------------------------------------
+
+Tabla reward_tokens:
+
+- id
+- user_id (FK)
+- external_user_key (email)
+- lesson_id (string)
+- credit_amount (int)
+- token_hash (string unique)
+- status (issued/used/expired)
+- issued_at
+- expires_at
+- used_at
+- issued_ip
+- used_ip
+
+UNIQUE(user_id, lesson_id)
+
+No guardar token en texto plano.
+Guardar SHA256(token).
+
+---------------------------------------------------------
+ENDPOINT 1 — EMITIR TOKEN
+---------------------------------------------------------
+
+POST /api/rewards/issue
+
+Headers:
+Authorization: Bearer <REWARD_API_KEY>
+
+Body:
+{
+  "external_user_key": "email@cliente.com",
+  "lesson_id": "clase-01",
+  "credit_amount": 50
+}
+
+Reglas:
+
+1) validar API key
+2) validar payload
+3) buscar usuario por email
+   - si no existe: devolver error user_not_found (más seguro)
+4) idempotencia:
+   si ya existe reward para (user_id, lesson_id):
+       devolver mismo redeem_url
+5) si no existe:
+   - generar token random seguro
+   - hash SHA256
+   - expires_at = ahora + 30 minutos
+   - guardar con status=issued
+6) responder:
+
+{
+  "redeem_url": "<PUBLIC_APP_URL>/redeem?token=<TOKEN>",
+  "token": "<TOKEN>",
+  "expires_at": "<ISO8601>"
+}
+
+---------------------------------------------------------
+ENDPOINT 2 — CANJEAR TOKEN
+---------------------------------------------------------
+
+POST /api/rewards/redeem
+
+Body:
+{ "token": "<TOKEN>" }
+
+Proceso:
+
+1) hash(token)
+2) buscar reward por token_hash
+3) validar:
+   - existe
+   - status == issued
+   - no expirado
+4) usar transacción atómica:
+   - marcar status="used"
+   - set used_at
+   - sumar credit_amount al usuario
+   - commit
+5) responder:
+
+{
+  "credited_amount": X,
+  "new_balance": Y
+}
+
+---------------------------------------------------------
+ENDPOINT 3 — PÁGINA REDEEM
+---------------------------------------------------------
+
+GET /redeem?token=...
+
+Si no existe frontend SPA:
+Servir HTML simple que:
+- lee token
+- llama POST /api/rewards/redeem
+- muestra éxito/error
+- muestra nuevo balance
+
+---------------------------------------------------------
+PROTECCIONES EXTRA
+---------------------------------------------------------
+
+- Rate limit /api/rewards/redeem (5 por minuto por IP)
+- Loggear emisión y canje
+- No romper planes existentes
+- El canje SOLO suma créditos
+- No cambia plan
+- Superadmin ignora créditos
+
+---------------------------------------------------------
+ENTREGA OBLIGATORIA
+---------------------------------------------------------
+
+1) Lista de archivos modificados
+2) Modelos creados
+3) Migración/SQL creado
+4) Endpoints creados
+5) Ejemplos curl:
+
+Ejemplo issue:
+
+curl -X POST https://TU_DOMINIO/api/rewards/issue \
+-H "Authorization: Bearer REWARD_API_KEY" \
+-H "Content-Type: application/json" \
+-d '{
+  "external_user_key": "user@email.com",
+  "lesson_id": "clase-01",
+  "credit_amount": 50
+}'
+
+Ejemplo redeem:
+
+curl -X POST https://TU_DOMINIO/api/rewards/redeem \
+-H "Content-Type: application/json" \
+-d '{"token":"TOKEN_AQUI"}'
+
+6) Documentar en README:
+- cómo configurar env vars
+- cómo integrar WordPress
+- cómo usar Tutor LMS hook

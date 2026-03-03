@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Códigos — Superadmin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+    header { background: #0B0B0B; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; }
+    header nav { display: flex; align-items: center; gap: 20px; }
+    header a { color: rgba(255,255,255,.65); text-decoration: none; font-size: .85rem; }
+    header a:hover, header a.active { color: #fff; }
+    main { max-width: 1000px; margin: 32px auto; padding: 0 16px 60px; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 20px; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #E5E5E5; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: 24px; }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    label { font-size: .8rem; color: #6F6F6F; font-weight: 500; }
+    input[type=text], input[type=number] { padding: 8px 12px; border: 1px solid #E5E5E5; border-radius: 8px; font-size: .875rem; }
+    .btn { background: #B30000; color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-size: .875rem; font-weight: 600; cursor: pointer; }
+    .btn:hover { background: #990000; }
+    .btn-ghost { background: transparent; color: #6F6F6F; border: 1px solid #E5E5E5; padding: 5px 12px; border-radius: 6px; font-size: .8rem; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: #6F6F6F; font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #E5E5E5; }
+    td { padding: 9px 12px; border-bottom: 1px solid #F2F2F2; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-on { background: #D1FAE5; color: #065F46; }
+    .badge-off { background: #FEE2E2; color: #991B1B; }
+    .code-mono { font-family: monospace; font-size: .9rem; font-weight: 700; letter-spacing: 1px; color: #0B0B0B; }
+    .flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: .875rem; }
+    .flash-success { background: #D1FAE5; color: #065F46; border: 1px solid #6EE7B7; }
+    .flash-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/super_admin" class="logo">APC · Superadmin</a>
+  <nav>
+    <a href="/super_admin">Dashboard</a>
+    <a href="/super_admin/planes">Planes</a>
+    <a href="/superadmin/users">Usuarios</a>
+    <a href="/superadmin/codes" class="active">Códigos</a>
+    <a href="/logout">Salir</a>
+  </nav>
+</header>
+<main>
+  <h1><i class="fas fa-ticket-alt" style="color:#B30000;margin-right:8px;"></i>Códigos de Crédito</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="card">
+    <h2>Crear nuevo código</h2>
+    <form method="POST" action="/superadmin/codes/create">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Código (dejar vacío = auto)</label>
+          <input type="text" name="code" placeholder="ABC123XY" style="text-transform:uppercase;width:160px;">
+        </div>
+        <div class="form-group">
+          <label>Páginas a otorgar</label>
+          <input type="number" name="credit_amount" value="50" min="1" style="width:100px;">
+        </div>
+        <div class="form-group">
+          <label>Usos máximos</label>
+          <input type="number" name="max_uses" value="1" min="1" style="width:80px;">
+        </div>
+        <div class="form-group">
+          <label>Vence en (días, opcional)</label>
+          <input type="number" name="expires_days" placeholder="30" min="1" style="width:100px;">
+        </div>
+        <div class="form-group" style="justify-content:flex-end;">
+          <button type="submit" class="btn">Crear código</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Códigos existentes</h2>
+    {% if codes %}
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Páginas</th>
+          <th>Usos</th>
+          <th>Máx. usos</th>
+          <th>Vence</th>
+          <th>Estado</th>
+          <th>Creado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in codes %}
+        <tr>
+          <td><span class="code-mono">{{ c.code }}</span></td>
+          <td>{{ c.credit_amount }}</td>
+          <td>{{ c.uses_count }}</td>
+          <td>{{ c.max_uses }}</td>
+          <td style="color:#6F6F6F;font-size:.8rem;">{{ c.expires_at.strftime('%d/%m/%Y') if c.expires_at else '—' }}</td>
+          <td>
+            {% if c.is_active and (not c.expires_at or c.expires_at > now) and c.uses_count < c.max_uses %}
+              <span class="badge badge-on">Activo</span>
+            {% else %}
+              <span class="badge badge-off">Inactivo</span>
+            {% endif %}
+          </td>
+          <td style="color:#9CA3AF;font-size:.8rem;">{{ c.created_at.strftime('%d/%m/%Y') if c.created_at else '—' }}</td>
+          <td>
+            <form method="POST" action="/superadmin/codes/{{ c.id }}/toggle" style="display:inline;">
+              <button type="submit" class="btn-ghost">
+                {{ 'Desactivar' if c.is_active else 'Activar' }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:#9CA3AF;text-align:center;padding:24px;">Sin códigos aún. Crea el primero arriba.</p>
+    {% endif %}
+  </div>
+</main>
+<script>
+  const now = new Date();
+</script>
+</body>
+</html>

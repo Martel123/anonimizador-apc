@@ -12,8 +12,11 @@ import logging
 import tempfile
 import traceback
 import zipfile
+import hashlib
+import secrets
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
 from flask import Blueprint, render_template, request, send_file, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -1311,5 +1314,180 @@ def anonymizer_plans():
         culqi_public_key=culqi_public_key,
         user_email=getattr(current_user, 'email', '') or '',
     )
+
+
+@anonymizer_bp.route("/redeem-code", methods=["POST"])
+@login_required
+def redeem_credit_code():
+    """Canjear un código manual de crédito."""
+    from models import db, CreditCode, CreditRedemption, UserCredits, PageUsageLog
+    code_str = request.form.get("code", "").strip().upper()
+    if not code_str:
+        flash("Por favor ingresa un código.", "error")
+        return redirect(url_for('anonymizer.account'))
+    code = CreditCode.query.filter_by(code=code_str).first()
+    if not code:
+        flash("Código inválido.", "error")
+        return redirect(url_for('anonymizer.account'))
+    valid, msg = code.is_valid()
+    if not valid:
+        flash(msg, "error")
+        return redirect(url_for('anonymizer.account'))
+    already = CreditRedemption.query.filter_by(
+        user_id=current_user.id, credit_code_id=code.id
+    ).first()
+    if already:
+        flash("Ya canjeaste este código anteriormente.", "error")
+        return redirect(url_for('anonymizer.account'))
+    redemption = CreditRedemption(
+        user_id=current_user.id,
+        credit_code_id=code.id,
+        ip=request.remote_addr,
+        user_agent=(request.headers.get('User-Agent', '') or '')[:500],
+    )
+    code.uses_count += 1
+    credits = get_or_create_credits(current_user.id)
+    credits.pages_balance += code.credit_amount
+    log_entry = PageUsageLog(
+        user_id=current_user.id,
+        job_id=f"code_{code.code}",
+        stage="code_redeem",
+        pages=code.credit_amount,
+        action="credited",
+        detail=f"Código {code.code}: +{code.credit_amount} páginas",
+    )
+    db.session.add(redemption)
+    db.session.add(log_entry)
+    db.session.commit()
+    logger.info(f"CODE_REDEEMED | user={current_user.id} | code={code.code} | pages={code.credit_amount}")
+    flash(f"¡Código canjeado! +{code.credit_amount} páginas agregadas a tu cuenta.", "success")
+    return redirect(url_for('anonymizer.account'))
+
+
+_reward_rate_limits = defaultdict(list)
+
+def _check_reward_rate_limit(ip, limit=5, window_secs=60):
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=window_secs)
+    _reward_rate_limits[ip] = [t for t in _reward_rate_limits[ip] if t > cutoff]
+    if len(_reward_rate_limits[ip]) >= limit:
+        return False
+    _reward_rate_limits[ip].append(now)
+    return True
+
+
+def _hash_token(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@anonymizer_bp.route("/api/rewards/issue", methods=["POST"])
+def rewards_issue():
+    """Emitir token de recompensa para WordPress/Tutor LMS."""
+    from models import db, User, RewardToken, UserCredits
+    reward_api_key = os.environ.get("REWARD_API_KEY", "")
+    if not reward_api_key:
+        return jsonify({"error": "rewards_not_configured"}), 503
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != reward_api_key:
+        logger.warning(f"REWARD_ISSUE_UNAUTH | ip={request.remote_addr}")
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    external_key = (data.get("external_user_key") or "").strip().lower()
+    lesson_id = (data.get("lesson_id") or "").strip()
+    credit_amount = data.get("credit_amount")
+    if not external_key or not lesson_id or not isinstance(credit_amount, int) or credit_amount <= 0:
+        return jsonify({"error": "invalid_payload", "detail": "external_user_key, lesson_id y credit_amount (int>0) son requeridos"}), 400
+    user = User.query.filter_by(email=external_key, activo=True).first()
+    if not user:
+        return jsonify({"error": "user_not_found"}), 404
+    existing = RewardToken.query.filter_by(user_id=user.id, lesson_id=lesson_id).first()
+    public_app_url = os.environ.get("PUBLIC_APP_URL", request.host_url.rstrip("/"))
+    if existing:
+        raw_token = None
+        if existing.status == 'issued' and datetime.utcnow() < existing.expires_at:
+            raw_note = "(token existente, no se puede revelar el texto plano)"
+            redeem_url = f"{public_app_url}/redeem?lesson={lesson_id}&user={user.id}"
+        else:
+            raw_note = "(token ya usado o expirado)"
+            redeem_url = f"{public_app_url}/redeem"
+        return jsonify({
+            "status": existing.status,
+            "note": raw_note,
+            "redeem_url": redeem_url,
+            "expires_at": existing.expires_at.isoformat() + "Z",
+        }), 200
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(raw_token)
+    expires_at = datetime.utcnow() + timedelta(minutes=30)
+    reward = RewardToken(
+        user_id=user.id,
+        external_user_key=external_key,
+        lesson_id=lesson_id,
+        credit_amount=credit_amount,
+        token_hash=token_hash,
+        status='issued',
+        expires_at=expires_at,
+        issued_ip=request.remote_addr,
+    )
+    db.session.add(reward)
+    db.session.commit()
+    redeem_url = f"{public_app_url}/redeem?token={raw_token}"
+    logger.info(f"REWARD_ISSUED | user={user.id} | lesson={lesson_id} | pages={credit_amount}")
+    return jsonify({
+        "redeem_url": redeem_url,
+        "token": raw_token,
+        "expires_at": expires_at.isoformat() + "Z",
+    }), 200
+
+
+@anonymizer_bp.route("/api/rewards/redeem", methods=["POST"])
+def rewards_redeem():
+    """Canjear un token de recompensa."""
+    from models import db, RewardToken, UserCredits, PageUsageLog
+    ip = request.remote_addr or "unknown"
+    if not _check_reward_rate_limit(ip):
+        logger.warning(f"REWARD_REDEEM_RATELIMIT | ip={ip}")
+        return jsonify({"error": "rate_limited", "detail": "Máximo 5 intentos por minuto"}), 429
+    data = request.get_json(silent=True) or {}
+    raw_token = (data.get("token") or "").strip()
+    if not raw_token:
+        return jsonify({"error": "token_required"}), 400
+    token_hash = _hash_token(raw_token)
+    reward = RewardToken.query.filter_by(token_hash=token_hash).first()
+    if not reward:
+        return jsonify({"error": "token_invalid"}), 404
+    if reward.status != 'issued':
+        return jsonify({"error": "token_already_used", "status": reward.status}), 409
+    if datetime.utcnow() > reward.expires_at:
+        reward.status = 'expired'
+        db.session.commit()
+        return jsonify({"error": "token_expired"}), 410
+    credits = get_or_create_credits(reward.user_id)
+    credits.pages_balance += reward.credit_amount
+    reward.status = 'used'
+    reward.used_at = datetime.utcnow()
+    reward.used_ip = ip
+    log_entry = PageUsageLog(
+        user_id=reward.user_id,
+        job_id=f"reward_{reward.id}",
+        stage="reward_redeem",
+        pages=reward.credit_amount,
+        action="credited",
+        detail=f"Recompensa lección {reward.lesson_id}: +{reward.credit_amount} páginas",
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    logger.info(f"REWARD_REDEEMED | user={reward.user_id} | lesson={reward.lesson_id} | pages={reward.credit_amount}")
+    return jsonify({
+        "credited_amount": reward.credit_amount,
+        "new_balance": credits.pages_balance,
+    }), 200
+
+
+@anonymizer_bp.route("/redeem")
+def redeem_page():
+    """Página HTML simple para canjear tokens de recompensa de WordPress."""
+    token = request.args.get("token", "")
+    return render_template("redeem_reward.html", token=token)
 
 

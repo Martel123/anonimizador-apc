@@ -114,6 +114,9 @@ class User(UserMixin, db.Model):
     password_set = db.Column(db.Boolean, default=True)
     first_login_completed = db.Column(db.Boolean, default=True)
     onboarding_completed = db.Column(db.Boolean, default=True)
+
+    unlimited_access = db.Column(db.Boolean, default=False)
+    override_pages_limit = db.Column(db.Integer, nullable=True)
     
     documents = db.relationship('DocumentRecord', backref='user', lazy='dynamic')
     
@@ -2084,3 +2087,73 @@ class LoginAttempt(db.Model):
             if len(ips) >= limit:
                 break
         return ips
+
+
+class CreditCode(db.Model):
+    """Códigos manuales de crédito creados por superadmin."""
+    __tablename__ = 'credit_codes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    credit_amount = db.Column(db.Integer, nullable=False)
+    max_uses = db.Column(db.Integer, default=1, nullable=False)
+    uses_count = db.Column(db.Integer, default=0, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    redemptions = db.relationship('CreditRedemption', back_populates='credit_code', lazy='dynamic')
+
+    def is_valid(self):
+        if not self.is_active:
+            return False, "Código desactivado."
+        if self.uses_count >= self.max_uses:
+            return False, "Código agotado."
+        if self.expires_at and datetime.utcnow() > self.expires_at:
+            return False, "Código expirado."
+        return True, ""
+
+
+class CreditRedemption(db.Model):
+    """Registro de canjes de códigos de crédito."""
+    __tablename__ = 'credit_redemptions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    credit_code_id = db.Column(db.Integer, db.ForeignKey('credit_codes.id'), nullable=False)
+    redeemed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ip = db.Column(db.String(64))
+    user_agent = db.Column(db.String(500))
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    credit_code = db.relationship('CreditCode', back_populates='redemptions')
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'credit_code_id', name='uq_user_credit_code'),
+    )
+
+
+class RewardToken(db.Model):
+    """Tokens de recompensa emitidos por WordPress/Tutor LMS."""
+    __tablename__ = 'reward_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    external_user_key = db.Column(db.String(255), nullable=False)
+    lesson_id = db.Column(db.String(255), nullable=False)
+    credit_amount = db.Column(db.Integer, nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    status = db.Column(db.String(20), default='issued', nullable=False)
+    issued_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
+    issued_ip = db.Column(db.String(64))
+    used_ip = db.Column(db.String(64))
+
+    user = db.relationship('User', foreign_keys=[user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'lesson_id', name='uq_user_lesson'),
+    )

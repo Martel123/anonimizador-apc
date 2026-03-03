@@ -105,8 +105,20 @@ def _count_pages_txt(file_path):
         return 1
 
 
+def is_unlimited_user(user_id):
+    """Retorna True si el usuario es super_admin o tiene unlimited_access."""
+    from models import User
+    user = User.query.get(user_id)
+    if not user:
+        return False
+    return user.role == 'super_admin' or bool(getattr(user, 'unlimited_access', False))
+
+
 def check_and_reserve_pages(user_id, job_id, pages_needed):
     from models import db, PageReservation, PageUsageLog
+    if is_unlimited_user(user_id):
+        logger.info(f"RESERVE_UNLIMITED | user={user_id} | job={job_id} | pages={pages_needed}")
+        return True, pages_needed
     existing = PageReservation.query.filter_by(job_id=job_id).first()
     if existing:
         if existing.status == 'reserved' and existing.user_id == user_id:
