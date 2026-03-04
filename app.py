@@ -69,9 +69,19 @@ _db_url = (
 )
 if _db_url and _db_url.startswith("postgres://"):
     _db_url = _db_url.replace("postgres://", "postgresql://", 1)
-if not _db_url:
-    import logging as _log
-    _log.error("DATABASE_URL missing in environment — database will not be available")
+if _db_url:
+    _db_source = (
+        "SQLALCHEMY_DATABASE_URI" if os.environ.get("SQLALCHEMY_DATABASE_URI")
+        else "DATABASE_URL" if os.environ.get("DATABASE_URL")
+        else "RENDER_DATABASE_URL"
+    )
+    _db_masked = _db_url.split("@")[-1] if "@" in _db_url else "***"
+    logging.info("DB_CONFIG | source=%s host=%s", _db_source, _db_masked)
+else:
+    logging.critical(
+        "DB_CONFIG | MISSING — set DATABASE_URL or SQLALCHEMY_DATABASE_URI in Render env. "
+        "Login and all DB operations will fail."
+    )
 app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
@@ -9404,15 +9414,18 @@ def init_app_once():
         os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
         os.makedirs(CARPETA_REVISIONES, exist_ok=True)
         os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
-        if os.environ.get("DATABASE_URL"):
+        if app.config.get("SQLALCHEMY_DATABASE_URI"):
             with app.app_context():
                 db.create_all()
-                logging.info("Database tables created successfully")
+                logging.info("DB_INIT | tables created successfully")
                 _run_schema_migrations()
                 _seed_anonymizer_packages()
                 _ensure_superadmin_role()
         else:
-            logging.warning("DATABASE_URL not set - skipping database initialization")
+            logging.critical(
+                "DB_INIT | SKIPPED — no database URL configured. "
+                "Set DATABASE_URL or SQLALCHEMY_DATABASE_URI in Render env vars."
+            )
     except Exception as e:
         logging.exception("INIT_ERROR: %s", e)
 

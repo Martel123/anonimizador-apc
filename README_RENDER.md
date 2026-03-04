@@ -42,12 +42,16 @@ anonymizer_robust.py    # Orquestador robusto
 | Variable | Descripción | Requerida |
 |----------|-------------|-----------|
 | `SESSION_SECRET` | Clave secreta para sesiones Flask | Sí |
-| `DATABASE_URL` | URL PostgreSQL: `postgresql://user:pass@host:port/db` | Sí |
+| `DATABASE_URL` | URL PostgreSQL interna de Render (misma región, sin latencia extra) | Sí* |
+| `SQLALCHEMY_DATABASE_URI` | Alternativa a `DATABASE_URL`. Se acepta cualquiera de las dos. | Sí* |
 | `OPENAI_API_KEY` | Clave OpenAI para funciones de IA | Sí |
 | `REWARD_API_KEY` | Clave Bearer para `/api/rewards/issue` | Sí |
 | `PUBLIC_APP_URL` | URL pública de la app (ej: https://miapp.onrender.com) | Sí |
 
-> **Nota**: Si la URL de la base de datos comienza con `postgres://`, el código la convierte automáticamente a `postgresql://` (requerido por SQLAlchemy).
+> **\* Base de datos**: configura **una** de las dos variables (`DATABASE_URL` o `SQLALCHEMY_DATABASE_URI`).
+> Se recomienda usar la **Internal Database URL** de Render (misma región) para menor latencia.
+> Si la URL empieza con `postgres://`, el código la convierte automáticamente a `postgresql://`.
+> Si ninguna variable está presente, la app arranca pero `/login` y todas las rutas con DB fallarán.
 
 ## Características
 

@@ -1,0 +1,45 @@
+OBJETIVO: Arreglar definitivamente el error de Render “DATABASE_URL not set / SQLALCHEMY_DATABASE_URI missing” que causa 500 en /login. Debe quedar imposible de volver a romper por mismatch de env vars.
+
+REGLAS:
+- NO tocar rutas existentes ni templates.
+- NO cambiar lógica de anonimizador.
+- Solo cambios de configuración/arranque y DB env handling.
+- Todo backward-compatible.
+- Dejar logs claros en startup indicando qué variable DB se usó (sin imprimir credenciales completas).
+
+CONTEXTO:
+- Render log actual: “WARNING:root:DATABASE_URL not set - skipping database initialization”
+- app.py hoy hace: app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+- En Render muchas veces se configura SQLALCHEMY_DATABASE_URI, no DATABASE_URL.
+- DB está creada en Render y está “Available”.
+
+TAREAS (hacer en paralelo):
+
+1) app.py — robust DB env fallback (FIX PRINCIPAL)
+- Reemplaza la asignación de SQLALCHEMY_DATABASE_URI para que use este orden:
+  a) SQLALCHEMY_DATABASE_URI
+  b) DATABASE_URL
+  c) RENDER_DATABASE_URL
+- Si el valor empieza con "postgres://", convertir a "postgresql://".
+- Si NO hay ninguna variable DB, NO crashees silenciosamente:
+  - Loggea un WARNING MUY CLARO: “DB URL missing: set DATABASE_URL or SQLALCHEMY_DATABASE_URI in Render env”
+  - Y deja la app arrancar SOLO si existe un modo explícito para no usar DB (por ejemplo, ALLOW_NO_DB=true). 
+  - Por defecto en producción debe fallar rápido o dejar error muy claro (elige la opción más segura para esta app que usa login y modelos).
+  - Importante: /health debe seguir siendo rápido y no debe intentar queries.
+
+2) README_RENDER.md — actualizar “Variables de Entorno”
+- Indicar que se acepta SQLALCHEMY_DATABASE_URI o DATABASE_URL.
+- Recomendar usar Internal Database URL en Render (misma región).
+
+3) Verificación
+- Confirmar que Procfile apunta a app:app y que Render usa gunicorn.conf.py si existe.
+- No introducir cambios que afecten blueprint.
+
+ENTREGABLE:
+- Lista exacta de archivos tocados.
+- Diff exacto del bloque DB en app.py.
+- Checklist de pruebas en Render:
+  - GET /health => 200
+  - GET /login => 200 (no 500)
+  - Logs ya NO deben mostrar “DATABASE_URL not set”
+  - Crear usuario / iniciar sesión funciona
