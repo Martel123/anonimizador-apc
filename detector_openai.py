@@ -12,6 +12,7 @@ import logging
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,7 @@ class OpenAIEntity:
     source: str = "openai"
 
 
+@lru_cache(maxsize=1)
 def is_openai_available() -> bool:
     """Verifica si OpenAI está disponible y configurado."""
     if not USE_OPENAI_DETECT:

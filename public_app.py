@@ -17,6 +17,7 @@ import secrets
 from io import BytesIO
 from datetime import datetime, timedelta
 from collections import defaultdict
+from functools import lru_cache
 from flask import Blueprint, render_template, request, send_file, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -44,6 +45,7 @@ ALLOWED_EXTENSIONS = {'doc', 'docx', 'pdf', 'txt'}
 # UTILIDADES
 # ============================================================================
 
+@lru_cache(maxsize=1)
 def check_openai_available():
     """Verifica que OPENAI_API_KEY esté configurada. OBLIGATORIO por negocio."""
     key = os.environ.get("OPENAI_API_KEY", "").strip()
