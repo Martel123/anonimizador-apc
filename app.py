@@ -9390,7 +9390,34 @@ SUPERADMIN_EMAIL = "marcelo.martel.orellano@gmail.com"
 def _ensure_superadmin_role():
     """Garantiza que el email absoluto del superadmin siempre tenga role=super_admin."""
     try:
-        user = User.query.filter_by(email=SUPERADMIN_EMAIL).first()
+        user = User.query.filter_bdef ensure_superadmin_user():
+    from models import User, db
+    from werkzeug.security import generate_password_hash
+    import os
+
+    email = os.environ.get("SUPERADMIN_EMAIL")
+    password = os.environ.get("SUPERADMIN_PASSWORD")
+
+    if not email or not password:
+        return
+
+    user = User.query.filter_by(email=email).first()
+
+    if user:
+        user.role = "superadmin"
+        user.activo = True
+        db.session.commit()
+        return
+
+    admin = User(
+        email=email,
+        role="superadmin",
+        activo=True,
+        password_hash=generate_password_hash(password)
+    )
+
+    db.session.add(admin)
+    db.session.commit()y(email=SUPERADMIN_EMAIL).first()
         if user and user.role != 'super_admin':
             user.role = 'super_admin'
             db.session.commit()
@@ -9412,7 +9439,8 @@ def init_app_once():
         os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
         os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
         os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
-        os.makedirs(CARPETA_REVISIONES, exist_ok=True)
+        os.makedir
+                ensure_superadmin_user()s(CARPETA_REVISIONES, exist_ok=True)
         os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
         if app.config.get("SQLALCHEMY_DATABASE_URI"):
             with app.app_context():
