@@ -9387,37 +9387,11 @@ def _seed_anonymizer_packages():
 
 SUPERADMIN_EMAIL = "marcelo.martel.orellano@gmail.com"
 
+
 def _ensure_superadmin_role():
     """Garantiza que el email absoluto del superadmin siempre tenga role=super_admin."""
     try:
-        user = User.query.filter_bdef ensure_superadmin_user():
-    from models import User, db
-    from werkzeug.security import generate_password_hash
-    import os
-
-    email = os.environ.get("SUPERADMIN_EMAIL")
-    password = os.environ.get("SUPERADMIN_PASSWORD")
-
-    if not email or not password:
-        return
-
-    user = User.query.filter_by(email=email).first()
-
-    if user:
-        user.role = "superadmin"
-        user.activo = True
-        db.session.commit()
-        return
-
-    admin = User(
-        email=email,
-        role="superadmin",
-        activo=True,
-        password_hash=generate_password_hash(password)
-    )
-
-    db.session.add(admin)
-    db.session.commit()y(email=SUPERADMIN_EMAIL).first()
+        user = User.query.filter_by(email=SUPERADMIN_EMAIL).first()
         if user and user.role != 'super_admin':
             user.role = 'super_admin'
             db.session.commit()
@@ -9428,20 +9402,58 @@ def _ensure_superadmin_role():
         logging.warning(f"SUPERADMIN_ENSURE_FAIL: {e}")
 
 
+def ensure_superadmin_user():
+    """Crea o actualiza el superadmin desde SUPERADMIN_EMAIL + SUPERADMIN_PASSWORD. Idempotente."""
+    from werkzeug.security import generate_password_hash
+
+    email = (os.environ.get("SUPERADMIN_EMAIL") or "").strip().lower()
+    password = os.environ.get("SUPERADMIN_PASSWORD") or ""
+    if not email or not password:
+        logging.info("SUPERADMIN_SEED | env vars not set; skipping")
+        return
+
+    try:
+        user = User.query.filter_by(email=email).first()
+        if user:
+            changed = False
+            if getattr(user, "role", None) != "superadmin":
+                user.role = "superadmin"
+                changed = True
+            if getattr(user, "activo", None) is not True:
+                user.activo = True
+                changed = True
+            if changed:
+                db.session.commit()
+                logging.info("SUPERADMIN_SEED | updated role/activo for %s", email)
+            else:
+                logging.info("SUPERADMIN_SEED | already correct for %s", email)
+        else:
+            admin = User(
+                email=email,
+                role="superadmin",
+                activo=True,
+                password_hash=generate_password_hash(password),
+            )
+            db.session.add(admin)
+            db.session.commit()
+            logging.info("SUPERADMIN_SEED | created user %s", email)
+    except Exception as e:
+        db.session.rollback()
+        logging.error("SUPERADMIN_SEED | error: %s", e)
+
+
 def init_app_once():
     """Initialize app directories and database (if configured)."""
     try:
         os.makedirs(CARPETA_MODELOS, exist_ok=True)
         os.makedirs(CARPETA_ESTILOS, exist_ok=True)
         os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
-        os.makedirs        db_url = os.environ.get("DATABASE_URL") or os.environ.get("SQLALCHEMY_DATABASE_URI")
-        if db_url:)
+        os.makedirs(CARPETA_PLANTILLAS_SUBIDAS, exist_ok=True)
         os.makedirs(CARPETA_ESTILOS_SUBIDOS, exist_ok=True)
         os.makedirs(CARPETA_IMAGENES_MODELOS, exist_ok=True)
         os.makedirs(CARPETA_DOCUMENTOS_TERMINADOS, exist_ok=True)
         os.makedirs(CARPETA_ANONIMIZADOS, exist_ok=True)
-        os.makedir
-                ensure_superadmin_user()s(CARPETA_REVISIONES, exist_ok=True)
+        os.makedirs(CARPETA_REVISIONES, exist_ok=True)
         os.makedirs(CARPETA_ARGUMENTACION, exist_ok=True)
         if app.config.get("SQLALCHEMY_DATABASE_URI"):
             with app.app_context():
@@ -9450,6 +9462,7 @@ def init_app_once():
                 _run_schema_migrations()
                 _seed_anonymizer_packages()
                 _ensure_superadmin_role()
+                ensure_superadmin_user()
         else:
             logging.critical(
                 "DB_INIT | SKIPPED — no database URL configured. "

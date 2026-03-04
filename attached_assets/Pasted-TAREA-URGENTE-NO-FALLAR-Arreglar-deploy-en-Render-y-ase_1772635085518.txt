@@ -1,0 +1,94 @@
+TAREA URGENTE (NO FALLAR): Arreglar deploy en Render y asegurar creación de SUPERADMIN por ENV VARS.
+
+CONTEXTO:
+- Render está fallando con: SyntaxError: unmatched ')' en app.py línea ~9438.
+- En logs se ve que la línea quedó como: `if db_url:)` (paréntesis extra).
+- Ya existen env vars en Render: SUPERADMIN_EMAIL y SUPERADMIN_PASSWORD.
+- Ya existe código de ensure_superadmin_user() pero el deploy se cae por ese typo.
+- NO debo cambiar rutas ni templates. NO tocar anonimizador. Solo arreglar init + superadmin seed seguro.
+
+OBJETIVOS:
+1) Arreglar el SyntaxError exacto (el `if db_url:)`).
+2) Implementar una función robusta `ensure_superadmin_user()` que:
+   - SOLO corre cuando hay DB configurada.
+   - Lee SUPERADMIN_EMAIL y SUPERADMIN_PASSWORD.
+   - Si el usuario existe: lo marca role="superadmin", activo=True, y hace commit.
+   - Si no existe: lo crea con password_hash=generate_password_hash(SUPERADMIN_PASSWORD), role="superadmin", activo=True.
+   - NO imprime password en logs.
+   - Es idempotente (puede ejecutarse muchas veces sin duplicar usuarios).
+3) Asegurar que `init_app_once()` llame a `ensure_superadmin_user()` dentro del `with app.app_context():` y después de `db.create_all()` y migraciones.
+
+REGLAS:
+- SOLO modificar app.py.
+- NO cambiar rutas existentes ni templates.
+- Mantener todo backward-compatible.
+- No hardcodear email ni password en código.
+- No agregar librerías nuevas.
+- Mantener /health rápido.
+
+PASOS EXACTOS A EJECUTAR:
+A) Abrir app.py y encontrar la línea donde está el error (cerca de init_app_once). Corregir `if db_url:)` -> `if db_url:`
+   - Confirmar que no haya ningún paréntesis desbalanceado alrededor.
+
+B) Asegurar que db_url se calcule así (sin syntax mistakes):
+   db_url = os.environ.get("DATABASE_URL") or os.environ.get("SQLALCHEMY_DATABASE_URI")
+
+C) Definir (o reescribir) arriba de init_app_once() esta función EXACTA:
+
+def ensure_superadmin_user():
+    from models import User, db
+    from werkzeug.security import generate_password_hash
+    import os, logging
+
+    email = (os.environ.get("SUPERADMIN_EMAIL") or "").strip().lower()
+    password = os.environ.get("SUPERADMIN_PASSWORD") or ""
+    if not email or not password:
+        logging.info("SUPERADMIN env vars not set; skipping superadmin seed")
+        return
+
+    user = User.query.filter_by(email=email).first()
+    if user:
+        changed = False
+        if getattr(user, "role", None) != "superadmin":
+            user.role = "superadmin"
+            changed = True
+        if getattr(user, "activo", None) is not True:
+            user.activo = True
+            changed = True
+        if changed:
+            db.session.commit()
+            logging.info("SUPERADMIN updated (role/activo)")
+        else:
+            logging.info("SUPERADMIN exists; no changes")
+        return
+
+    admin = User(
+        email=email,
+        role="superadmin",
+        activo=True,
+        password_hash=generate_password_hash(password),
+    )
+    db.session.add(admin)
+    db.session.commit()
+    logging.info("SUPERADMIN created")
+
+D) En init_app_once(), reemplazar el check de DB por db_url (sin paréntesis extra) y llamar ensure_superadmin_user():
+
+db_url = os.environ.get("DATABASE_URL") or os.environ.get("SQLALCHEMY_DATABASE_URI")
+if db_url:
+    with app.app_context():
+        db.create_all()
+        _run_schema_migrations()
+        _seed_anonymizer_packages()
+        _ensure_superadmin_role()
+        ensure_superadmin_user()
+else:
+    logging.warning("DATABASE_URL not set - skipping database initialization")
+
+E) Verificación local rápida:
+- Ejecutar `python -m py_compile app.py` (o equivalente) para asegurar 0 SyntaxError.
+- Confirmar que el archivo guarda y no hay líneas pegadas tipo `filter_bdef`.
+
+ENTREGABLE (EN LA RESPUESTA):
+- Confirmar el diff exacto de las líneas tocadas (solo app.py).
+- Confirmar que `if db_url:` quedó correcto y compiló sin error.
