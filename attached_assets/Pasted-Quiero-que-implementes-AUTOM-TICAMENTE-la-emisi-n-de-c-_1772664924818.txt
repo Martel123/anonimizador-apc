@@ -1,0 +1,71 @@
+Quiero que implementes AUTOMÁTICAMENTE la emisión de códigos de crédito para mi sistema existente, SIN romper nada.
+
+Contexto actual (ya confirmado):
+- El canje de códigos existe:
+  Endpoint: POST /redeem-code
+  Archivo: public_app.py línea ~1321
+  Función: redeem_credit_code()
+  Lee request.form["code"], lo pasa a mayúsculas y busca:
+  CreditCode.query.filter_by(code=code_str).first()
+  Luego valida code.is_valid() (is_active, uses_count < max_uses, expires_at).
+  Si es válido:
+    - Incrementa uses_count
+    - Crea CreditRedemption (unique user_id + credit_code_id)
+    - Suma pages en UserCredits.pages_balance
+    - Registra PageUsageLog(stage="code_redeem", action="credited")
+
+- Modelos:
+  CreditCode (models.py ~2093) tabla credit_codes:
+    id, code (String 64 unique indexed), credit_amount, max_uses, uses_count, expires_at, is_active, created_by_id, created_at
+  CreditRedemption tabla credit_redemptions:
+    id, user_id, credit_code_id, redeemed_at, ip, user_agent
+    unique(user_id, credit_code_id)
+
+- Ya existe endpoint de rewards token:
+  POST /api/rewards/issue (public_app.py ~1385) => emite RewardToken (NO CreditCode)
+
+Objetivo:
+Crear un endpoint NUEVO en el mismo blueprint anonymizer_bp:
+  POST /api/rewards/issue-code
+
+Este endpoint debe:
+1) Autenticación server-to-server:
+   - Requerir header Authorization: Bearer <REWARD_API_KEY>
+   - Leer REWARD_API_KEY desde env var (ya existe en Render)
+   - Si falta/incorrecto => 401
+
+2) Input JSON:
+   { "external_user_key": "<email>", "lesson_id": "<string>", "credit_amount": <int> }
+   - Validar: email no vacío, lesson_id no vacío, credit_amount > 0
+   - Normalizar: email lower(), lesson_id strip()
+
+3) Emisión:
+   - Generar un código tipo: APC-XXXX-XXXX (mayúsculas)
+   - Guardarlo en CreditCode.code en texto plano (porque el canje actual NO hashea)
+   - Setear:
+     credit_amount = credit_amount
+     max_uses = 1
+     uses_count = 0
+     is_active = True
+     expires_at = now + 30 días (o configurable)
+     created_by_id = NULL
+     created_at = now
+
+4) Evitar duplicados:
+   - Asegurar que code sea único (reintentar hasta 10 veces si colisiona)
+   - Implementar “1 emisión por (email, lesson_id)” SIN migraciones si es posible:
+     * Prioridad A: si ya existe algún modelo RewardToken o similar para registrar issue por lesson+email, reutilízalo.
+     * Si no hay nada reutilizable, entonces igual emite, pero devuélveme en el resumen que “anti-duplicado por lesson/email requiere campo o tabla adicional”.
+
+5) Respuesta:
+   - JSON:
+     { "status":"issued", "code":"APC-....-....", "credit_amount":X, "expires_at":"..." }
+   - Si ya emitido => { "status":"already_issued" }
+
+Entrega:
+A) Implementa el endpoint en public_app.py cerca de los otros /api/rewards/*.
+B) Agrega imports necesarios.
+C) Agrega una prueba manual simple: un snippet de cURL para probar el endpoint.
+D) Dime exactamente qué archivos y qué bloques cambiaste y en qué líneas aproximadas.
+NO modifiques /redeem-code ni el flujo de canje existente.
+NO refactorices otras partes.

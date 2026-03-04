@@ -1442,6 +1442,120 @@ def rewards_issue():
     }), 200
 
 
+# ---------------------------------------------------------------------------
+# POST /api/rewards/issue-code
+# Server-to-server: emite un CreditCode tipo APC-XXXX-XXXX para un usuario.
+# Deduplicación por (email, lesson_id) via RewardToken(lesson_id="code:<id>").
+# ---------------------------------------------------------------------------
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O/I/1 para evitar confusión
+_CODE_EXPIRY_DAYS = int(os.environ.get("ISSUE_CODE_EXPIRY_DAYS", "30"))
+
+
+def _generate_credit_code():
+    """Genera un código tipo APC-XXXX-XXXX con el alfabeto sin ambiguos."""
+    part = lambda: "".join(secrets.choice(_CODE_ALPHABET) for _ in range(4))
+    return f"APC-{part()}-{part()}"
+
+
+@anonymizer_bp.route("/api/rewards/issue-code", methods=["POST"])
+def rewards_issue_code():
+    """
+    Emite un CreditCode canjeble para un usuario identificado por email.
+    Requiere: Authorization: Bearer <REWARD_API_KEY>
+    Body JSON: { "external_user_key": "<email>", "lesson_id": "<str>", "credit_amount": <int> }
+    Deduplicación: 1 código por (email, lesson_id). Retorna el mismo estado si ya fue emitido.
+    """
+    from models import db, User, CreditCode, RewardToken
+
+    reward_api_key = os.environ.get("REWARD_API_KEY", "")
+    if not reward_api_key:
+        return jsonify({"error": "rewards_not_configured"}), 503
+
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != reward_api_key:
+        logger.warning("ISSUE_CODE_UNAUTH | ip=%s", request.remote_addr)
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    external_key = (data.get("external_user_key") or "").strip().lower()
+    lesson_id    = (data.get("lesson_id") or "").strip()
+    credit_amount = data.get("credit_amount")
+
+    if not external_key or not lesson_id:
+        return jsonify({"error": "invalid_payload", "detail": "external_user_key y lesson_id son requeridos"}), 400
+    if not isinstance(credit_amount, int) or credit_amount <= 0:
+        return jsonify({"error": "invalid_payload", "detail": "credit_amount debe ser un entero mayor a 0"}), 400
+
+    user = User.query.filter_by(email=external_key, activo=True).first()
+    if not user:
+        return jsonify({"error": "user_not_found", "detail": f"No existe usuario activo con email {external_key}"}), 404
+
+    namespaced_lesson = f"code:{lesson_id}"
+
+    existing_tracker = RewardToken.query.filter_by(
+        user_id=user.id, lesson_id=namespaced_lesson
+    ).first()
+
+    if existing_tracker:
+        existing_code = CreditCode.query.filter_by(
+            id=int(existing_tracker.external_user_key)
+        ).first() if existing_tracker.external_user_key.isdigit() else None
+        expires_str = existing_code.expires_at.isoformat() + "Z" if (existing_code and existing_code.expires_at) else None
+        return jsonify({
+            "status": "already_issued",
+            "code": existing_code.code if existing_code else None,
+            "credit_amount": existing_code.credit_amount if existing_code else credit_amount,
+            "expires_at": expires_str,
+        }), 200
+
+    expires_at = datetime.utcnow() + timedelta(days=_CODE_EXPIRY_DAYS)
+
+    for attempt in range(10):
+        candidate = _generate_credit_code()
+        if not CreditCode.query.filter_by(code=candidate).first():
+            break
+    else:
+        logger.error("ISSUE_CODE | could not generate unique code after 10 attempts")
+        return jsonify({"error": "server_error", "detail": "No se pudo generar un código único"}), 500
+
+    new_code = CreditCode(
+        code=candidate,
+        credit_amount=credit_amount,
+        max_uses=1,
+        uses_count=0,
+        is_active=True,
+        expires_at=expires_at,
+        created_by_id=None,
+    )
+    db.session.add(new_code)
+    db.session.flush()
+
+    tracker = RewardToken(
+        user_id=user.id,
+        external_user_key=str(new_code.id),
+        lesson_id=namespaced_lesson,
+        credit_amount=credit_amount,
+        token_hash=hashlib.sha256(candidate.encode()).hexdigest(),
+        status="code_issued",
+        issued_at=datetime.utcnow(),
+        expires_at=expires_at,
+        issued_ip=request.remote_addr,
+    )
+    db.session.add(tracker)
+    db.session.commit()
+
+    logger.info(
+        "ISSUE_CODE | user=%s lesson=%s code=%s amount=%d expires=%s",
+        user.id, lesson_id, candidate, credit_amount, expires_at.date()
+    )
+    return jsonify({
+        "status": "issued",
+        "code": candidate,
+        "credit_amount": credit_amount,
+        "expires_at": expires_at.isoformat() + "Z",
+    }), 200
+
+
 @anonymizer_bp.route("/api/rewards/redeem", methods=["POST"])
 def rewards_redeem():
     """Canjear un token de recompensa."""
