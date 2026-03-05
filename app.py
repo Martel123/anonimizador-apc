@@ -2858,7 +2858,7 @@ def forgot_password():
                     '''
                     
                     resend.Emails.send({
-                        "from": f"Centro de Conciliación <{mail_from}>",
+                        "from": f"Anonimizador APC <{mail_from}>",
                         "to": [user.email],
                         "subject": "Recuperación de Contraseña",
                         "html": html_content
