@@ -1,0 +1,63 @@
+Necesito implementar la definición del superadmin en mi aplicación Flask, pero con una condición importante.
+
+Contexto:
+- La base de datos es nueva.
+- El superadmin aún NO está registrado como usuario.
+- El correo del superadmin estará definido en la variable de entorno:
+
+SUPERADMIN_EMAIL
+
+Objetivo:
+Cuando un usuario se registre o inicie sesión y su email coincida con SUPERADMIN_EMAIL, el sistema debe convertir automáticamente esa cuenta en el superadmin del sistema.
+
+Reglas de implementación:
+
+1. Leer la variable de entorno:
+SUPERADMIN_EMAIL = os.getenv("SUPERADMIN_EMAIL", "").strip().lower()
+
+2. Crear o reutilizar una función helper centralizada:
+
+is_superadmin(user)
+
+Esta función debe verificar si:
+user.email.strip().lower() == SUPERADMIN_EMAIL
+
+3. Durante el REGISTRO:
+Después de crear el usuario y guardarlo en la base de datos, verificar:
+
+si user.email coincide con SUPERADMIN_EMAIL:
+- asignar role = "superadmin" si el modelo tiene ese campo
+- asignar is_admin = True si existe
+- asignar subscription_status = "active" si existe
+- asignar plan_name = "superadmin" si existe
+- aplicar cualquier privilegio administrativo existente en el sistema
+- guardar cambios con db.session.commit()
+
+4. Durante el LOGIN:
+Después de autenticar correctamente al usuario, volver a verificar si su email coincide con SUPERADMIN_EMAIL y aplicar los mismos privilegios.
+
+Esto asegura que:
+- si el usuario se registra primero → se convierte en superadmin
+- si el usuario ya existía → al iniciar sesión se corrige su rol automáticamente
+
+5. Muy importante:
+Este proyecto heredó código de otro sistema que también tenía lógica de superadmin.
+
+Antes de implementar:
+- revisa dónde se define actualmente admin / superadmin
+- evita crear una segunda arquitectura de roles
+- reutiliza la lógica existente si es válida
+- elimina o ignora lógica vieja que no corresponda al anonimizador
+
+6. No hardcodear el email en el código.
+Siempre usar la variable SUPERADMIN_EMAIL.
+
+7. No usar SUPERADMIN_PASSWORD.
+La autenticación debe seguir funcionando con el sistema actual.
+
+8. No romper la base de datos actual en Render.
+
+Entregable:
+- lista de archivos modificados
+- explicación breve de la lógica aplicada
+- confirmación de que el superadmin se creará automáticamente cuando ese correo se registre

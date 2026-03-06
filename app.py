@@ -2752,6 +2752,32 @@ def generador():
     return render_template("generador.html", modelos=modelos_completos, tenant=tenant)
 
 
+def _promote_if_superadmin(user):
+    """
+    Si el email del usuario coincide con SUPERADMIN_EMAIL (env var),
+    eleva su rol a super_admin y activa su cuenta. Idempotente.
+    No usa SUPERADMIN_PASSWORD — la autenticación no cambia.
+    """
+    sa_email = os.environ.get("SUPERADMIN_EMAIL", "").strip().lower()
+    if not sa_email:
+        return
+    if user.email.strip().lower() != sa_email:
+        return
+    changed = False
+    if user.role != "super_admin":
+        user.role = "super_admin"
+        changed = True
+    if not user.activo:
+        user.activo = True
+        changed = True
+    if getattr(user, "subscription_status", None) != "active":
+        user.subscription_status = "active"
+        changed = True
+    if changed:
+        db.session.commit()
+        logging.info("SUPERADMIN_PROMOTED | user_id=%s email=%s", user.id, user.email)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -2781,6 +2807,7 @@ def login():
 
             user.last_login = datetime.utcnow()
             db.session.commit()
+            _promote_if_superadmin(user)
             login_user(user)
 
             _record_login_attempt(email, ip, ua, success=True, reason=None, ip_unusual=ip_unusual)
@@ -3012,6 +3039,7 @@ def registro_usuario():
         db.session.add(user)
         db.session.commit()
 
+        _promote_if_superadmin(user)
         login_user(user)
         flash("Cuenta creada exitosamente.", "success")
         return redirect(url_for('anonymizer.anonymizer_onboarding'))
