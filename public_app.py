@@ -855,17 +855,19 @@ def anonymizer_apply():
         return render_error("Este documento ya fue procesado. Suba uno nuevo.")
 
     from models import PageReservation
+    from credit_utils import is_unlimited_user
+    _unlimited = is_unlimited_user(current_user.id)
     reservation = PageReservation.query.filter_by(job_id=job_id, user_id=current_user.id).first()
-    if not reservation or reservation.status != 'reserved':
-        logger.warning(f"APPLY_NO_RESERVATION | job={job_id} | user={current_user.id} | reservation={reservation.status if reservation else 'none'}")
-        return render_error("Reserva de créditos no encontrada. Suba el documento nuevamente.")
-
-    if reservation.pages_reserved != job.pages_counted:
-        logger.warning(f"APPLY_PAGES_MISMATCH | job={job_id} | reserved={reservation.pages_reserved} | counted={job.pages_counted}")
-        release_reservation(current_user.id, job_id)
-        job.status = 'failed'
-        db.session.commit()
-        return render_error("Error de consistencia en créditos. Suba el documento nuevamente.")
+    if not _unlimited:
+        if not reservation or reservation.status != 'reserved':
+            logger.warning(f"APPLY_NO_RESERVATION | job={job_id} | user={current_user.id} | reservation={reservation.status if reservation else 'none'}")
+            return render_error("Reserva de créditos no encontrada. Suba el documento nuevamente.")
+        if reservation.pages_reserved != job.pages_counted:
+            logger.warning(f"APPLY_PAGES_MISMATCH | job={job_id} | reserved={reservation.pages_reserved} | counted={job.pages_counted}")
+            release_reservation(current_user.id, job_id)
+            job.status = 'failed'
+            db.session.commit()
+            return render_error("Error de consistencia en créditos. Suba el documento nuevamente.")
 
     # Obtener ruta del input desde DB (nunca del cliente)
     temp_input = job.input_path or ''

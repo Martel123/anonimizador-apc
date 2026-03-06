@@ -168,6 +168,15 @@ def check_and_reserve_pages(user_id, job_id, pages_needed):
 
 def charge_pages(user_id, job_id, stage="apply"):
     from models import db, AnonymizerJob, PageReservation, PageUsageLog
+    # Superadmin / unlimited users: mark job as success without touching reservations
+    if is_unlimited_user(user_id):
+        job = AnonymizerJob.query.filter_by(job_id=job_id).first()
+        if job:
+            job.pages_charged = job.pages_counted or 0
+            job.status = 'success'
+            db.session.commit()
+        logger.info(f"CHARGE_UNLIMITED | user={user_id} | job={job_id}")
+        return True
     reservation = PageReservation.query.filter_by(job_id=job_id, user_id=user_id).first()
     if not reservation:
         logger.error(f"CHARGE_NO_RESERVATION | user={user_id} | job={job_id}")
