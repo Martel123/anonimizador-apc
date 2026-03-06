@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">Admin Anonimizador</h1>
+        <div class="space-x-4">
+            <a href="{{ url_for('admin_anonimizador_packages') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Paquetes</a>
+            <a href="{{ url_for('admin_anonimizador_codes') }}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Códigos</a>
+            <a href="{{ url_for('admin_anonimizador_users') }}" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Usuarios</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white p-6 rounded-lg shadow border">
+            <h3 class="text-gray-500 text-sm font-medium">Docs Anonimizados Hoy</h3>
+            <p class="text-2xl font-bold">{{ stats.docs_today }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow border">
+            <h3 class="text-gray-500 text-sm font-medium">Páginas Consumidas Hoy</h3>
+            <p class="text-2xl font-bold">{{ stats.pages_today }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow border">
+            <h3 class="text-gray-500 text-sm font-medium">Usuarios Activos (Mes)</h3>
+            <p class="text-2xl font-bold">{{ stats.active_users }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow border">
+            <h3 class="text-gray-500 text-sm font-medium">Total Páginas Emitidas</h3>
+            <p class="text-2xl font-bold">{{ stats.total_pages_issued }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow border p-6">
+        <h2 class="text-xl font-bold mb-4">Configuración General</h2>
+        <form action="{{ url_for('admin_anonimizador_config') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Tamaño Máximo Archivo (MB)</label>
+                <input type="number" name="max_file_size" value="10" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Equivalencia Palabras/Página</label>
+                <input type="number" name="words_per_page" value="500" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+            </div>
+            <div class="md:col-span-2">
+                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded font-bold hover:bg-red-700">Guardar Configuración</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

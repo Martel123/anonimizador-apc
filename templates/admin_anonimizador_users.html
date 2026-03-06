@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">Usuarios Anonimizador</h1>
+        <a href="{{ url_for('admin_anonimizador_index') }}" class="text-gray-600 hover:text-black">← Volver</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow border overflow-hidden">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usadas</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for user, credits in users %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ user.username }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.email }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap font-bold text-red-600">{{ credits.pages_balance if credits else 0 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ credits.pages_used_total if credits else 0 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="text-green-600 hover:text-green-900">+ Saldo</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

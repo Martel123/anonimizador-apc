@@ -1,0 +1,99 @@
+Necesito separar completamente la administración del anonimizador del panel de administración del sistema original (centro de conciliación).
+
+Actualmente el panel "Super Admin / Precios" pertenece al sistema anterior y controla:
+
+- suscripciones SaaS
+- precios por usuario
+- addons
+- límites de usuarios
+
+Ese panel NO debe controlar el anonimizador.
+
+Quiero crear un panel administrativo nuevo exclusivo para el anonimizador.
+
+Requisitos:
+
+Crear una nueva sección administrativa llamada:
+
+Admin Anonimizador
+
+Ruta sugerida:
+/admin/anonimizador
+
+Acceso:
+Solo usuarios donde current_user.is_super_admin() == True.
+
+Este panel debe ser independiente del sistema de precios existente.
+
+Debe permitir administrar exclusivamente el sistema del anonimizador.
+
+Funciones del panel:
+
+1. Configuración de paquetes de páginas
+
+Ejemplo de paquetes:
+
+300 páginas
+800 páginas
+2000 páginas
+
+Campos editables:
+
+- nombre del paquete
+- número de páginas
+- precio
+- moneda
+- activo / inactivo
+
+2. Gestión de códigos de crédito
+
+Permitir:
+
+- crear códigos promocionales
+- definir número de páginas que otorga el código
+- definir expiración
+- definir límite de usos
+
+3. Gestión de saldo de usuarios
+
+Permitir al superadmin:
+
+- agregar páginas manualmente
+- quitar páginas
+- ver consumo por usuario
+- ver historial de usos
+
+4. Configuración general del anonimizador
+
+Editar:
+
+- tamaño máximo de archivo
+- equivalencia DOCX/TXT a páginas
+- límites de procesamiento
+- reglas de consumo de páginas
+
+5. Panel de monitoreo
+
+Mostrar:
+
+- documentos anonimizados hoy
+- páginas consumidas
+- usuarios activos
+- consumo por usuario
+
+IMPORTANTE:
+
+Este panel NO debe usar el sistema de precios del centro de conciliación.
+
+Debe usar únicamente las tablas y lógica del anonimizador:
+
+- pages_balance
+- consumo de páginas
+- compra de páginas
+- códigos de crédito
+
+Si es necesario crear nuevas tablas para paquetes del anonimizador, hazlo.
+
+Mantén intacto el sistema administrativo existente del centro de conciliación.
+
+Solo agrega este nuevo panel separado.

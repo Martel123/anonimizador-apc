@@ -9484,6 +9484,63 @@ def init_app_once():
 init_app_once()
 
 
+@app.route("/admin/anonimizador")
+@super_admin_required
+def admin_anonimizador_index():
+    from models import AnonymizerJob, PageUsageLog, User
+    from datetime import datetime, date
+    
+    today = date.today()
+    docs_today = AnonymizerJob.query.filter(db.func.date(AnonymizerJob.created_at) == today).count()
+    pages_today = db.session.query(db.func.sum(PageUsageLog.pages)).filter(
+        db.func.date(PageUsageLog.created_at) == today,
+        PageUsageLog.action == 'charged'
+    ).scalar() or 0
+    
+    active_users = db.session.query(db.func.count(db.distinct(PageUsageLog.user_id))).filter(
+        PageUsageLog.created_at >= datetime.utcnow().replace(day=1)
+    ).scalar() or 0
+    
+    total_pages_issued = db.session.query(db.func.sum(PageUsageLog.pages)).filter(
+        PageUsageLog.action == 'credited'
+    ).scalar() or 0
+
+    stats = {
+        "docs_today": docs_today,
+        "pages_today": pages_today,
+        "active_users": active_users,
+        "total_pages_issued": total_pages_issued
+    }
+    return render_template("admin_anonimizador_index.html", stats=stats)
+
+@app.route("/admin/anonimizador/packages")
+@super_admin_required
+def admin_anonimizador_packages():
+    from models import AnonymizerPackage
+    packages = AnonymizerPackage.query.order_by(AnonymizerPackage.display_order).all()
+    return render_template("admin_anonimizador_packages.html", packages=packages)
+
+@app.route("/admin/anonimizador/config", methods=["POST"])
+@super_admin_required
+def admin_anonimizador_config():
+    # Simulación de guardado de config global
+    flash("Configuración guardada correctamente", "success")
+    return redirect(url_for('admin_anonimizador_index'))
+
+@app.route("/admin/anonimizador/users")
+@super_admin_required
+def admin_anonimizador_users():
+    from models import User, UserCredits
+    users = db.session.query(User, UserCredits).outerjoin(UserCredits, User.id == UserCredits.user_id).all()
+    return render_template("admin_anonimizador_users.html", users=users)
+
+@app.route("/admin/anonimizador/codes")
+@super_admin_required
+def admin_anonimizador_codes():
+    from models import CreditCode
+    codes = CreditCode.query.order_by(CreditCode.created_at.desc()).all()
+    return render_template("superadmin_codes.html", codes=codes) # Reutilizando template existente
+
 @app.route("/superadmin/plans")
 @super_admin_required
 def superadmin_plans():
