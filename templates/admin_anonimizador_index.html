@@ -1,53 +1,411 @@
-{% extends "layout.html" %}
-{% block title %}Admin del Anonimizador{% endblock %}
-{% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-8">
-        <div>
-            <h1 class="text-3xl font-bold">Admin del Anonimizador</h1>
-            <p class="text-sm text-gray-500 mt-1">Panel exclusivo del sistema de anonimización — independiente del SaaS</p>
-        </div>
-        <div class="space-x-4">
-            <a href="{{ url_for('admin_anonimizador_packages') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Paquetes</a>
-            <a href="{{ url_for('admin_anonimizador_codes') }}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Códigos</a>
-            <a href="{{ url_for('admin_anonimizador_users') }}" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Usuarios</a>
-        </div>
-    </div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin del Anonimizador — APC</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+    header { background: #0B0B0B; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; text-decoration: none; }
+    .logo span { color: rgba(255,255,255,.5); font-weight: 400; font-size: .8rem; margin-left: 8px; }
+    header nav { display: flex; align-items: center; gap: 20px; }
+    header a { color: rgba(255,255,255,.65); text-decoration: none; font-size: .85rem; }
+    header a:hover { color: #fff; }
+    header a.btn-header { background: #B30000; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: .8rem; font-weight: 600; }
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div class="bg-white p-6 rounded-lg shadow border">
-            <h3 class="text-gray-500 text-sm font-medium">Docs Anonimizados Hoy</h3>
-            <p class="text-2xl font-bold">{{ stats.docs_today }}</p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow border">
-            <h3 class="text-gray-500 text-sm font-medium">Páginas Consumidas Hoy</h3>
-            <p class="text-2xl font-bold">{{ stats.pages_today }}</p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow border">
-            <h3 class="text-gray-500 text-sm font-medium">Usuarios Activos (Mes)</h3>
-            <p class="text-2xl font-bold">{{ stats.active_users }}</p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow border">
-            <h3 class="text-gray-500 text-sm font-medium">Total Páginas Emitidas</h3>
-            <p class="text-2xl font-bold">{{ stats.total_pages_issued }}</p>
-        </div>
-    </div>
+    main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
 
-    <div class="bg-white rounded-lg shadow border p-6">
-        <h2 class="text-xl font-bold mb-4">Configuración General</h2>
-        <form action="{{ url_for('admin_anonimizador_config') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Tamaño Máximo Archivo (MB)</label>
-                <input type="number" name="max_file_size" value="10" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+    .page-header { margin-bottom: 28px; }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+    .page-header p { color: #6F6F6F; font-size: .875rem; margin-top: 4px; }
+    .badge-admin { display: inline-block; background: #FEF2F2; color: #B30000; border: 1px solid #FECACA; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-left: 10px; vertical-align: middle; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: #fff; border-radius: 12px; border: 1px solid #E5E5E5; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+    .stat-card .label { font-size: .75rem; color: #6F6F6F; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .stat-card .value { font-size: 2rem; font-weight: 800; color: #0B0B0B; }
+    .stat-card .sub { font-size: .75rem; color: #9CA3AF; margin-top: 4px; }
+
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid #E5E5E5; margin-bottom: 24px; }
+    .tab-btn { background: none; border: none; padding: 10px 18px; font-size: .875rem; font-weight: 500; color: #6F6F6F; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #B30000; border-bottom-color: #B30000; font-weight: 600; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .card { background: #fff; border-radius: 12px; border: 1px solid #E5E5E5; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; margin-bottom: 20px; }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid #E5E5E5; display: flex; align-items: center; justify-content: space-between; }
+    .card-header h2 { font-size: 1rem; font-weight: 600; }
+    .card-body { padding: 20px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; background: #B30000; color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-size: .875rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .btn:hover { background: #990000; }
+    .btn-sm { padding: 5px 12px; font-size: .8rem; border-radius: 6px; }
+    .btn-ghost { background: transparent; color: #6F6F6F; border: 1px solid #E5E5E5; padding: 5px 12px; border-radius: 6px; font-size: .8rem; cursor: pointer; text-decoration: none; }
+    .btn-ghost:hover { border-color: #B30000; color: #B30000; }
+    .btn-success { background: #059669; }
+    .btn-success:hover { background: #047857; }
+    .btn-warn { background: #D97706; }
+    .btn-warn:hover { background: #B45309; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: #6F6F6F; font-weight: 500; padding: 10px 14px; border-bottom: 1px solid #E5E5E5; background: #FAFAFA; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+    td { padding: 11px 14px; border-bottom: 1px solid #F2F2F2; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #FAFAFA; }
+
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-on  { background: #D1FAE5; color: #065F46; }
+    .badge-off { background: #FEE2E2; color: #991B1B; }
+    .code-mono { font-family: monospace; font-size: .9rem; font-weight: 700; letter-spacing: 2px; color: #0B0B0B; }
+
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
+    .form-group.wide { flex: 1; min-width: 200px; }
+    label { font-size: .78rem; color: #6F6F6F; font-weight: 500; }
+    input[type=text], input[type=number], input[type=date], select {
+      padding: 8px 12px; border: 1px solid #E5E5E5; border-radius: 8px; font-size: .875rem; font-family: inherit;
+      outline: none; transition: border-color .15s;
+    }
+    input:focus, select:focus { border-color: #B30000; }
+    .inline-form { display: inline; }
+
+    .flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: .875rem; }
+    .flash-success { background: #D1FAE5; color: #065F46; border: 1px solid #6EE7B7; }
+    .flash-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .flash-info    { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+
+    .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width:600px) { .config-row { grid-template-columns: 1fr; } }
+    .config-field { display: flex; flex-direction: column; gap: 6px; }
+    .config-field label { font-size: .8rem; font-weight: 600; color: #374151; }
+    .config-field small { font-size: .75rem; color: #9CA3AF; }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo">APC · Admin del Anonimizador <span>— Solo Superadmin</span></span>
+  <nav>
+    <a href="/anonymizer">← Anonimizador</a>
+    <a href="/logout">Salir</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-header">
+    <h1>Admin del Anonimizador <span class="badge-admin">SUPERADMIN</span></h1>
+    <p>Panel exclusivo del sistema de anonimización — completamente independiente del SaaS de Centros de Conciliación</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash flash-{{ 'success' if cat == 'success' else 'error' if cat == 'error' else 'info' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Docs Anonimizados Hoy</div>
+      <div class="value">{{ stats.docs_today }}</div>
+      <div class="sub">documentos procesados</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Páginas Consumidas Hoy</div>
+      <div class="value">{{ stats.pages_today }}</div>
+      <div class="sub">páginas cobradas hoy</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Usuarios Activos (Mes)</div>
+      <div class="value">{{ stats.active_users }}</div>
+      <div class="sub">usuarios con actividad</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Páginas en Saldos</div>
+      <div class="value">{{ stats.total_balance }}</div>
+      <div class="sub">páginas acumuladas activas</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('paquetes', this)"><i class="fas fa-box"></i> Paquetes</button>
+    <button class="tab-btn" onclick="showTab('codigos', this)"><i class="fas fa-ticket-alt"></i> Códigos</button>
+    <button class="tab-btn" onclick="showTab('usuarios', this)"><i class="fas fa-users"></i> Usuarios</button>
+    <button class="tab-btn" onclick="showTab('config', this)"><i class="fas fa-sliders-h"></i> Configuración</button>
+  </div>
+
+  <!-- TAB: PAQUETES -->
+  <div id="tab-paquetes" class="tab-panel active">
+    <div class="card">
+      <div class="card-header">
+        <h2>Crear nuevo paquete</h2>
+      </div>
+      <div class="card-body">
+        <form action="/admin/anonimizador/packages/create" method="POST">
+          <div class="form-row">
+            <div class="form-group wide">
+              <label>Nombre del paquete</label>
+              <input type="text" name="name" placeholder="Ej: 500 páginas" required>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Equivalencia Palabras/Página</label>
-                <input type="number" name="words_per_page" value="500" class="mt-1 block w-full border rounded-md shadow-sm p-2">
+            <div class="form-group">
+              <label>Páginas</label>
+              <input type="number" name="pages_granted" min="1" placeholder="500" required>
             </div>
-            <div class="md:col-span-2">
-                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded font-bold hover:bg-red-700">Guardar Configuración</button>
+            <div class="form-group">
+              <label>Precio (PEN)</label>
+              <input type="number" name="price_pen" step="0.01" min="0" placeholder="19.90" required>
             </div>
+            <div class="form-group">
+              <label>Orden</label>
+              <input type="number" name="display_order" min="0" value="0">
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <button type="submit" class="btn"><i class="fas fa-plus"></i> Crear</button>
+            </div>
+          </div>
         </form>
+      </div>
     </div>
-</div>
-{% endblock %}
+
+    <div class="card">
+      <div class="card-header"><h2>Paquetes actuales</h2></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Páginas</th>
+            <th>Precio S/</th>
+            <th>Orden</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pkg in packages %}
+          <tr>
+            <td><strong>{{ pkg.name }}</strong></td>
+            <td>{{ pkg.pages_granted }}</td>
+            <td>S/ {{ "%.2f"|format(pkg.price_pen) }}</td>
+            <td>{{ pkg.display_order }}</td>
+            <td><span class="badge {{ 'badge-on' if pkg.is_active else 'badge-off' }}">{{ 'Activo' if pkg.is_active else 'Inactivo' }}</span></td>
+            <td>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <form action="/admin/anonimizador/packages/{{ pkg.id }}/edit" method="POST" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                  <input type="text" name="name" value="{{ pkg.name }}" style="width:130px;padding:4px 8px;font-size:.8rem;">
+                  <input type="number" name="pages_granted" value="{{ pkg.pages_granted }}" style="width:70px;padding:4px 8px;font-size:.8rem;">
+                  <input type="number" name="price_pen" value="{{ pkg.price_pen }}" step="0.01" style="width:70px;padding:4px 8px;font-size:.8rem;">
+                  <button type="submit" class="btn btn-sm">Guardar</button>
+                </form>
+                <form action="/admin/anonimizador/packages/{{ pkg.id }}/toggle" method="POST" class="inline-form">
+                  <button type="submit" class="btn-ghost btn-sm">{{ 'Desactivar' if pkg.is_active else 'Activar' }}</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" style="text-align:center;color:#9CA3AF;padding:20px;">Sin paquetes aún.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: CÓDIGOS -->
+  <div id="tab-codigos" class="tab-panel">
+    <div class="card">
+      <div class="card-header"><h2>Crear código de crédito</h2></div>
+      <div class="card-body">
+        <form action="/admin/anonimizador/codes/create" method="POST">
+          <div class="form-row">
+            <div class="form-group wide">
+              <label>Código (deja vacío para generar automático)</label>
+              <input type="text" name="code" placeholder="APC-XXXX-XXXX" style="text-transform:uppercase;">
+            </div>
+            <div class="form-group">
+              <label>Páginas a otorgar</label>
+              <input type="number" name="credit_amount" min="1" placeholder="100" required>
+            </div>
+            <div class="form-group">
+              <label>Usos máximos</label>
+              <input type="number" name="max_uses" min="1" value="1">
+            </div>
+            <div class="form-group">
+              <label>Expira (opcional)</label>
+              <input type="date" name="expires_at">
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <button type="submit" class="btn"><i class="fas fa-plus"></i> Crear</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Códigos existentes</h2></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Páginas</th>
+            <th>Usos</th>
+            <th>Expira</th>
+            <th>Estado</th>
+            <th>Creado</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in codes %}
+          <tr>
+            <td><span class="code-mono">{{ c.code }}</span></td>
+            <td>{{ c.credit_amount }}</td>
+            <td>{{ c.uses_count }} / {{ c.max_uses }}</td>
+            <td>{{ c.expires_at.strftime('%d/%m/%Y') if c.expires_at else '—' }}</td>
+            <td><span class="badge {{ 'badge-on' if c.is_active else 'badge-off' }}">{{ 'Activo' if c.is_active else 'Inactivo' }}</span></td>
+            <td style="font-size:.78rem;color:#9CA3AF;">{{ c.created_at.strftime('%d/%m/%Y') }}</td>
+            <td>
+              <form action="/admin/anonimizador/codes/{{ c.id }}/toggle" method="POST" class="inline-form">
+                <button type="submit" class="btn-ghost btn-sm">{{ 'Desactivar' if c.is_active else 'Activar' }}</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" style="text-align:center;color:#9CA3AF;padding:20px;">Sin códigos aún.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: USUARIOS -->
+  <div id="tab-usuarios" class="tab-panel">
+    <div class="card">
+      <div class="card-header"><h2>Ajustar saldo de usuario</h2></div>
+      <div class="card-body">
+        <form action="/admin/anonimizador/users/adjust" method="POST">
+          <div class="form-row">
+            <div class="form-group wide">
+              <label>Correo del usuario</label>
+              <input type="text" name="email" placeholder="usuario@correo.com" required>
+            </div>
+            <div class="form-group">
+              <label>Páginas (+ para agregar, - para quitar)</label>
+              <input type="number" name="pages" placeholder="Ej: 100 o -50" required>
+            </div>
+            <div class="form-group wide">
+              <label>Motivo (opcional)</label>
+              <input type="text" name="reason" placeholder="Ej: Compensación por error">
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+              <button type="submit" class="btn btn-success"><i class="fas fa-edit"></i> Ajustar</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Todos los usuarios con créditos</h2></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Email</th>
+            <th>Saldo</th>
+            <th>Usado Total</th>
+            <th>Trial</th>
+            <th>Historial</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user, credits in users %}
+          <tr>
+            <td><strong>{{ user.username or '—' }}</strong></td>
+            <td style="font-size:.82rem;color:#6F6F6F;">{{ user.email }}</td>
+            <td><span style="font-weight:700;color:{% if (credits.pages_balance if credits else 0) < 20 %}#B30000{% else %}#065F46{% endif %};">{{ credits.pages_balance if credits else 0 }}</span></td>
+            <td>{{ credits.pages_used_total if credits else 0 }}</td>
+            <td><span class="badge {{ 'badge-on' if (credits and credits.trial_granted_at) else 'badge-off' }}">{{ 'Sí' if (credits and credits.trial_granted_at) else 'No' }}</span></td>
+            <td><a href="/admin/anonimizador/users/{{ user.id }}/logs" class="btn-ghost btn-sm">Ver logs</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" style="text-align:center;color:#9CA3AF;padding:20px;">Sin usuarios aún.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: CONFIG -->
+  <div id="tab-config" class="tab-panel">
+    <div class="card">
+      <div class="card-header"><h2>Configuración general del Anonimizador</h2></div>
+      <div class="card-body">
+        <form action="/admin/anonimizador/config" method="POST">
+          <div class="config-row">
+            <div class="config-field">
+              <label>Palabras por página (DOCX / TXT)</label>
+              <input type="number" name="words_per_page" value="{{ config.words_per_page }}" min="100" max="2000">
+              <small>Controla cómo se calcula el consumo de créditos para documentos Word y texto plano. Valor actual del sistema.</small>
+            </div>
+            <div class="config-field">
+              <label>Páginas de trial gratuitas</label>
+              <input type="number" name="trial_pages" value="{{ config.trial_pages }}" min="0" max="1000">
+              <small>Páginas gratuitas que recibe cada nuevo usuario al registrarse. Requiere reinicio para aplicar.</small>
+            </div>
+            <div class="config-field">
+              <label>Tamaño máximo de archivo (MB)</label>
+              <input type="number" name="max_file_size_mb" value="{{ config.max_file_size_mb }}" min="1" max="100">
+              <small>Límite en megabytes para archivos subidos al anonimizador.</small>
+            </div>
+            <div class="config-field">
+              <label>Nota administrativa</label>
+              <input type="text" name="admin_note" value="" placeholder="Nota interna (solo registro)">
+              <small>Se registra en el log del sistema, no afecta la aplicación.</small>
+            </div>
+          </div>
+          <div style="margin-top:20px;">
+            <button type="submit" class="btn"><i class="fas fa-save"></i> Guardar configuración</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Variables de entorno activas</h2></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Variable</th><th>Valor actual</th></tr></thead>
+          <tbody>
+            <tr><td><code>TRIAL_PAGES_DEFAULT</code></td><td>{{ config.trial_pages }}</td></tr>
+            <tr><td><code>SUPERADMIN_EMAIL</code></td><td>{{ config.superadmin_email }}</td></tr>
+            <tr><td><code>OPENAI_API_KEY</code></td><td>{{ '✓ Configurada' if config.openai_ok else '✗ No configurada' }}</td></tr>
+            <tr><td><code>CULQI_PUBLIC_KEY</code></td><td>{{ '✓ Configurada' if config.culqi_ok else '✗ No configurada' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  history.replaceState(null, '', '#' + name);
+}
+// Restore tab from hash
+const hash = location.hash.replace('#', '');
+if (hash) {
+  const btn = document.querySelector(`.tab-btn[onclick*="${hash}"]`);
+  if (btn) showTab(hash, btn);
+}
+</script>
+</body>
+</html>

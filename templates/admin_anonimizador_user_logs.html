@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historial — {{ user.email }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #F2F2F2; color: #1A1A1A; min-height: 100vh; }
+    header { background: #0B0B0B; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 700; font-size: 1rem; color: #B30000; text-decoration: none; }
+    header nav a { color: rgba(255,255,255,.65); text-decoration: none; font-size: .85rem; margin-left: 20px; }
+    header nav a:hover { color: #fff; }
+    main { max-width: 900px; margin: 28px auto; padding: 0 16px 60px; }
+    .back { display: inline-flex; align-items: center; gap: 6px; color: #6F6F6F; font-size: .85rem; text-decoration: none; margin-bottom: 20px; }
+    .back:hover { color: #0B0B0B; }
+    h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+    .sub { color: #6F6F6F; font-size: .875rem; margin-bottom: 24px; }
+    .stats-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat { background: #fff; border: 1px solid #E5E5E5; border-radius: 10px; padding: 14px 20px; }
+    .stat .label { font-size: .72rem; color: #9CA3AF; text-transform: uppercase; }
+    .stat .value { font-size: 1.5rem; font-weight: 700; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #E5E5E5; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: #6F6F6F; font-weight: 500; padding: 10px 14px; border-bottom: 1px solid #E5E5E5; background: #FAFAFA; font-size: .75rem; text-transform: uppercase; }
+    td { padding: 10px 14px; border-bottom: 1px solid #F2F2F2; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-credit { background: #D1FAE5; color: #065F46; }
+    .badge-charged { background: #FEE2E2; color: #991B1B; }
+    .badge-other { background: #F3F4F6; color: #374151; }
+    .mono { font-family: monospace; font-size: .8rem; color: #9CA3AF; }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/admin/anonimizador" class="logo">APC · Admin Anonimizador</a>
+  <nav>
+    <a href="/admin/anonimizador">← Panel</a>
+    <a href="/logout">Salir</a>
+  </nav>
+</header>
+<main>
+  <a href="/admin/anonimizador#usuarios" class="back">← Volver a Usuarios</a>
+  <h1>Historial de {{ user.email }}</h1>
+  <p class="sub">Últimos 100 movimientos de páginas</p>
+
+  <div class="stats-row">
+    <div class="stat">
+      <div class="label">Saldo Actual</div>
+      <div class="value">{{ credits.pages_balance }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Total Usado</div>
+      <div class="value">{{ credits.pages_used_total }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Trial</div>
+      <div class="value">{{ 'Sí' if credits.trial_granted_at else 'No' }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Acción</th>
+          <th>Páginas</th>
+          <th>Etapa</th>
+          <th>Detalle</th>
+          <th>Job ID</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="white-space:nowrap;">{{ log.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>
+            <span class="badge {{ 'badge-credit' if log.action in ('credited','trial_granted') else 'badge-charged' if log.action in ('charged','deducted') else 'badge-other' }}">
+              {{ log.action }}
+            </span>
+          </td>
+          <td><strong>{{ '+' if log.action in ('credited','trial_granted') else '-' }}{{ log.pages }}</strong></td>
+          <td>{{ log.stage or '—' }}</td>
+          <td style="font-size:.8rem;color:#6F6F6F;max-width:300px;white-space:pre-wrap;">{{ log.detail or '—' }}</td>
+          <td><span class="mono">{{ log.job_id[:20] }}…</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:#9CA3AF;padding:20px;">Sin movimientos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>

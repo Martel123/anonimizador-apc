@@ -9494,62 +9494,191 @@ def _anon_admin_guard():
 @login_required
 def admin_anonimizador_index():
     _anon_admin_guard()
-    from models import AnonymizerJob, PageUsageLog, User
+    from models import AnonymizerJob, PageUsageLog, User, UserCredits, AnonymizerPackage, CreditCode
     from datetime import datetime, date
-    
+    import os as _os
+
     today = date.today()
     docs_today = AnonymizerJob.query.filter(db.func.date(AnonymizerJob.created_at) == today).count()
     pages_today = db.session.query(db.func.sum(PageUsageLog.pages)).filter(
         db.func.date(PageUsageLog.created_at) == today,
         PageUsageLog.action == 'charged'
     ).scalar() or 0
-    
     active_users = db.session.query(db.func.count(db.distinct(PageUsageLog.user_id))).filter(
         PageUsageLog.created_at >= datetime.utcnow().replace(day=1)
     ).scalar() or 0
-    
-    total_pages_issued = db.session.query(db.func.sum(PageUsageLog.pages)).filter(
-        PageUsageLog.action == 'credited'
-    ).scalar() or 0
+    total_balance = db.session.query(db.func.sum(UserCredits.pages_balance)).scalar() or 0
 
     stats = {
         "docs_today": docs_today,
         "pages_today": pages_today,
         "active_users": active_users,
-        "total_pages_issued": total_pages_issued
+        "total_balance": total_balance,
     }
-    return render_template("admin_anonimizador_index.html", stats=stats)
+    packages = AnonymizerPackage.query.order_by(AnonymizerPackage.display_order).all()
+    codes = CreditCode.query.order_by(CreditCode.created_at.desc()).all()
+    users = db.session.query(User, UserCredits).outerjoin(UserCredits, User.id == UserCredits.user_id)\
+        .order_by(UserCredits.pages_balance.desc().nullslast()).all()
+    config = {
+        "words_per_page": int(_os.environ.get("WORDS_PER_PAGE", "500")),
+        "trial_pages": int(_os.environ.get("TRIAL_PAGES_DEFAULT", "40")),
+        "max_file_size_mb": int(_os.environ.get("MAX_FILE_SIZE_MB", "10")),
+        "superadmin_email": _os.environ.get("SUPERADMIN_EMAIL", "—"),
+        "openai_ok": bool(_os.environ.get("OPENAI_API_KEY")),
+        "culqi_ok": bool(_os.environ.get("CULQI_PUBLIC_KEY")),
+    }
+    return render_template("admin_anonimizador_index.html",
+                           stats=stats, packages=packages, codes=codes,
+                           users=users, config=config)
 
-@app.route("/admin/anonimizador/packages")
+
+@app.route("/admin/anonimizador/packages/create", methods=["POST"])
 @login_required
-def admin_anonimizador_packages():
+def admin_anonimizador_packages_create():
     _anon_admin_guard()
     from models import AnonymizerPackage
-    packages = AnonymizerPackage.query.order_by(AnonymizerPackage.display_order).all()
-    return render_template("admin_anonimizador_packages.html", packages=packages)
+    name = request.form.get("name", "").strip()
+    pages = request.form.get("pages_granted", 0, type=int)
+    price = request.form.get("price_pen", 0.0, type=float)
+    order = request.form.get("display_order", 0, type=int)
+    if not name or pages < 1 or price < 0:
+        flash("Datos inválidos.", "error")
+        return redirect(url_for('admin_anonimizador_index') + "#paquetes")
+    pkg = AnonymizerPackage(name=name, pages_granted=pages, price_pen=price, display_order=order)
+    db.session.add(pkg)
+    db.session.commit()
+    flash(f"Paquete '{name}' creado correctamente.", "success")
+    return redirect(url_for('admin_anonimizador_index') + "#paquetes")
+
+
+@app.route("/admin/anonimizador/packages/<int:pkg_id>/edit", methods=["POST"])
+@login_required
+def admin_anonimizador_packages_edit(pkg_id):
+    _anon_admin_guard()
+    from models import AnonymizerPackage
+    pkg = AnonymizerPackage.query.get_or_404(pkg_id)
+    pkg.name = request.form.get("name", pkg.name).strip()
+    pkg.pages_granted = request.form.get("pages_granted", pkg.pages_granted, type=int)
+    pkg.price_pen = request.form.get("price_pen", pkg.price_pen, type=float)
+    db.session.commit()
+    flash(f"Paquete '{pkg.name}' actualizado.", "success")
+    return redirect(url_for('admin_anonimizador_index') + "#paquetes")
+
+
+@app.route("/admin/anonimizador/packages/<int:pkg_id>/toggle", methods=["POST"])
+@login_required
+def admin_anonimizador_packages_toggle(pkg_id):
+    _anon_admin_guard()
+    from models import AnonymizerPackage
+    pkg = AnonymizerPackage.query.get_or_404(pkg_id)
+    pkg.is_active = not pkg.is_active
+    db.session.commit()
+    flash(f"Paquete '{pkg.name}' {'activado' if pkg.is_active else 'desactivado'}.", "success")
+    return redirect(url_for('admin_anonimizador_index') + "#paquetes")
+
+
+@app.route("/admin/anonimizador/codes/create", methods=["POST"])
+@login_required
+def admin_anonimizador_codes_create():
+    _anon_admin_guard()
+    from models import CreditCode
+    import secrets, string
+    code_str = (request.form.get("code") or "").strip().upper()
+    if not code_str:
+        chars = string.ascii_uppercase + string.digits
+        code_str = "APC-" + "".join(secrets.choice(chars) for _ in range(4)) + "-" + "".join(secrets.choice(chars) for _ in range(4))
+    credit_amount = request.form.get("credit_amount", 0, type=int)
+    max_uses = request.form.get("max_uses", 1, type=int)
+    expires_str = (request.form.get("expires_at") or "").strip()
+    expires_at = None
+    if expires_str:
+        from datetime import datetime
+        try:
+            expires_at = datetime.strptime(expires_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+    if credit_amount < 1:
+        flash("Debes indicar al menos 1 página.", "error")
+        return redirect(url_for('admin_anonimizador_index') + "#codigos")
+    if CreditCode.query.filter_by(code=code_str).first():
+        flash(f"El código '{code_str}' ya existe.", "error")
+        return redirect(url_for('admin_anonimizador_index') + "#codigos")
+    c = CreditCode(code=code_str, credit_amount=credit_amount, max_uses=max_uses,
+                   expires_at=expires_at, created_by_id=current_user.id)
+    db.session.add(c)
+    db.session.commit()
+    flash(f"Código '{code_str}' creado — otorga {credit_amount} páginas.", "success")
+    return redirect(url_for('admin_anonimizador_index') + "#codigos")
+
+
+@app.route("/admin/anonimizador/codes/<int:code_id>/toggle", methods=["POST"])
+@login_required
+def admin_anonimizador_codes_toggle(code_id):
+    _anon_admin_guard()
+    from models import CreditCode
+    c = CreditCode.query.get_or_404(code_id)
+    c.is_active = not c.is_active
+    db.session.commit()
+    flash(f"Código '{c.code}' {'activado' if c.is_active else 'desactivado'}.", "success")
+    return redirect(url_for('admin_anonimizador_index') + "#codigos")
+
+
+@app.route("/admin/anonimizador/users/adjust", methods=["POST"])
+@login_required
+def admin_anonimizador_users_adjust():
+    _anon_admin_guard()
+    from models import User, UserCredits, PageUsageLog
+    from credit_utils import get_or_create_credits
+    email = (request.form.get("email") or "").strip().lower()
+    pages = request.form.get("pages", 0, type=int)
+    reason = (request.form.get("reason") or "Ajuste manual por superadmin").strip()
+    if not email or pages == 0:
+        flash("Indica un correo válido y una cantidad de páginas (distinta de 0).", "error")
+        return redirect(url_for('admin_anonimizador_index') + "#usuarios")
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash(f"No se encontró usuario con correo: {email}", "error")
+        return redirect(url_for('admin_anonimizador_index') + "#usuarios")
+    credits = get_or_create_credits(user.id)
+    credits.pages_balance = max(0, credits.pages_balance + pages)
+    log_entry = PageUsageLog(
+        user_id=user.id,
+        job_id=f"admin_adjust_{current_user.id}",
+        stage="admin",
+        pages=abs(pages),
+        action="credited" if pages > 0 else "deducted",
+        detail=f"Ajuste manual por superadmin ({current_user.email}): {'+' if pages > 0 else ''}{pages} págs. Motivo: {reason}"
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    flash(f"Saldo de {email} ajustado en {'+' if pages > 0 else ''}{pages} páginas. Nuevo saldo: {credits.pages_balance}.", "success")
+    return redirect(url_for('admin_anonimizador_index') + "#usuarios")
+
+
+@app.route("/admin/anonimizador/users/<int:user_id>/logs")
+@login_required
+def admin_anonimizador_user_logs(user_id):
+    _anon_admin_guard()
+    from models import User, PageUsageLog, UserCredits
+    from credit_utils import get_or_create_credits
+    user = User.query.get_or_404(user_id)
+    logs = PageUsageLog.query.filter_by(user_id=user_id).order_by(PageUsageLog.created_at.desc()).limit(100).all()
+    credits = get_or_create_credits(user_id)
+    return render_template("admin_anonimizador_user_logs.html", user=user, logs=logs, credits=credits)
+
 
 @app.route("/admin/anonimizador/config", methods=["POST"])
 @login_required
 def admin_anonimizador_config():
     _anon_admin_guard()
-    flash("Configuración guardada correctamente", "success")
-    return redirect(url_for('admin_anonimizador_index'))
-
-@app.route("/admin/anonimizador/users")
-@login_required
-def admin_anonimizador_users():
-    _anon_admin_guard()
-    from models import User, UserCredits
-    users = db.session.query(User, UserCredits).outerjoin(UserCredits, User.id == UserCredits.user_id).all()
-    return render_template("admin_anonimizador_users.html", users=users)
-
-@app.route("/admin/anonimizador/codes")
-@login_required
-def admin_anonimizador_codes():
-    _anon_admin_guard()
-    from models import CreditCode
-    codes = CreditCode.query.order_by(CreditCode.created_at.desc()).all()
-    return render_template("superadmin_codes.html", codes=codes)
+    words = request.form.get("words_per_page", "500")
+    trial = request.form.get("trial_pages", "40")
+    max_mb = request.form.get("max_file_size_mb", "10")
+    note = (request.form.get("admin_note") or "").strip()
+    logging.info("ADMIN_CONFIG | words_per_page=%s trial_pages=%s max_mb=%s note=%s by=%s",
+                 words, trial, max_mb, note, current_user.email)
+    flash("Configuración registrada. Para que los cambios de TRIAL_PAGES_DEFAULT y MAX_FILE_SIZE_MB surtan efecto, actualiza las variables de entorno en Render y reinicia el servidor.", "info")
+    return redirect(url_for('admin_anonimizador_index') + "#config")
 
 @app.route("/superadmin/plans")
 @super_admin_required
