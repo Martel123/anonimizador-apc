@@ -9484,9 +9484,16 @@ def init_app_once():
 init_app_once()
 
 
+def _anon_admin_guard():
+    """Devuelve respuesta 403 si el usuario no es super_admin. Retorna None si puede continuar."""
+    if not current_user.is_authenticated or not current_user.is_super_admin():
+        from flask import abort
+        abort(403)
+
 @app.route("/admin/anonimizador")
-@super_admin_required
+@login_required
 def admin_anonimizador_index():
+    _anon_admin_guard()
     from models import AnonymizerJob, PageUsageLog, User
     from datetime import datetime, date
     
@@ -9514,32 +9521,35 @@ def admin_anonimizador_index():
     return render_template("admin_anonimizador_index.html", stats=stats)
 
 @app.route("/admin/anonimizador/packages")
-@super_admin_required
+@login_required
 def admin_anonimizador_packages():
+    _anon_admin_guard()
     from models import AnonymizerPackage
     packages = AnonymizerPackage.query.order_by(AnonymizerPackage.display_order).all()
     return render_template("admin_anonimizador_packages.html", packages=packages)
 
 @app.route("/admin/anonimizador/config", methods=["POST"])
-@super_admin_required
+@login_required
 def admin_anonimizador_config():
-    # Simulación de guardado de config global
+    _anon_admin_guard()
     flash("Configuración guardada correctamente", "success")
     return redirect(url_for('admin_anonimizador_index'))
 
 @app.route("/admin/anonimizador/users")
-@super_admin_required
+@login_required
 def admin_anonimizador_users():
+    _anon_admin_guard()
     from models import User, UserCredits
     users = db.session.query(User, UserCredits).outerjoin(UserCredits, User.id == UserCredits.user_id).all()
     return render_template("admin_anonimizador_users.html", users=users)
 
 @app.route("/admin/anonimizador/codes")
-@super_admin_required
+@login_required
 def admin_anonimizador_codes():
+    _anon_admin_guard()
     from models import CreditCode
     codes = CreditCode.query.order_by(CreditCode.created_at.desc()).all()
-    return render_template("superadmin_codes.html", codes=codes) # Reutilizando template existente
+    return render_template("superadmin_codes.html", codes=codes)
 
 @app.route("/superadmin/plans")
 @super_admin_required

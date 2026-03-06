@@ -232,9 +232,17 @@
           </div>
         </div>
         <div class="flex items-center gap-3">
+          {% if not current_user.is_super_admin() %}
           <a href="/anonymizer/plans" class="text-xs font-semibold bg-apc-red text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap">
             + Conseguir páginas
           </a>
+          {% endif %}
+          {% if current_user.is_super_admin() %}
+          <a href="/admin/anonimizador" class="text-xs font-semibold bg-apc-red text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap flex items-center gap-1">
+            <i class="fas fa-cog"></i>
+            Panel Control
+          </a>
+          {% endif %}
           <a href="/account" class="text-gray-300 hover:text-white text-sm flex items-center gap-1">
             <i class="fas fa-user-circle"></i>
             <span class="hidden sm:inline">Cuenta</span>

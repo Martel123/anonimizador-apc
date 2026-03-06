@@ -1,8 +1,12 @@
 {% extends "layout.html" %}
+{% block title %}Admin del Anonimizador{% endblock %}
 {% block content %}
 <div class="container mx-auto px-4 py-8">
     <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold">Admin Anonimizador</h1>
+        <div>
+            <h1 class="text-3xl font-bold">Admin del Anonimizador</h1>
+            <p class="text-sm text-gray-500 mt-1">Panel exclusivo del sistema de anonimización — independiente del SaaS</p>
+        </div>
         <div class="space-x-4">
             <a href="{{ url_for('admin_anonimizador_packages') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Paquetes</a>
             <a href="{{ url_for('admin_anonimizador_codes') }}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Códigos</a>

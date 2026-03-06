@@ -149,13 +149,25 @@
           <div class="flex items-center space-x-2 text-sm bg-white bg-opacity-10 px-3 py-1.5 rounded-lg">
             <i class="fas fa-wallet text-apc-red"></i>
             <span class="text-gray-300">Saldo:</span>
+            {% if current_user.is_super_admin() %}
+            <span class="text-white font-semibold">∞</span>
+            {% else %}
             <span class="text-white font-semibold">{{ credits.pages_balance }}</span>
+            {% endif %}
             <span class="text-gray-400">pág.</span>
           </div>
           {% endif %}
+          {% if not current_user.is_super_admin() %}
           <a href="/anonymizer/plans" class="text-xs font-semibold bg-apc-red text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap">
             + Conseguir páginas
           </a>
+          {% endif %}
+          {% if current_user.is_super_admin() %}
+          <a href="/admin/anonimizador" class="text-xs font-semibold bg-apc-red text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap flex items-center gap-1">
+            <i class="fas fa-cog"></i>
+            Panel Control
+          </a>
+          {% endif %}
           <a href="/account" class="text-gray-300 hover:text-white text-sm flex items-center gap-1">
             <i class="fas fa-user-circle"></i>
             <span class="hidden sm:inline">Cuenta</span>

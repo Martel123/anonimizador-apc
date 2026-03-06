@@ -91,7 +91,11 @@
     <a href="/anonymizer">Inicio</a>
     <a href="/account">Cuenta</a>
     <a href="/account/security" style="color:#fff;"><i class="fas fa-shield-alt"></i> Seguridad</a>
+    {% if current_user.is_super_admin() %}
+    <a href="/admin/anonimizador" class="btn-header"><i class="fas fa-cog"></i> Panel Control</a>
+    {% else %}
     <a href="/anonymizer/plans" class="btn-header">+ Conseguir páginas</a>
+    {% endif %}
     <a href="/logout"><i class="fas fa-sign-out-alt"></i></a>
   </nav>
 </header>
