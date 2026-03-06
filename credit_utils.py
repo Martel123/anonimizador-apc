@@ -111,7 +111,10 @@ def is_unlimited_user(user_id):
     user = User.query.get(user_id)
     if not user:
         return False
-    return user.role == 'super_admin' or bool(getattr(user, 'unlimited_access', False))
+    # Superadmin tiene acceso ilimitado por defecto
+    if user.is_super_admin():
+        return True
+    return bool(getattr(user, 'unlimited_access', False))
 
 
 def check_and_reserve_pages(user_id, job_id, pages_needed):

@@ -2764,6 +2764,7 @@ def _promote_if_superadmin(user):
     if user.email.strip().lower() != sa_email:
         return
     changed = False
+    # Aseguramos el rol exacto para compatibilidad
     if user.role != "super_admin":
         user.role = "super_admin"
         changed = True
@@ -2772,6 +2773,10 @@ def _promote_if_superadmin(user):
         changed = True
     if getattr(user, "subscription_status", None) != "active":
         user.subscription_status = "active"
+        changed = True
+    # Privilegios administrativos adicionales si existen en el modelo
+    if hasattr(user, 'is_admin') and not user.is_admin:
+        user.is_admin = True
         changed = True
     if changed:
         db.session.commit()

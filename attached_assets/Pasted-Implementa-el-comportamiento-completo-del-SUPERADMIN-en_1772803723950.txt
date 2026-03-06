@@ -1,0 +1,81 @@
+Implementa el comportamiento completo del SUPERADMIN en el anonimizador.
+
+Contexto:
+Mi cuenta con el correo marcelo.martel.orellano@gmail.com está definida como SUPERADMIN_EMAIL y usa el rol existente del sistema: role = "super_admin". El método is_super_admin() ya existe y debe ser utilizado como fuente de verdad.
+
+Problema actual:
+Aunque el usuario sea superadmin, el sistema sigue tratándolo como usuario normal de trial (40 páginas, sugerencias de compra, consumo de páginas, etc.).
+
+Objetivo:
+El superadmin debe tener control total del sistema y no estar limitado por el sistema de páginas, planes o pagos.
+
+Implementa los siguientes cambios:
+
+SUPERADMIN SIN LÍMITES
+Si current_user.is_super_admin() es True:
+
+- ignorar completamente pages_balance
+- no descontar páginas al procesar documentos
+- no bloquear por falta de páginas
+- ignorar cualquier lógica de trial
+- ignorar restricciones de suscripción
+- permitir uso ilimitado del anonimizador
+
+INTERFAZ DEL SUPERADMIN
+Para el superadmin:
+
+- no mostrar “trial activado”
+- no mostrar advertencias de saldo bajo
+- no mostrar sugerencias de compra de páginas
+- ocultar botones de compra de páginas
+- mostrar saldo como:
+  "∞ páginas"
+  o
+  "Ilimitado"
+
+PRIVILEGIOS ADMINISTRATIVOS COMPLETOS
+El superadmin debe tener acceso total para modificar y gestionar la plataforma:
+
+- modificar planes
+- modificar precios
+- modificar monedas
+- modificar número de páginas por plan
+- generar códigos de crédito
+- modificar saldo de usuarios
+- ver y gestionar usuarios
+- acceder a todas las páginas administrativas del sistema
+- acceder a cualquier endpoint o panel administrativo existente
+- gestionar configuraciones globales del sistema
+- gestionar promociones, créditos y recompensas
+
+En cualquier lógica de permisos existente, agregar excepción:
+
+if current_user.is_super_admin():
+    permitir acceso completo
+
+SIN CAMBIOS EN LA BASE DE DATOS
+No modificar la estructura de la base de datos.
+No crear nuevos roles.
+No crear otro sistema de permisos.
+
+Usar únicamente:
+- role = "super_admin"
+- el método existente is_super_admin()
+
+COMPATIBILIDAD
+La lógica actual para usuarios normales debe seguir funcionando exactamente igual:
+- sistema de páginas
+- compra de créditos
+- trial
+- planes
+
+El superadmin simplemente ignora esas restricciones.
+
+RESULTADO FINAL ESPERADO
+Cuando inicie sesión con el correo marcelo.martel.orellano@gmail.com:
+
+- no consumir páginas
+- saldo mostrado como ilimitado
+- acceso completo a toda la plataforma
+- acceso a todas las configuraciones administrativas
+- capacidad de modificar planes, monedas, precios, páginas y configuraciones globales

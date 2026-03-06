@@ -104,7 +104,12 @@
 <header>
   <span class="logo">APC Anonimizador</span>
   <nav>
+    {% if not current_user.is_super_admin() %}
     <a href="/anonymizer/plans" class="btn-header">+ Conseguir páginas</a>
+    {% endif %}
+    {% if current_user.is_super_admin() %}
+    <a href="/super_admin" class="btn-header">Panel Control</a>
+    {% endif %}
     <a href="/anonymizer">Anonimizador</a>
     <a href="/logout">Salir</a>
   </nav>
@@ -120,27 +125,39 @@
     <div class="section-title">Saldo de páginas</div>
     <div class="balance-card">
       <div>
-        <div class="balance-num">{{ credits.pages_balance }}</div>
+        <div class="balance-num">
+          {% if current_user.is_super_admin() %}
+            Ilimitado
+          {% else %}
+            {{ credits.pages_balance }}
+          {% endif %}
+        </div>
         <div class="balance-label">páginas disponibles</div>
-        {% if credits.trial_granted_at %}
-        <div class="balance-meta">Trial activado el {{ credits.trial_granted_at.strftime('%d/%m/%Y') }}</div>
+        {% if not current_user.is_super_admin() %}
+            {% if credits.trial_granted_at %}
+            <div class="balance-meta">Trial activado el {{ credits.trial_granted_at.strftime('%d/%m/%Y') }}</div>
+            {% endif %}
         {% endif %}
         <div class="balance-meta">Usadas en total: {{ credits.pages_used_total }} págs.</div>
       </div>
+      {% if not current_user.is_super_admin() %}
       <a href="/anonymizer/plans" class="btn-big">Comprar más páginas</a>
+      {% endif %}
     </div>
   </div>
 
-  {% if credits.pages_balance < 20 %}
-  <div class="suggestion">
-    Tu saldo está bajo. Te recomendamos el paquete de <strong>{{ suggested_package_pages }} páginas</strong> para continuar trabajando sin interrupciones.
-    <a href="/anonymizer/plans" style="color:#B30000;font-weight:600;text-decoration:none;margin-left:6px;">Ver planes →</a>
-  </div>
-  {% elif credits.pages_balance <= 200 %}
-  <div class="suggestion">
-    Tienes pocas páginas. El paquete de <strong>{{ suggested_package_pages }} páginas</strong> es una buena opción para trabajo continuo.
-    <a href="/anonymizer/plans" style="color:#B30000;font-weight:600;text-decoration:none;margin-left:6px;">Ver planes →</a>
-  </div>
+  {% if not current_user.is_super_admin() %}
+      {% if credits.pages_balance < 20 %}
+      <div class="suggestion">
+        Tu saldo está bajo. Te recomendamos el paquete de <strong>{{ suggested_package_pages }} páginas</strong> para continuar trabajando sin interrupciones.
+        <a href="/anonymizer/plans" style="color:#B30000;font-weight:600;text-decoration:none;margin-left:6px;">Ver planes →</a>
+      </div>
+      {% elif credits.pages_balance <= 200 %}
+      <div class="suggestion">
+        Tienes pocas páginas. El paquete de <strong>{{ suggested_package_pages }} páginas</strong> es una buena opción para trabajo continuo.
+        <a href="/anonymizer/plans" style="color:#B30000;font-weight:600;text-decoration:none;margin-left:6px;">Ver planes →</a>
+      </div>
+      {% endif %}
   {% endif %}
 
   <div class="section">
