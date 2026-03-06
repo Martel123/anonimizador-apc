@@ -1,0 +1,206 @@
+Necesito agregar una nueva funcionalidad al anonimizador sin modificar ni romper el sistema actual de etiquetas.
+
+Actualmente cuando el usuario selecciona texto aparece un panel con tipos de datos predefinidos como:
+
+PERSONA
+DNI
+RUC
+EMAIL
+TELÉFONO
+EXPEDIENTE
+ACTA
+CASILLA
+ENTIDAD
+CUENTA
+PLACA
+FIRMA
+SELLO
+HUELLA
+JUZGADO
+
+Estas son etiquetas del sistema.
+
+Quiero agregar un segundo grupo de etiquetas llamado:
+
+"Tus etiquetas"
+
+Estas serán etiquetas personalizadas que cada usuario puede crear.
+
+REQUISITOS FUNCIONALES
+
+1. SEPARACIÓN DE ETIQUETAS
+
+El selector de etiquetas debe mostrar dos secciones:
+
+Etiquetas de la plataforma
+Tus etiquetas
+
+Ejemplo visual:
+
+Etiquetas de la plataforma
+[PERSONA] [DNI] [RUC] [EMAIL] ...
+
+Tus etiquetas
+[CLIENTE] [NUMERO_POLIZA] [CODIGO_INTERNO]
+
++ Crear etiqueta
+
+Las etiquetas de la plataforma NO pueden eliminarse.
+
+Las etiquetas de usuario SÍ pueden eliminarse.
+
+---
+
+2. CREAR ETIQUETAS PERSONALIZADAS
+
+Agregar un botón:
+
+"+ Crear etiqueta"
+
+Cuando el usuario presiona el botón:
+
+mostrar un input modal:
+
+Nombre de la etiqueta
+
+Ejemplo:
+
+CLIENTE
+NUMERO_POLIZA
+CODIGO_INTERNO
+
+Reglas:
+
+solo texto
+máximo 30 caracteres
+sin espacios iniciales
+convertir automáticamente a mayúsculas
+
+---
+
+3. ALMACENAMIENTO
+
+Las etiquetas personalizadas deben guardarse por usuario.
+
+Crear nueva tabla:
+
+user_custom_labels
+
+Campos:
+
+id
+user_id
+label_name
+created_at
+
+Cada usuario debe ver únicamente sus etiquetas.
+
+---
+
+4. CARGA AUTOMÁTICA
+
+Cuando el usuario abre el anonimizador:
+
+cargar automáticamente sus etiquetas personalizadas.
+
+Estas deben aparecer en la sección:
+
+"Tus etiquetas"
+
+junto a las etiquetas del sistema.
+
+---
+
+5. ELIMINAR ETIQUETAS
+
+Cada etiqueta personalizada debe tener un pequeño icono:
+
+🗑 eliminar
+
+Cuando el usuario la elimina:
+
+borrar de la tabla user_custom_labels.
+
+No afectar documentos ya procesados.
+
+---
+
+6. COMPATIBILIDAD CON EL MOTOR DE ANONIMIZACIÓN
+
+Las etiquetas personalizadas deben comportarse igual que las etiquetas del sistema.
+
+Ejemplo:
+
+Si el usuario crea:
+
+CLIENTE
+
+el sistema debe generar tokens como:
+
+[CLIENTE_001]
+[CLIENTE_002]
+
+igual que ocurre con:
+
+[NOMBRE_PERSONA_001]
+
+No modificar el motor actual de reemplazo.
+
+Solo permitir nuevos tipos.
+
+---
+
+7. NO ROMPER FUNCIONES EXISTENTES
+
+No modificar:
+
+el sistema de etiquetas actuales
+el sistema de detección automática
+la lógica de generación de tokens
+la lógica de exportación
+
+Solo extender el selector de etiquetas.
+
+---
+
+8. INTERFAZ
+
+Agregar un subtítulo claro en el panel:
+
+Etiquetas de la plataforma
+Tus etiquetas
+
+Y debajo:
+
++ Crear etiqueta
+
+Mantener el mismo estilo visual de botones.
+
+---
+
+9. SEGURIDAD
+
+Verificar siempre:
+
+label.user_id == current_user.id
+
+para evitar acceso a etiquetas de otros usuarios.
+
+---
+
+10. ARCHIVOS A MODIFICAR
+
+Agregar:
+
+modelo user_custom_labels
+
+ruta API:
+
+/api/user-labels
+POST crear etiqueta
+GET listar etiquetas
+DELETE eliminar etiqueta
+
+Modificar únicamente el componente de selección de etiquetas del anonimizador para agregar la segunda sección.
+
+No modificar otras partes del sistema.

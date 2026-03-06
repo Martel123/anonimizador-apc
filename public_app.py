@@ -1607,3 +1607,49 @@ def redeem_page():
     return render_template("redeem_reward.html", token=token)
 
 
+# ─── Custom Labels API ────────────────────────────────────────────────────────
+
+@anonymizer_bp.route("/api/user-labels", methods=["GET"])
+@login_required
+def api_user_labels_list():
+    from models import UserCustomLabel
+    labels = UserCustomLabel.query.filter_by(user_id=current_user.id)\
+        .order_by(UserCustomLabel.created_at.asc()).all()
+    return jsonify([{"id": l.id, "label_name": l.label_name} for l in labels])
+
+
+@anonymizer_bp.route("/api/user-labels", methods=["POST"])
+@login_required
+def api_user_labels_create():
+    from models import db, UserCustomLabel
+    data = request.get_json(silent=True) or {}
+    raw = (data.get("label_name") or "").strip().upper()
+    # Solo letras, números y guión bajo; máximo 30 chars
+    import re as _re
+    if not raw or not _re.match(r'^[A-Z0-9_]{1,30}$', raw):
+        return jsonify({"error": "Nombre inválido. Usa letras, números o _ (máx. 30 caracteres)."}), 400
+    if UserCustomLabel.query.filter_by(user_id=current_user.id, label_name=raw).first():
+        return jsonify({"error": f"Ya tienes una etiqueta llamada '{raw}'."}), 409
+    count = UserCustomLabel.query.filter_by(user_id=current_user.id).count()
+    if count >= 50:
+        return jsonify({"error": "Límite de 50 etiquetas personalizadas alcanzado."}), 400
+    label = UserCustomLabel(user_id=current_user.id, label_name=raw)
+    db.session.add(label)
+    db.session.commit()
+    logger.info("CUSTOM_LABEL_CREATED | user=%s | label=%s", current_user.id, raw)
+    return jsonify({"id": label.id, "label_name": label.label_name}), 201
+
+
+@anonymizer_bp.route("/api/user-labels/<int:label_id>", methods=["DELETE"])
+@login_required
+def api_user_labels_delete(label_id):
+    from models import db, UserCustomLabel
+    label = UserCustomLabel.query.filter_by(id=label_id, user_id=current_user.id).first()
+    if not label:
+        return jsonify({"error": "Etiqueta no encontrada o sin permiso."}), 404
+    db.session.delete(label)
+    db.session.commit()
+    logger.info("CUSTOM_LABEL_DELETED | user=%s | label=%s", current_user.id, label.label_name)
+    return jsonify({"ok": True})
+
+

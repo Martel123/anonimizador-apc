@@ -9390,6 +9390,14 @@ def _run_schema_migrations():
         "CREATE INDEX IF NOT EXISTS ix_login_attempts_email ON login_attempts(email)",
         "CREATE INDEX IF NOT EXISTS ix_login_attempts_ip ON login_attempts(ip)",
         "CREATE INDEX IF NOT EXISTS ix_login_attempts_created_at ON login_attempts(created_at)",
+        """CREATE TABLE IF NOT EXISTS user_custom_labels (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            label_name VARCHAR(30) NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            CONSTRAINT uq_user_label_name UNIQUE (user_id, label_name)
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_user_custom_labels_user_id ON user_custom_labels(user_id)",
     ]
     for sql in migrations:
         try:

@@ -74,7 +74,97 @@
     .type-SELLO { background: #CCFBF1; color: #0D9488; }
     .type-HUELLA { background: #FCE7F3; color: #BE185D; }
     .type-JUZGADO { background: #DBEAFE; color: #1D4ED8; }
-    
+    .type-CUSTOM { background: #FEF9C3; color: #854D0E; }
+
+    .popup-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #9CA3AF;
+      margin-bottom: 6px;
+      margin-top: 12px;
+    }
+    .popup-section-title:first-of-type { margin-top: 0; }
+
+    .custom-label-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .custom-label-del {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 14px;
+      height: 14px;
+      background: #DC2626;
+      color: #fff;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
+      display: none;
+    }
+    .custom-label-wrap:hover .custom-label-del { display: flex; }
+
+    #createLabelModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 199999;
+      align-items: center;
+      justify-content: center;
+    }
+    #createLabelModal.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      width: 320px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .modal-box h3 { font-size: .95rem; font-weight: 700; margin-bottom: 14px; }
+    .modal-box input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #E5E5E5;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-family: monospace;
+      text-transform: uppercase;
+      outline: none;
+      margin-bottom: 8px;
+    }
+    .modal-box input:focus { border-color: #B30000; }
+    .modal-error { font-size: .78rem; color: #DC2626; margin-bottom: 8px; min-height: 16px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+    .modal-btn { padding: 8px 16px; border-radius: 7px; font-size: .875rem; font-weight: 600; cursor: pointer; border: none; }
+    .modal-btn-cancel { background: #F3F4F6; color: #374151; }
+    .modal-btn-create { background: #B30000; color: #fff; }
+    .modal-btn-create:hover { background: #990000; }
+    .btn-create-label {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #B30000;
+      background: #FEF2F2;
+      border: 1px dashed #FECACA;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .btn-create-label:hover { background: #FEE2E2; }
+
     .selection-popup {
       position: fixed;
       background: white;
@@ -443,7 +533,9 @@
       <p class="text-sm text-gray-500 mb-1">Marcar como:</p>
       <p class="font-semibold text-gray-900 text-lg" id="selectedTextDisplay"></p>
     </div>
-    <div class="grid grid-cols-4 gap-2 mb-4" id="typeButtons">
+
+    <div class="popup-section-title">Etiquetas de la plataforma</div>
+    <div class="grid grid-cols-4 gap-2 mb-2" id="typeButtons">
       <button type="button" class="type-badge type-PERSONA" data-type="PERSONA">PERSONA</button>
       <button type="button" class="type-badge type-DNI" data-type="DNI">DNI</button>
       <button type="button" class="type-badge type-RUC" data-type="RUC">RUC</button>
@@ -461,10 +553,32 @@
       <button type="button" class="type-badge type-HUELLA" data-type="HUELLA">HUELLA</button>
       <button type="button" class="type-badge type-JUZGADO" data-type="JUZGADO">JUZGADO</button>
     </div>
-    <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-      <input type="checkbox" id="replaceAllCheckbox" checked class="w-4 h-4 text-blue-600 rounded border-gray-300">
-      Reemplazar todas las ocurrencias
-    </label>
+
+    <div class="popup-section-title">Tus etiquetas</div>
+    <div id="customLabelsGrid" style="display:flex;flex-wrap:wrap;gap:8px;min-height:26px;margin-bottom:4px;"></div>
+    <button type="button" class="btn-create-label" id="openCreateLabelBtn">
+      <span style="font-size:14px;line-height:1;">+</span> Crear etiqueta
+    </button>
+
+    <div style="margin-top:10px;border-top:1px solid #F3F4F6;padding-top:10px;">
+      <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+        <input type="checkbox" id="replaceAllCheckbox" checked class="w-4 h-4 text-blue-600 rounded border-gray-300">
+        Reemplazar todas las ocurrencias
+      </label>
+    </div>
+  </div>
+
+  <!-- Create Custom Label Modal -->
+  <div id="createLabelModal">
+    <div class="modal-box">
+      <h3>Nueva etiqueta personalizada</h3>
+      <input type="text" id="newLabelInput" maxlength="30" placeholder="Ej: CLIENTE, POLIZA_001" autocomplete="off">
+      <div class="modal-error" id="modalLabelError"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" id="cancelLabelBtn">Cancelar</button>
+        <button type="button" class="modal-btn modal-btn-create" id="confirmLabelBtn">Crear</button>
+      </div>
+    </div>
   </div>
 
   <!-- Processing Overlay -->
@@ -852,6 +966,139 @@
     });
 
     updatePreview();
+
+    // ── Custom Labels ──────────────────────────────────────────────────────────
+
+    const customLabelsGrid = document.getElementById('customLabelsGrid');
+    const openCreateLabelBtn = document.getElementById('openCreateLabelBtn');
+    const createLabelModal = document.getElementById('createLabelModal');
+    const newLabelInput = document.getElementById('newLabelInput');
+    const modalLabelError = document.getElementById('modalLabelError');
+    const cancelLabelBtn = document.getElementById('cancelLabelBtn');
+    const confirmLabelBtn = document.getElementById('confirmLabelBtn');
+
+    // Load custom labels from server
+    async function loadCustomLabels() {
+      try {
+        const resp = await fetch('/api/user-labels');
+        if (!resp.ok) return;
+        const labels = await resp.json();
+        renderCustomLabels(labels);
+      } catch(e) {}
+    }
+
+    function renderCustomLabels(labels) {
+      customLabelsGrid.innerHTML = '';
+      if (labels.length === 0) {
+        customLabelsGrid.innerHTML = '<span style="font-size:11px;color:#9CA3AF;">Sin etiquetas. Crea una con el botón de abajo.</span>';
+        return;
+      }
+      labels.forEach(function(lbl) {
+        const wrap = document.createElement('div');
+        wrap.className = 'custom-label-wrap';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'type-badge type-CUSTOM';
+        btn.dataset.type = lbl.label_name;
+        btn.textContent = lbl.label_name;
+        btn.addEventListener('click', function() {
+          handleTypeSelection(lbl.label_name);
+        });
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'custom-label-del';
+        del.title = 'Eliminar etiqueta';
+        del.textContent = '×';
+        del.addEventListener('click', async function(e) {
+          e.stopPropagation();
+          if (!confirm('¿Eliminar la etiqueta "' + lbl.label_name + '"?')) return;
+          try {
+            const r = await fetch('/api/user-labels/' + lbl.id, { method: 'DELETE' });
+            if (r.ok) {
+              wrap.remove();
+              if (customLabelsGrid.children.length === 0) {
+                customLabelsGrid.innerHTML = '<span style="font-size:11px;color:#9CA3AF;">Sin etiquetas. Crea una con el botón de abajo.</span>';
+              }
+            }
+          } catch(e2) {}
+        });
+
+        wrap.appendChild(btn);
+        wrap.appendChild(del);
+        customLabelsGrid.appendChild(wrap);
+      });
+    }
+
+    // Handler for custom label buttons (reuses existing addManualEntity function)
+    function handleTypeSelection(type) {
+      if (!selectedText) return;
+      addManualEntity(selectedText, type, replaceAllCheckbox.checked);
+      selectionPopup.classList.add('hidden');
+      selectionPopup.classList.remove('visible');
+      window.getSelection()?.removeAllRanges();
+      selectedText = '';
+    }
+
+    // Open / close modal
+    openCreateLabelBtn.addEventListener('click', function() {
+      newLabelInput.value = '';
+      modalLabelError.textContent = '';
+      createLabelModal.classList.add('open');
+      newLabelInput.focus();
+    });
+
+    function closeModal() {
+      createLabelModal.classList.remove('open');
+      newLabelInput.value = '';
+      modalLabelError.textContent = '';
+    }
+
+    cancelLabelBtn.addEventListener('click', closeModal);
+    createLabelModal.addEventListener('click', function(e) {
+      if (e.target === createLabelModal) closeModal();
+    });
+
+    newLabelInput.addEventListener('input', function() {
+      this.value = this.value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    });
+    newLabelInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') confirmLabelBtn.click();
+      if (e.key === 'Escape') closeModal();
+    });
+
+    confirmLabelBtn.addEventListener('click', async function() {
+      const name = newLabelInput.value.trim().toUpperCase();
+      modalLabelError.textContent = '';
+      if (!name) { modalLabelError.textContent = 'Ingresa un nombre.'; return; }
+      confirmLabelBtn.disabled = true;
+      confirmLabelBtn.textContent = '...';
+      try {
+        const resp = await fetch('/api/user-labels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label_name: name })
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          modalLabelError.textContent = data.error || 'Error al crear.';
+          return;
+        }
+        closeModal();
+        // Reload all labels to re-render
+        loadCustomLabels();
+      } catch(e) {
+        modalLabelError.textContent = 'Error de red.';
+      } finally {
+        confirmLabelBtn.disabled = false;
+        confirmLabelBtn.textContent = 'Crear';
+      }
+    });
+
+    // Load on start
+    loadCustomLabels();
+
   });
   </script>
 </body>

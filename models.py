@@ -2117,6 +2117,22 @@ class CreditCode(db.Model):
         return True, ""
 
 
+class UserCustomLabel(db.Model):
+    """Etiquetas personalizadas por usuario para el anonimizador."""
+    __tablename__ = 'user_custom_labels'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    label_name = db.Column(db.String(30), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('custom_labels', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'label_name', name='uq_user_label_name'),
+    )
+
+
 class CreditRedemption(db.Model):
     """Registro de canjes de códigos de crédito."""
     __tablename__ = 'credit_redemptions'
