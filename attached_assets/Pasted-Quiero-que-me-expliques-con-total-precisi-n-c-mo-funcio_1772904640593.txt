@@ -1,0 +1,297 @@
+Quiero que me expliques con total precisión cómo funciona actualmente mi anonimizador, pero enfocado en entender TODO el proceso de extremo a extremo para poder mejorarlo después.
+
+NO quiero que cambies nada todavía.
+NO quiero refactorización.
+NO quiero propuestas de mejora todavía.
+NO quiero teoría general.
+Quiero una radiografía exacta del funcionamiento REAL del sistema actual.
+
+OBJETIVO:
+Necesito entender dos cosas al mismo tiempo:
+
+1. EL PROCESO DE LA MÁQUINA
+Cómo funciona internamente el sistema, capa por capa, archivo por archivo, función por función.
+
+2. EL PROCESO DEL USUARIO
+Qué vive el usuario desde que entra hasta que termina de anonimizar, revisar y descargar.
+
+Quiero que me expliques ambos procesos conectados entre sí.
+
+========================
+1. VISIÓN GENERAL DEL FLUJO COMPLETO
+========================
+
+Primero dame una vista panorámica del sistema completo, de extremo a extremo:
+
+- desde que el usuario entra al anonimizador
+- sube un archivo
+- el backend lo recibe
+- se extrae el texto
+- pasan las capas de detección
+- se fusionan resultados
+- se filtran resultados
+- se envían al frontend
+- el usuario revisa
+- el usuario corrige
+- se reemplaza
+- se genera el documento final
+- se descarga
+- se genera reporte si existe
+
+Quiero una explicación secuencial clara, como si estuvieras dibujando el mapa completo del producto.
+
+========================
+2. PROCESO DEL USUARIO (PASO A PASO)
+========================
+
+Explícame exactamente qué hace el usuario en cada etapa.
+
+Para cada pantalla o etapa, dime:
+- qué ve el usuario
+- qué puede hacer
+- qué botón o acción dispara el siguiente paso
+- qué ruta se llama
+- qué template se renderiza
+- qué datos viajan al backend
+- qué respuesta vuelve
+
+Quiero que recorras todo el journey del usuario:
+
+A. Entrada al sistema
+- cómo llega al anonimizador
+- si requiere login o no
+- qué pantalla inicial usa
+
+B. Subida del archivo
+- qué formatos puede subir
+- cómo se valida
+- qué pasa si el archivo falla
+- qué ruta recibe la carga
+
+C. Procesamiento
+- qué mensaje ve el usuario
+- si espera en la misma pantalla o cambia
+- si se usa AJAX, form submit o redirección
+
+D. Pantalla de revisión
+- cómo se muestran las entidades detectadas
+- cómo se resaltan
+- cómo el usuario cambia etiquetas
+- cómo elimina una detección
+- cómo agrega una detección manual
+- cómo funciona “reemplazar todas las ocurrencias”
+- qué ocurre cuando guarda cambios
+
+E. Generación del resultado final
+- cómo se arma el documento anonimizado
+- cómo se descarga
+- si además se genera JSON, reporte o auditoría
+
+F. Errores y casos especiales
+- qué pasa si no detecta nada
+- qué pasa si detecta demasiado
+- qué pasa si el archivo no se puede leer
+- qué pasa si el usuario abandona a mitad del proceso
+
+========================
+3. PROCESO DE LA MÁQUINA (CAPA POR CAPA)
+========================
+
+Ahora quiero que me expliques el proceso interno técnico real del sistema.
+
+Quiero que lo dividas en capas y etapas reales.
+
+Para cada capa, dime:
+- nombre de la capa
+- archivo exacto
+- función exacta
+- qué recibe
+- qué hace
+- qué devuelve
+- qué capa llama después
+
+Quiero que recorras todo el pipeline real, por ejemplo:
+
+- recepción del archivo
+- guardado temporal
+- extracción de texto
+- normalización
+- capa 1 regex
+- capa 2 contextual
+- capa 3 NER / IA si existe
+- merge
+- filtros legales
+- auditor final
+- generación de tokens/reemplazos
+- reconstrucción del documento
+- respuesta al frontend
+- exportación final
+
+========================
+4. MAPA COMPLETO DE CAPAS DE DETECCIÓN
+========================
+
+Quiero una explicación muy clara de TODAS las capas de detección actuales.
+
+Para cada capa, explícame:
+
+- nombre exacto
+- archivo exacto
+- función exacta
+- tipo de lógica que usa
+- qué tipos de datos detecta
+- qué tan agresiva o conservadora es
+- qué problemas puede generar
+- en qué parte del flujo entra
+- qué resultado le pasa a la siguiente capa
+
+Quiero especialmente que me expliques:
+- Capa 1
+- Capa 2
+- Capa 3
+- Capa 4 si existe
+- auditor post-anonimización si existe
+- filtros legales
+- validadores
+- merge / deduplicación
+- control de solapamientos
+- confidence si existe
+
+========================
+5. ORDEN REAL DE EJECUCIÓN
+========================
+
+Quiero que me digas el ORDEN EXACTO en que se ejecuta todo durante una anonimización normal.
+
+Hazlo como cadena real, por ejemplo:
+
+función A → función B → función C → capa 1 → capa 2 → merge → filtros → auditor → frontend → guardado final
+
+Pero con los nombres reales del proyecto.
+
+No me des teoría: quiero el orden real del código actualmente activo.
+
+========================
+6. ARCHIVOS CLAVE Y RESPONSABILIDAD DE CADA UNO
+========================
+
+Hazme una lista de los archivos más importantes que participan en el proceso completo.
+
+Para cada archivo:
+- ruta exacta
+- responsabilidad
+- si está activo o no
+- en qué momento del flujo entra
+- qué pasaría si se modifica mal
+
+Incluye al menos:
+- archivo de rutas
+- archivo de procesamiento principal
+- archivo de capas de detección
+- archivo de filtros legales
+- archivo de auditor final
+- archivo de frontend / template de revisión
+- JS de revisión si existe
+- archivo que genera exportación final
+- archivo que guarda temporales si existe
+
+========================
+7. ESTRUCTURA INTERNA DE LOS DATOS DURANTE EL PROCESO
+========================
+
+Quiero que me expliques cómo va cambiando la información dentro del sistema.
+
+Por ejemplo:
+- cómo entra el archivo
+- cómo se representa el texto extraído
+- cómo se representa una entidad detectada
+- cómo se guarda la lista de entidades
+- cómo se envía al frontend
+- cómo vuelve al backend tras la revisión manual
+- cómo se usa para producir el documento final
+
+Si hay dict, dataclass, objeto o schema, muéstramelo.
+
+Quiero entender la vida completa de los datos dentro del pipeline.
+
+========================
+8. CONEXIÓN ENTRE BACKEND Y FRONTEND
+========================
+
+Explícame cómo se conectan el backend y el frontend en este flujo.
+
+Quiero saber:
+- qué ruta prepara los datos para la pantalla de revisión
+- qué template recibe esos datos
+- qué variables pasan al template
+- qué JS manipula entities
+- cómo se guardan cambios del usuario
+- si las actualizaciones son por submit, fetch o AJAX
+- qué endpoint recibe las correcciones
+- cómo se reconstruye el resultado final
+
+========================
+9. CRÉDITOS, PÁGINAS, LÍMITES Y CONTROL DE USUARIO
+========================
+
+Si en este flujo intervienen créditos, páginas, planes o límites, explícamelo también.
+
+Quiero saber:
+- en qué parte del flujo se valida si el usuario puede anonimizar
+- en qué parte se descuentan páginas o créditos
+- cuándo ocurre ese descuento
+- qué pasa si el usuario no tiene saldo
+- qué archivo controla esto
+- si ese control ocurre antes o después del procesamiento
+
+========================
+10. PUNTOS DELICADOS DEL SISTEMA
+========================
+
+Quiero que identifiques los puntos más delicados del flujo.
+
+Por ejemplo:
+- funciones que no se deben tocar sin cuidado
+- capas donde un cambio puede romper la detección
+- partes donde se decide demasiado
+- partes donde se fusiona demasiado
+- partes donde se reemplaza texto
+- partes donde se genera el documento final
+- partes donde un error puede arruinar el archivo o sobredetectar
+
+No quiero propuestas de mejora todavía.
+Solo quiero saber cuáles son las zonas sensibles.
+
+========================
+11. RESPUESTA FINAL EN FORMATO OBLIGATORIO
+========================
+
+Quiero que respondas exactamente con esta estructura:
+
+1. Resumen general del proceso completo
+2. Proceso del usuario paso a paso
+3. Proceso técnico interno de la máquina
+4. Mapa completo de capas de detección
+5. Orden real de ejecución
+6. Archivos clave y función de cada uno
+7. Cómo viajan los datos dentro del sistema
+8. Cómo se conectan backend y frontend
+9. Créditos, límites y validaciones de usuario
+10. Puntos delicados del sistema
+11. Conclusión final: cómo funciona realmente el anonimizador hoy
+
+========================
+12. REGLAS IMPORTANTES
+========================
+
+- No cambies nada
+- No propongas mejoras todavía
+- No resumas de forma vaga
+- No asumas
+- Verifica el código real
+- Dime nombres exactos de archivos, funciones, rutas y templates
+- Si hay varias versiones, dime cuál está activa
+- Si algo no existe, dilo claramente
+- Si hay código muerto o duplicado, menciónalo
+- Si una parte depende de librerías externas, dilo claramente
+- Si puedes, incluye fragmentos cortos de código cuando ayuden a entender el flujo
