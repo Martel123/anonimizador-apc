@@ -1,0 +1,77 @@
+Los cambios anteriores mejoraron algo, pero el resultado sigue sobreanonimizando de forma grave.
+
+EVIDENCIA DEL PROBLEMA ACTUAL:
+- Se siguen reemplazando enormes cantidades de PERSONA dentro de texto normal.
+- ENTIDAD está rompiendo palabras internas (ejemplo: COR{{ENTIDAD_x}} PARENTAL).
+- EMAIL no se está reemplazando limpio en todos los casos.
+- La política de "needs_review" no está funcionando como barrera real, porque esas entidades igual terminan aplicándose.
+
+OBJETIVO DE ESTA SEGUNDA RONDA:
+No quiero cambiar el pipeline general.
+Quiero corregir la POLÍTICA DE APLICACIÓN y el MATCH DE REEMPLAZO para tipos ambiguos.
+
+NO TOCAR:
+- créditos
+- reserva/cobro
+- auditor final
+- processor_docx base salvo ajustes puntuales de matching
+- rutas del flujo principal
+
+QUIERO ESTOS CAMBIOS EXACTOS:
+
+1) BLOQUEAR APPLY AUTOMÁTICO DE ENTIDADES EN REVIEW
+Revisa el flujo entre anonymizer_review.html / JS / POST /anonymizer/apply.
+
+Quiero que PERSONA, ENTIDAD, DIRECCION y PLACA, al estar en needs_review:
+- NO se envíen activas por defecto al apply
+  o
+- lleguen desmarcadas por defecto
+  o
+- el backend ignore esas entidades salvo confirmación explícita del usuario
+
+Necesito una barrera real:
+detectar para revisión != aplicar automáticamente.
+
+2) MATCH MÁS ESTRICTO EN EL REEMPLAZO PARA TIPOS SUAVES
+En public_app.py y donde corresponda, ajusta apply_entities_to_docx() y apply_entities_to_text() para que PERSONA, ENTIDAD, DIRECCION y PLACA:
+- no reemplacen subcadenas dentro de palabras
+- no rompan palabras como "CORRESPONSABILIDAD"
+- usen coincidencia exacta o con bordes de palabra razonables
+- mantengan replace_all solo cuando sea seguro
+
+3) LONGITUD MÍNIMA Y SEGMENTACIÓN PARA TIPOS SUAVES
+Antes de aplicar reemplazo para PERSONA, ENTIDAD y DIRECCION:
+- si el valor es demasiado corto
+- si es una sola palabra ambigua
+- si no tiene estructura suficiente
+=> no aplicar automático, dejarlo solo como revisión
+
+4) PERSONA: APLICAR SOLO SI FUE CONFIRMADA
+Quiero que PERSONA:
+- nunca se aplique por defecto solo por haber sido detectada
+- solo pase a apply si fue confirmada explícitamente por el usuario
+- si proviene de needs_review y el usuario no la marcó, no debe entrar al reemplazo
+
+5) ENTIDAD: NO REEMPLAZAR DENTRO DE OTRAS PALABRAS
+Quiero corregir específicamente el problema de tokens como:
+COR{{ENTIDAD_x}}PARENTAL
+
+Para ENTIDAD:
+- no reemplazar dentro de otra palabra
+- exigir mejor delimitación
+- si el valor es corto o ambiguo, no aplicarlo
+
+6) EMAIL: REEMPLAZO LIMPIO
+Asegúrate de que EMAIL se reemplace completo en la pasada principal, para evitar resultados tipo:
+correo_original{{EMAIL_x}}
+
+Revisa el orden y la coincidencia del reemplazo de EMAIL.
+
+7) ENTREGA FINAL
+Después de hacer los cambios, dame un resumen con:
+- archivos tocados
+- funciones tocadas
+- qué se cambió en review/apply
+- qué se cambió en el matching de reemplazo
+- cómo evitaste reemplazos dentro de palabras
+- cómo quedó ahora la política para PERSONA, ENTIDAD, DIRECCION y PLACA

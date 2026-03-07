@@ -438,11 +438,11 @@
       {% if entities_all %}
       <div class="entities-slider" id="entitiesContainer">
         {% for entity in entities_all %}
-        <div class="entity-card {{ 'selected' if entity.confidence >= 0.8 else '' }}" 
+        <div class="entity-card {{ 'selected' if entity.status == 'confirmed' else '' }}" 
              data-entity='{{ entity | tojson }}' 
-             data-selected="{{ 'true' if entity.confidence >= 0.8 else 'false' }}">
+             data-selected="{{ 'true' if entity.status == 'confirmed' else 'false' }}">
           <div class="flex items-start gap-3">
-            <div class="custom-checkbox {{ 'checked' if entity.confidence >= 0.8 else '' }}" data-entity-id="{{ loop.index }}"></div>
+            <div class="custom-checkbox {{ 'checked' if entity.status == 'confirmed' else '' }}" data-entity-id="{{ loop.index }}"></div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
                 <span class="type-badge type-{{ entity.type }}">{{ entity.type }}</span>

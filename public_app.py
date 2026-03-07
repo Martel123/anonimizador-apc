@@ -313,44 +313,66 @@ def expand_entities_with_candidates(entity_dicts):
     return entities
 
 
+# Tipos que requieren matching estricto (bordes de palabra, longitud mínima)
+SOFT_MATCH_TYPES = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+# Prioridad de aplicación: los tipos estructurados primero para proteger emails, RUC, etc.
+TYPE_APPLY_PRIORITY = {
+    'EMAIL': 0, 'DNI': 0, 'RUC': 0, 'TELEFONO': 0, 'CUENTA': 0,
+    'EXPEDIENTE': 1, 'JUZGADO': 1, 'ACTA': 1, 'CASILLA': 1,
+    'PLACA': 2, 'DIRECCION': 3, 'ENTIDAD': 4, 'PERSONA': 5,
+}
+
+
 def apply_entities_to_docx(input_path, output_path, entity_dicts):
     """
     Aplica anonimización a DOCX con soporte para tokens predefinidos (manual entities).
     Usa reemplazo run-aware para manejar texto partido.
+    - Tipos suaves (PERSONA/ENTIDAD/DIRECCION/PLACA): word-boundary estricto,
+      longitud mínima, solo valor exacto (sin candidatos expandidos).
+    - EMAIL/DNI/RUC/…: se aplican primero para proteger sus valores.
     """
     from docx import Document
-    from processor_docx import EntityMapping
-    
+
     doc = Document(input_path)
-    
+
     replacements = []
     reverse_mapping = {}
     type_counters = {}
     value_to_token = {}
-    
+
     for d in entity_dicts:
         ent_type = d.get('type', 'UNKNOWN')
         value = d.get('value', '')
         token = d.get('token', '')
         replace_all = d.get('replace_all', True)
         candidates = d.get('candidates', [])
-        
+        soft = ent_type.upper() in SOFT_MATCH_TYPES
+
         if not value:
             continue
-        
-        all_values = set()
-        if value:
-            all_values.add(value)
-        if candidates:
-            all_values.update(candidates)
-        
+
+        # ── Filtro de longitud/estructura para tipos suaves ──────────────────
+        if soft:
+            v_stripped = value.strip()
+            if len(v_stripped) < 4:
+                continue
+            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped and len(v_stripped) < 6:
+                continue
+            all_values = {v_stripped}
+        else:
+            all_values = set()
+            if value:
+                all_values.add(value)
+            if candidates:
+                all_values.update(candidates)
+
         for v in all_values:
             if not v or len(v) < 2:
                 continue
-            
+
             normalized = v.strip().lower()
             key = f"{ent_type}|{normalized}"
-            
+
             if key in value_to_token:
                 t = value_to_token[key]
             elif token:
@@ -360,76 +382,89 @@ def apply_entities_to_docx(input_path, output_path, entity_dicts):
                 type_counters[ent_type] = type_counters.get(ent_type, 0) + 1
                 t = f"{{{{{ent_type}_{type_counters[ent_type]}}}}}"
                 value_to_token[key] = t
-            
-            replacements.append((v, t, replace_all))
-            
-            clean_token = t.replace('{{', '').replace('}}', '')
+
+            replacements.append((v, t, replace_all, soft))
+
             if t not in reverse_mapping:
                 masked = v[:3] + '...' + v[-2:] if len(v) > 8 else v[:2] + '***'
                 reverse_mapping[t] = masked
-    
-    replacements.sort(key=lambda x: len(x[0]), reverse=True)
-    
+
+    # Estructurados primero (priority 0), luego por longitud desc, usando la tupla
+    # x[3] es soft: False=estructurado → prioridad baja numéricamente → va primero
+    replacements.sort(key=lambda x: (int(x[3]) * 10, -len(x[0])))
+
     replaced_count = apply_replacements_to_docx(doc, replacements)
-    
+
     doc.save(output_path)
-    
+
     return replaced_count, reverse_mapping
+
+
+def _is_word_char(c):
+    """Retorna True si el carácter es alfanumérico o guión bajo (parte de una palabra)."""
+    return c.isalnum() or c == '_'
 
 
 def apply_replacements_to_docx(doc, replacements):
     """
-    Aplica lista de reemplazos (value, token, replace_all) al documento DOCX.
-    Maneja párrafos, tablas, headers y footers con reemplazo run-aware.
+    Aplica lista de reemplazos (value, token, replace_all, soft) al documento DOCX.
+    - soft=True: verifica bordes de palabra antes de reemplazar (evita sub-palabras).
+    - Maneja párrafos, tablas, headers y footers con reemplazo run-aware.
     """
     total_count = 0
-    # Track which once-only replacements have been done (global across paragraphs)
     done_once = set()
-    
+
     def replace_in_paragraph(paragraph, replacements):
         nonlocal done_once
         count = 0
-        for original, token, replace_all in replacements:
-            # Skip if this is a once-only replacement that's already been applied globally
+        for original, token, replace_all, soft in replacements:
             if not replace_all and original in done_once:
                 continue
             full_text = paragraph.text
             if original not in full_text:
                 continue
-            
+
             run_map = []
             pos = 0
             for idx, run in enumerate(paragraph.runs):
                 run_text = run.text
                 run_map.append((pos, pos + len(run_text), idx, run))
                 pos += len(run_text)
-            
+
             start = 0
             iterations = 0
             max_iterations = 100
-            
+
             while iterations < max_iterations:
                 iterations += 1
                 full_text = paragraph.text
                 idx = full_text.find(original, start)
                 if idx == -1:
                     break
-                
+
                 end_idx = idx + len(original)
-                
+
+                # ── Word-boundary check para tipos suaves ────────────────────
+                if soft:
+                    char_before = full_text[idx - 1] if idx > 0 else ' '
+                    char_after = full_text[end_idx] if end_idx < len(full_text) else ' '
+                    if _is_word_char(char_before) or _is_word_char(char_after):
+                        start = idx + 1
+                        continue
+
                 affected_runs = []
                 for run_start, run_end, run_idx, run in run_map:
                     if run_start < end_idx and run_end > idx:
                         affected_runs.append((run_start, run_end, run_idx, run))
-                
+
                 if not affected_runs:
                     start = idx + 1
                     continue
-                
+
                 first_run = affected_runs[0]
                 first_run_obj = first_run[3]
                 local_start = idx - first_run[0]
-                
+
                 if len(affected_runs) == 1:
                     local_end = local_start + len(original)
                     old_text = first_run_obj.text
@@ -437,28 +472,28 @@ def apply_replacements_to_docx(doc, replacements):
                 else:
                     old_text = first_run_obj.text
                     first_run_obj.text = old_text[:local_start] + token
-                    
+
                     for _, _, _, run in affected_runs[1:-1]:
                         run.text = ''
-                    
+
                     last_run = affected_runs[-1]
                     last_run_obj = last_run[3]
                     local_end_in_last = end_idx - last_run[0]
                     last_run_obj.text = last_run_obj.text[local_end_in_last:]
-                
+
                 count += 1
-                
+
                 if not replace_all:
                     done_once.add(original)
                     break
-                
+
                 run_map = []
                 pos = 0
                 for r_idx, run in enumerate(paragraph.runs):
                     run_map.append((pos, pos + len(run.text), r_idx, run))
                     pos += len(run.text)
                 start = 0
-        
+
         return count
     
     for para in doc.paragraphs:
@@ -487,35 +522,52 @@ def apply_replacements_to_docx(doc, replacements):
 def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
     """
     Aplica anonimización a texto plano con soporte para tokens predefinidos.
+    - Tipos suaves (PERSONA/ENTIDAD/DIRECCION/PLACA): word-boundary estricto y
+      filtro de longitud mínima.
+    - EMAIL/DNI/RUC/…: se aplican primero.
     """
+    import re as _re
+
     text = extract_text(input_path, ext)
-    
+
     type_counters = {}
     value_to_token = {}
     reverse_mapping = {}
-    
     all_replacements = []
-    
+
     for d in entity_dicts:
         ent_type = d.get('type', 'UNKNOWN')
         value = d.get('value', '')
         token = d.get('token', '')
         replace_all = d.get('replace_all', True)
         candidates = d.get('candidates', [])
-        
-        all_values = set()
-        if value:
-            all_values.add(value)
-        if candidates:
-            all_values.update(candidates)
-        
+        soft = ent_type.upper() in SOFT_MATCH_TYPES
+
+        if not value:
+            continue
+
+        # ── Filtro longitud/estructura tipos suaves ──────────────────────────
+        if soft:
+            v_stripped = value.strip()
+            if len(v_stripped) < 4:
+                continue
+            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped and len(v_stripped) < 6:
+                continue
+            all_values = {v_stripped}
+        else:
+            all_values = set()
+            if value:
+                all_values.add(value)
+            if candidates:
+                all_values.update(candidates)
+
         for v in all_values:
             if not v or len(v) < 2:
                 continue
-            
+
             normalized = v.strip().lower()
             key = f"{ent_type}|{normalized}"
-            
+
             if key in value_to_token:
                 t = value_to_token[key]
             elif token:
@@ -525,29 +577,43 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
                 type_counters[ent_type] = type_counters.get(ent_type, 0) + 1
                 t = f"{{{{{ent_type}_{type_counters[ent_type]}}}}}"
                 value_to_token[key] = t
-            
-            all_replacements.append((v, t, replace_all))
-            
+
+            all_replacements.append((v, t, replace_all, soft, ent_type.upper()))
+
             if t not in reverse_mapping:
                 masked = v[:3] + '...' + v[-2:] if len(v) > 8 else v[:2] + '***'
                 reverse_mapping[t] = masked
-    
-    all_replacements.sort(key=lambda x: len(x[0]), reverse=True)
-    
+
+    # Estructurados primero, luego por longitud desc
+    all_replacements.sort(key=lambda x: (int(x[3]) * 10, -len(x[0])))
+
     replaced_count = 0
-    for value, token, replace_all in all_replacements:
-        if value in text:
-            if replace_all:
-                count = text.count(value)
-                text = text.replace(value, token)
-                replaced_count += count
-            else:
-                text = text.replace(value, token, 1)
-                replaced_count += 1
-    
+    for value, token, replace_all, soft, ent_type in all_replacements:
+        if soft:
+            # Word-boundary: no reemplazar dentro de palabras
+            pattern = r'(?<!\w)' + _re.escape(value) + r'(?!\w)'
+            try:
+                if replace_all:
+                    new_text, n = _re.subn(pattern, token, text)
+                else:
+                    new_text, n = _re.subn(pattern, token, text, count=1)
+                replaced_count += n
+                text = new_text
+            except _re.error:
+                pass  # Si el valor tiene chars especiales, lo saltamos
+        else:
+            if value in text:
+                if replace_all:
+                    count = text.count(value)
+                    text = text.replace(value, token)
+                    replaced_count += count
+                else:
+                    text = text.replace(value, token, 1)
+                    replaced_count += 1
+
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(text)
-    
+
     return replaced_count, reverse_mapping
 
 
