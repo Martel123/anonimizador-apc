@@ -425,27 +425,36 @@ def should_anonymize_span(text: str, entity_type: str) -> Tuple[bool, str]:
         return False, "default_reject_persona"
     
     if entity_type == 'DIRECCION':
-        address_indicators = ['av', 'avenida', 'jr', 'jiron', 'jirón', 'calle', 
-                             'mz', 'manzana', 'lt', 'lote', 'urb', 'urbanización',
-                             'dpto', 'departamento', 'piso', 'int', 'interior',
-                             'km', 'kilómetro', 'bloque', 'block']
         text_lower = text.lower()
-        has_indicator = any(ind in text_lower for ind in address_indicators)
+        via_indicators = ['avenida', ' av.', ' av ', 'jirón', 'jiron', ' jr.', ' jr ',
+                          'calle ', 'pasaje', ' psje', 'alameda', 'malecón', 'malecon']
+        structural_indicators = ['manzana', ' mz.', ' mz ', ' lt.', ' lt ', 'lote ',
+                                  'urbanización', 'urbanizacion', ' urb.', ' urb ',
+                                  ' dpto.', ' dpto ', 'departamento', ' piso ', ' piso.',
+                                  ' int.', ' int ', 'interior ', 'bloque ', ' block ']
+        has_via = any(ind in text_lower for ind in via_indicators)
+        has_structural = any(ind in text_lower for ind in structural_indicators)
         has_number = bool(re.search(r'\d', text))
-        
-        if has_indicator or has_number:
-            return True, "address_pattern"
-        return False, "no_address_pattern"
+        if (has_via and has_number) or has_structural:
+            return True, "address_structure"
+        return False, "no_address_structure"
     
-    if entity_type in ('JUZGADO', 'CASILLA', 'ACTA', 'ENTIDAD'):
+    if entity_type in ('JUZGADO', 'CASILLA', 'ACTA'):
         return True, "legal_entity"
-    
+
+    if entity_type == 'ENTIDAD':
+        if is_in_exact_whitelist(text):
+            return False, "whitelist_exact"
+        if is_all_excluded_words(text):
+            return False, "all_excluded_words"
+        return True, "entity_needs_review"
+
     if entity_type in ('FIRMA', 'SELLO', 'HUELLA'):
         return True, "signature_mark"
-    
+
     if entity_type == 'PLACA':
         return True, "vehicle_plate"
-    
+
     return True, "default_accept"
 
 

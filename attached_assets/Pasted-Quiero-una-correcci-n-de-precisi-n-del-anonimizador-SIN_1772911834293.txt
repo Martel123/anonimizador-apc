@@ -1,0 +1,83 @@
+Quiero una corrección de precisión del anonimizador SIN romper el flujo actual.
+
+NO quiero refactorización completa.
+NO quiero cambiar rutas.
+NO quiero tocar créditos, reserva, cobro, auditor final ni processor_docx salvo que sea estrictamente necesario.
+Quiero cambios mínimos, controlados y revisables.
+
+OBJETIVO:
+Reducir falsos positivos y sobreanonimización, especialmente en PERSONA, ENTIDAD, DIRECCION y PLACA.
+
+HAZ ESTOS CAMBIOS EXACTOS:
+
+1) detector_capas.py — ENTIDAD_SIGUIENTE y detectar_entidad_publica_entidad()
+- Reduce la agresividad de ENTIDAD_SIGUIENTE.
+- No permitas capturar hasta 15 palabras libremente.
+- Limita más el span capturado.
+- Evita arrastrar encabezados largos o nombres institucionales completos.
+- Lo detectado por esta vía NO debe quedar como auto-confirmado; debe ir a revisión.
+
+2) detector_capas.py — PLACA_PATTERN
+- Mantén el patrón, pero no lo trates como entidad autoaplicable si no hay contexto vehicular.
+- Agrega validación de contexto cercano: placa, vehículo, vehiculo, auto, camioneta, moto, motocicleta, bus, camión, camion.
+- Si no hay contexto vehicular, mándalo a revisión o descártalo.
+
+3) legal_filters.py — should_anonymize_span()
+- Cambia la política de aceptación para ENTIDAD, PLACA y DIRECCION.
+- ENTIDAD no debe aceptarse automáticamente como legal_entity.
+- PLACA no debe aceptarse automáticamente como vehicle_plate sin contexto positivo.
+- DIRECCION no debe aceptarse con la regla actual de “has_indicator or has_number”.
+- Para DIRECCION, exige estructura física real: vía + nombre + número, o Mz/Lt, o Urb/Dpto/Piso/Interior, etc.
+- Mantén aceptación automática para structured_pii reales: DNI, RUC, EMAIL, TELEFONO, CUENTA, CCI, EXPEDIENTE.
+
+4) legal_filters.py — PERSONA
+- La razón "possible_name" NO debe terminar como confirmada por defecto.
+- PERSONA detectada solo por heurística débil, mayúsculas o Title Case debe ir a revisión.
+- Solo los casos de PERSONA realmente fuertes deben poder quedar confirmados.
+- No elimines la whitelist ni los filtros actuales; reutilízalos.
+
+5) public_app.py — normalize_entity()
+- Para PERSONA, ENTIDAD y DIRECCION elimina candidate “no_spaces”.
+- Mantén normalizaciones conservadoras, pero no agresivas para esos tipos.
+- Para tipos estructurados como DNI, RUC, EMAIL y TELEFONO sí puedes mantener normalizaciones seguras.
+
+6) public_app.py — expand_entities_with_candidates()
+- No expandas todos los candidates para PERSONA, ENTIDAD, DIRECCION y PLACA.
+- Para esos tipos usa solo el value exacto y, como mucho, variantes conservadoras.
+- Evita expansión agresiva para reemplazo.
+- Mantén expansión más flexible solo para structured_pii seguros.
+
+7) public_app.py — apply_entities_to_docx() y apply_entities_to_text()
+- Ajusta la construcción de replacements para que PERSONA, ENTIDAD, DIRECCION y PLACA no usen candidates expansivos.
+- Conserva el reemplazo exacto o casi exacto.
+- Mantén el orden por longitud descendente.
+- No cambies la lógica run-aware base.
+
+8) public_app.py — clasificación confirmed / needs_review
+- No dependas solo del confidence.
+- Agrega una política por tipo:
+  - PERSONA, ENTIDAD, DIRECCION y PLACA deben ir a needs_review por defecto.
+  - Solo los tipos estructurados y seguros deben quedar confirmados automáticamente.
+- Mantén el flujo del frontend actual, sin rehacer templates.
+
+9) detect_all_pii / flujo general
+- No rehagas el pipeline.
+- Solo agrega una policy posterior clara:
+  detectar != auto-confirmar.
+- Conserva el merge y los filtros existentes, pero cambia la decisión final de qué queda confirmado y qué queda en revisión.
+
+10) NO TOCAR
+- final_auditor.py
+- processor_docx.py
+- rutas del blueprint
+- créditos, reserva y cobro
+- download/apply/process salvo lo necesario para la política de confirmed vs needs_review
+
+ENTREGA FINAL:
+Después de hacer los cambios, dame un reporte con:
+- archivos tocados
+- funciones tocadas
+- cambio exacto hecho en cada una
+- por qué reduce falsos positivos
+- cómo queda ahora la política para PERSONA, ENTIDAD, DIRECCION y PLACA
+- qué sigue siendo automático y qué pasa a revisión

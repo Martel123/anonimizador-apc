@@ -139,11 +139,14 @@ def normalize_entity(ent_dict):
     no_newlines = re.sub(r'\n+', ' ', original)
     no_newlines = re.sub(r'\s+', ' ', no_newlines).strip()
     
-    no_spaces = normalized.replace(' ', '') if len(normalized) >= 4 else None
-    
+    ent_type = ent_dict.get('type') or ent_dict.get('entity_type') or ''
+    SOFT_TYPES = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+    include_no_spaces = ent_type.upper() not in SOFT_TYPES
+    no_spaces = normalized.replace(' ', '') if (len(normalized) >= 4 and include_no_spaces) else None
+
     candidates = []
     seen_lower = set()
-    
+
     for c in [original, normalized, no_newlines, no_spaces]:
         if c and len(c) >= 4:
             c_lower = c.lower()
@@ -272,17 +275,22 @@ def expand_entities_with_candidates(entity_dicts):
     entities = []
     seen = set()
     
+    SOFT_EXPAND = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+
     for d in entity_dicts:
         ent_type = d.get('type', 'UNKNOWN')
         confidence = d.get('confidence', 1.0)
         source = d.get('source', 'detector')
-        
+
         candidates = d.get('candidates', [])
         value = d.get('value', '')
-        
-        all_values = set(candidates) if candidates else set()
-        if value and len(value) >= 4:
-            all_values.add(value)
+
+        if ent_type.upper() in SOFT_EXPAND:
+            all_values = {value} if value and len(value) >= 2 else set()
+        else:
+            all_values = set(candidates) if candidates else set()
+            if value and len(value) >= 4:
+                all_values.add(value)
         
         for candidate in all_values:
             if not candidate or len(candidate) < 4:
@@ -745,10 +753,16 @@ def anonymizer_process():
         confirmed = []
         needs_review = []
 
+        ALWAYS_REVIEW_TYPES = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+
         for i, ent in enumerate(all_entities):
             ent['index'] = i
             conf = ent.get('confidence', 1.0)
-            if conf >= 0.80:
+            ent_type = ent.get('type', '').upper()
+            if ent_type in ALWAYS_REVIEW_TYPES:
+                ent['status'] = 'needs_review'
+                needs_review.append(ent)
+            elif conf >= 0.80:
                 ent['status'] = 'confirmed'
                 confirmed.append(ent)
             elif conf >= 0.50:

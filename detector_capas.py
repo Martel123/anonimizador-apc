@@ -38,7 +38,7 @@ def normalize_abbrev(s: str) -> str:
 # Detecta: "CAL: Juan Perez..." => ENTIDAD + ENTIDAD (según tu regla)
 PAT_COLEGIO_ENTIDAD = re.compile(
     r"\b([A-Z](?:\.?[A-Z]){1,5}\.?)\s*[:\-]?\s*"
-    r"([A-ZÁÉÍÓÚÑ&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ&“”\"().,\-]+){1,11})\b"
+    r"([A-ZÁÉÍÓÚÑ&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ&“”\"().,\-]+){1,5})\b"
 )
 
 def detectar_colegio_entidad(text: str):
@@ -48,8 +48,8 @@ def detectar_colegio_entidad(text: str):
         if abrev in COLEGIOS_ABOGADOS_ABREV:
             s1, e1 = m.span(1)  # abreviatura
             s2, e2 = m.span(2)  # “nombre” siguiente
-            resultados.append((s1, e1, "ENTIDAD"))
-            resultados.append((s2, e2, "ENTIDAD"))
+            resultados.append((s1, e1, "ENTIDAD", 0.65))
+            resultados.append((s2, e2, "ENTIDAD", 0.65))
     return resultados
 
 
@@ -79,7 +79,7 @@ TRIGGERS_ENTIDAD = [
     r"PNP", r"POLIC[IÍ]A\s+NACIONAL", r"COMISAR[IÍ]A",
 ]
 
-ENTIDAD_SIGUIENTE = r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,15})"
+ENTIDAD_SIGUIENTE = r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,5})"
 
 PAT_TRIGGER_SEGUIDO = re.compile(
     rf"\b({'|'.join(TRIGGERS_ENTIDAD)})\s+{ENTIDAD_SIGUIENTE}\b",
@@ -97,14 +97,14 @@ def detectar_entidad_publica_entidad(text: str):
     for m in PAT_TRIGGER_SEGUIDO.finditer(text):
         s1, e1 = m.span(1)
         s2, e2 = m.span(2)
-        resultados.append((s1, e1, "ENTIDAD"))
-        resultados.append((s2, e2, "ENTIDAD"))
+        resultados.append((s1, e1, "ENTIDAD", 0.65))
+        resultados.append((s2, e2, "ENTIDAD", 0.65))
 
     for m in PAT_TRIGGER_DOS_PUNTOS.finditer(text):
         s1, e1 = m.span(1)
         s2, e2 = m.span(2)
-        resultados.append((s1, e1, "ENTIDAD"))
-        resultados.append((s2, e2, "ENTIDAD"))
+        resultados.append((s1, e1, "ENTIDAD", 0.65))
+        resultados.append((s2, e2, "ENTIDAD", 0.65))
 
     return sorted(set(resultados), key=lambda x: (x[0], x[1], x[2]))
 
@@ -196,6 +196,13 @@ CUENTA_PATTERNS = [
     re.compile(r'(?:cuenta|cta\.?)\s*(?:de\s+ahorros?|corriente)?\s*(?:n[°oº]?\s*)?(\d{10,20})', re.IGNORECASE),
     re.compile(r'(?:CCI|cci)\s*[:.]?\s*(\d{20})'),
     re.compile(r'\b(\d{3}[-\s]?\d{3}[-\s]?\d{10,14})\b'),
+]
+
+
+PLACA_VEHICLE_CONTEXTS = [
+    'placa', 'vehículo', 'vehiculo', 'auto', 'camioneta', 'moto',
+    'motocicleta', 'bus', 'camión', 'camion', 'automóvil', 'automovil',
+    'unidad', 'circulación', 'circulacion',
 ]
 
 # Placa vehicular
@@ -362,14 +369,18 @@ def detect_layer1_regex(text: str) -> List[Entity]:
                 source='regex'
             ))
     
-    # Placa
+    # Placa vehicular - confidence alta solo si hay contexto vehicular
     for match in PLACA_PATTERN.finditer(text):
+        start, end = match.start(1), match.end(1)
+        ctx_window = text[max(0, start - 80):min(len(text), end + 80)].lower()
+        has_vehicle_ctx = any(c in ctx_window for c in PLACA_VEHICLE_CONTEXTS)
         entities.append(Entity(
             type='PLACA',
             value=match.group(1),
-            start=match.start(1),
-            end=match.end(1),
-            source='regex'
+            start=start,
+            end=end,
+            source='regex',
+            confidence=1.0 if has_vehicle_ctx else 0.60
         ))
     
     # Firma
@@ -560,12 +571,12 @@ def detect_layer2_context(text: str) -> List[Entity]:
     """
     entities = []
     # ENTIDADES PÚBLICAS / NOTARIALES -> ENTIDAD + ENTIDAD
-    for s, e, label in detectar_entidad_publica_entidad(text):
-        entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_entidad_publica"))
+    for s, e, label, conf in detectar_entidad_publica_entidad(text):
+        entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_entidad_publica", confidence=conf))
 
     # COLEGIO DE ABOGADOS -> ENTIDAD + ENTIDAD
-    for s, e, label in detectar_colegio_entidad(text):
-        entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_colegio"))
+    for s, e, label, conf in detectar_colegio_entidad(text):
+        entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_colegio", confidence=conf))
 
 
     # Domicilio (real/procesal/legal)
@@ -1082,7 +1093,7 @@ def apply_legal_filters(entities: List[Entity]) -> Tuple[List[Entity], Dict[str,
         
         if should_keep:
             if reason == "possible_name":
-                entity.confidence = min(entity.confidence, 0.7)
+                entity.confidence = min(entity.confidence, 0.65)
             filtered.append(entity)
             filter_stats['accepted'] += 1
         else:
