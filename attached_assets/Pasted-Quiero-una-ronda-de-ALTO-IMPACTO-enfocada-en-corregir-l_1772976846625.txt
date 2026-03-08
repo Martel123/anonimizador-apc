@@ -1,0 +1,61 @@
+Quiero una ronda de ALTO IMPACTO enfocada en corregir la mecánica del anonimizador.
+
+OBJETIVO CENTRAL:
+Resolver bugs estructurales de spans y reemplazos antes de seguir afinando detección.
+
+PROBLEMAS OBSERVADOS EN RESULTADOS REALES:
+1. EMAIL queda parcialmente reemplazado, dejando resultados tipo:
+   correo_original{{EMAIL_x}}
+2. DIRECCION se captura o reemplaza solo parcialmente.
+3. JUZGADO / entidad institucional se captura parcialmente y deja texto residual.
+4. Necesito confirmar que review sea una barrera real y que lo ambiguo no entre solo al apply.
+
+ARCHIVOS A TOCAR:
+- public_app.py
+- detector_capas.py
+- templates/anonymizer_review.html solo si hace falta ajustar review/selected
+- legal_filters.py solo si hace falta ajustar política por tipo
+
+NO TOCAR:
+- créditos
+- reservas
+- cobro
+- modelos
+- detector_openai.py
+- detector_ner_local.py
+- final_auditor.py salvo bug imprescindible
+- processor_docx.py salvo bug imprescindible
+
+CAMBIOS EXACTOS QUE QUIERO:
+
+1) EMAIL
+- Verifica que el span detectado corresponda al correo completo.
+- Asegura que EMAIL se reemplace completamente en la pasada principal.
+- No deben quedar residuos del correo original pegados al token.
+
+2) DIRECCION
+- Corrige la captura para que incluya el bloque útil completo cuando realmente sea una dirección física.
+- No quiero que tokenice solo el inicio y deje el resto suelto.
+- Mantén precisión: no reabras arrastre excesivo.
+
+3) JUZGADO / ENTIDAD INSTITUCIONAL
+- Corrige spans parciales.
+- Si se detecta un juzgado o entidad institucional clara, capturar el bloque completo útil.
+- Evitar resultados donde quede texto residual como “Y SAN BORJA” fuera del token.
+
+4) REEMPLAZO
+- Revisa la lógica de apply para asegurar que se use el span/valor correcto y no quede texto original parcial.
+- No romper la lógica actual de replace_all ni el flujo de exportación.
+
+5) REVIEW COMO BARRERA
+- Confirma que PERSONA, ENTIDAD, DIRECCION y PLACA no entren al apply sin confirmación explícita.
+- Si existe una fuga residual, corrígela.
+
+ENTREGA OBLIGATORIA:
+- archivos tocados
+- funciones tocadas
+- causa raíz encontrada para EMAIL
+- ajuste hecho para DIRECCION
+- ajuste hecho para JUZGADO / ENTIDAD institucional
+- confirmación explícita de que review bloquea apply automático
+- qué problema concreto debería desaparecer ahora en resultados reales

@@ -79,7 +79,7 @@ TRIGGERS_ENTIDAD = [
     r"PNP", r"POLIC[IÍ]A\s+NACIONAL", r"COMISAR[IÍ]A",
 ]
 
-ENTIDAD_SIGUIENTE = r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,5})"
+ENTIDAD_SIGUIENTE = r"([A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+(?:\s+[A-ZÁÉÍÓÚÑ0-9&“”\"().,\-]+){1,8})"
 
 PAT_TRIGGER_SEGUIDO = re.compile(
     rf"\b({'|'.join(TRIGGERS_ENTIDAD)})\s+{ENTIDAD_SIGUIENTE}\b",
@@ -91,20 +91,48 @@ PAT_TRIGGER_DOS_PUNTOS = re.compile(
     flags=re.IGNORECASE
 )
 
+# Triggers que corresponden a tipos de órgano judicial.
+# Para estos se emite UNA entidad combinada (trigger + nombre) → sin texto residual.
+# Para otros institucionales (MUNICIPALIDAD, MINISTERIO…) se mantiene el par.
+_COURT_TRIGGERS = frozenset({
+    'juzgado', 'sala', 'tribunal', 'corte superior', 'corte suprema',
+    'poder judicial', 'fiscalía', 'fiscalia',
+    'ministerio público', 'ministerio publico', 'defensoría del pueblo',
+    'defensoria del pueblo',
+})
+
+
 def detectar_entidad_publica_entidad(text: str):
+    """Detecta entidades institucionales.
+    Para órganos judiciales/fiscales: emite UNA entidad con el span completo
+    (trigger + nombre), evitando texto residual entre ambos tokens.
+    Para el resto: emite dos entidades separadas (trigger, nombre).
+    """
     resultados = []
+
+    def _is_court_trigger(trigger_text: str) -> bool:
+        return trigger_text.strip().lower() in _COURT_TRIGGERS
 
     for m in PAT_TRIGGER_SEGUIDO.finditer(text):
         s1, e1 = m.span(1)
         s2, e2 = m.span(2)
-        resultados.append((s1, e1, "ENTIDAD", 0.65))
-        resultados.append((s2, e2, "ENTIDAD", 0.65))
+        trigger = text[s1:e1]
+        if _is_court_trigger(trigger):
+            # Span unificado: desde inicio del trigger hasta fin del nombre
+            resultados.append((s1, e2, "ENTIDAD", 0.65))
+        else:
+            resultados.append((s1, e1, "ENTIDAD", 0.65))
+            resultados.append((s2, e2, "ENTIDAD", 0.65))
 
     for m in PAT_TRIGGER_DOS_PUNTOS.finditer(text):
         s1, e1 = m.span(1)
         s2, e2 = m.span(2)
-        resultados.append((s1, e1, "ENTIDAD", 0.65))
-        resultados.append((s2, e2, "ENTIDAD", 0.65))
+        trigger = text[s1:e1]
+        if _is_court_trigger(trigger):
+            resultados.append((s1, e2, "ENTIDAD", 0.65))
+        else:
+            resultados.append((s1, e1, "ENTIDAD", 0.65))
+            resultados.append((s2, e2, "ENTIDAD", 0.65))
 
     return sorted(set(resultados), key=lambda x: (x[0], x[1], x[2]))
 
@@ -190,9 +218,28 @@ ACTA_PATTERNS = [
 ]
 
 # Juzgado - pattern limitado a una línea, sin capturar nombres de personas
+# JUZGADO_PATTERN - captura nombre completo del juzgado incluyendo:
+# - ordinal textual o numérico previo (Primer, Segundo, 1er, 2do…)
+# - tipo de especialidad (civil, familia, laboral, comercial, etc.)
+# - conjunción "Y" para especializaciones compuestas
+# - 0–7 palabras de ubicación adicionales (San Borja, Los Olivos, Lima Norte…)
 JUZGADO_PATTERN = re.compile(
-    r'\b(\d*[°ºo]?\s*juzgado\s+(?:de\s+)?(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial|constitucional)'
-    r'(?:\s+(?:de|del)\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,3})',
+    r'\b('
+    # Ordinal textual opcional: Primer, Segunda, 3er, 4to, etc.
+    r'(?:primer[oa]?\s+|segundo[a]?\s+|tercer[oa]?\s+|cuart[oa]?\s+|quint[oa]?\s+|sext[oa]?\s+|'
+    r'\d{1,2}\s*[°ºo]?\s+)?'
+    # Palabra clave JUZGADO
+    r'juzgado\s+'
+    # "de " opcional
+    r'(?:de\s+)?'
+    # Tipo de especialidad (primera parte)
+    r'(?:paz\s+letrado|familia|civil|penal|laboral|mixto|comercial|constitucional|'
+    r'especializado|unipersonal|permanente|supraprovincial|corporativo|transitorio)'
+    # Extensión con "Y" para especializaciones compuestas (violencia, comercial, etc.)
+    r'(?:\s+y\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,4})?'
+    # Sufijo de ubicación: 0–7 palabras en Title Case (San Borja, Los Olivos, Lima Norte…)
+    r'(?:\s+[A-ZÁÉÍÓÚÑA-Za-záéíóúñ][A-Za-záéíóúñÁÉÍÓÚÑ]*){0,7}'
+    r')',
     re.IGNORECASE
 )
 

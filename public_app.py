@@ -407,14 +407,14 @@ def apply_entities_to_docx(input_path, output_path, entity_dicts):
                 t = f"{{{{{ent_type}_{type_counters[ent_type]}}}}}"
                 value_to_token[key] = t
 
-            replacements.append((v, t, replace_all, soft))
+            replacements.append((v, t, replace_all, soft, ent_type.upper()))
 
             if t not in reverse_mapping:
                 masked = v[:3] + '...' + v[-2:] if len(v) > 8 else v[:2] + '***'
                 reverse_mapping[t] = masked
 
-    # Estructurados primero (priority 0), luego por longitud desc, usando la tupla
-    # x[3] es soft: False=estructurado → prioridad baja numéricamente → va primero
+    # Estructurados primero (priority 0), luego por longitud desc
+    # Tupla: (value, token, replace_all, soft, ent_type)
     replacements.sort(key=lambda x: (int(x[3]) * 10, -len(x[0])))
 
     replaced_count = apply_replacements_to_docx(doc, replacements)
@@ -439,9 +439,10 @@ def apply_replacements_to_docx(doc, replacements):
     done_once = set()
 
     def replace_in_paragraph(paragraph, replacements):
+        import re as _re_inner
         nonlocal done_once
         count = 0
-        for original, token, replace_all, soft in replacements:
+        for original, token, replace_all, soft, _ent_type in replacements:
             if not replace_all and original in done_once:
                 continue
             full_text = paragraph.text
@@ -462,9 +463,18 @@ def apply_replacements_to_docx(doc, replacements):
             while iterations < max_iterations:
                 iterations += 1
                 full_text = paragraph.text
-                idx = full_text.find(original, start)
-                if idx == -1:
-                    break
+                # EMAIL: búsqueda case-insensitive porque el mismo correo puede
+                # aparecer en distintas capitalizaciones en el documento.
+                if _ent_type == 'EMAIL':
+                    _ci_m = _re_inner.search(_re_inner.escape(original), full_text[start:], _re_inner.IGNORECASE)
+                    if _ci_m is None:
+                        break
+                    idx = start + _ci_m.start()
+                    original = full_text[idx:idx + len(original)]  # use exact case from doc
+                else:
+                    idx = full_text.find(original, start)
+                    if idx == -1:
+                        break
 
                 end_idx = idx + len(original)
 
@@ -631,14 +641,30 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
             except _re.error:
                 pass  # Si el valor tiene chars especiales, lo saltamos
         else:
-            if value in text:
-                if replace_all:
-                    count = text.count(value)
-                    text = text.replace(value, token)
-                    replaced_count += count
-                else:
-                    text = text.replace(value, token, 1)
-                    replaced_count += 1
+            # EMAIL usa reemplazo case-insensitive porque el mismo correo puede
+            # aparecer en distintas capitalizaciones en el documento (ej. PDF
+            # que exporta dominios institucionales en mayúsculas).
+            if ent_type == 'EMAIL':
+                try:
+                    ci_pattern = _re.compile(_re.escape(value), _re.IGNORECASE)
+                    if replace_all:
+                        new_text, n = ci_pattern.subn(lambda m: token, text)
+                    else:
+                        new_text, n = ci_pattern.subn(lambda m: token, text, count=1)
+                    if n > 0:
+                        replaced_count += n
+                        text = new_text
+                except _re.error:
+                    pass
+            else:
+                if value in text:
+                    if replace_all:
+                        count = text.count(value)
+                        text = text.replace(value, token)
+                        replaced_count += count
+                    else:
+                        text = text.replace(value, token, 1)
+                        replaced_count += 1
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(text)
