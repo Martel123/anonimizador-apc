@@ -1,0 +1,80 @@
+Quiero integrar IA de forma controlada y profesional, NO como detector principal del documento completo.
+
+OBJETIVO CENTRAL:
+Usar IA como filtro semántico para candidatos ambiguos, con costo bajo y control alto.
+
+NO QUIERO:
+- mandar el documento completo a IA
+- depender de IA para structured_pii como DNI, RUC, EMAIL, TELEFONO, CASILLA, COLEGIATURA, CUENTA/CCI, EXPEDIENTE con trigger claro
+- que IA reemplace por sí sola
+- que IA decida todo el pipeline
+
+SÍ QUIERO:
+Una capa IA que reciba solo candidatos ambiguos y ayude a clasificarlos mejor.
+
+ARCHIVOS A TOCAR:
+- detector_openai.py
+- detector_capas.py
+- public_app.py solo si hace falta para integrar decisión final
+- opcionalmente archivo de configuración/env handling si hace falta para flags
+
+NO TOCAR:
+- créditos
+- rutas principales
+- final_auditor.py
+- processor_docx.py
+- modelos salvo que sea imprescindible para configuración
+- flujo base de structured_pii
+
+DISEÑO QUE QUIERO IMPLEMENTAR:
+
+1) IA COMO VALIDADOR, NO COMO DETECTOR TOTAL
+La IA debe recibir solo candidatos ambiguos provenientes del pipeline local.
+Tipos candidatos:
+- PERSONA
+- ENTIDAD
+- DIRECCION
+- JUZGADO / SALA / TRIBUNAL
+- spans en mayúsculas o Title Case dudosos
+
+2) INPUT MÍNIMO A LA IA
+Para cada candidato, enviar:
+- candidate_text
+- label_propuesto
+- contexto corto antes y después (por ejemplo 80-120 caracteres)
+- instrucción clara para clasificar
+
+3) OUTPUT ESTRUCTURADO
+La IA debe responder en formato estructurado como:
+- PERSONA_REAL
+- ENTIDAD_INSTITUCIONAL
+- DIRECCION_FISICA
+- TITULO_JURIDICO
+- TEXTO_NO_SENSIBLE
+- DUDOSO
+
+4) POLÍTICA DE USO
+- structured_pii seguros no pasan por IA
+- solo pasan por IA spans ambiguos
+- si IA confirma sensible → review o confirmed según política
+- si IA dice título jurídico / no sensible → descartar
+- si IA dice dudoso → review
+
+5) COSTO CONTROLADO
+- procesar solo candidatos ambiguos
+- no mandar spans enormes
+- no mandar documento completo
+- dejar una flag clara para activar/desactivar esta capa
+
+6) COMPATIBILIDAD
+- no romper el pipeline local actual
+- IA debe actuar como validación adicional posterior a detección local y antes de la decisión final auto/review
+
+ENTREGA OBLIGATORIA:
+- arquitectura exacta implementada
+- funciones tocadas
+- cómo entra la IA al pipeline
+- qué tipos pasan a IA
+- qué tipos NO pasan a IA
+- formato exacto de input/output usado para la IA
+- cómo se controla el costo

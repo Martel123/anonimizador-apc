@@ -394,6 +394,9 @@ def merge_openai_with_local(local_entities: List[Dict], openai_entities: List[Op
 
 def get_openai_stats() -> Dict[str, Any]:
     """Retorna estadísticas de configuración de OpenAI."""
+    # USE_AI_SEMANTIC_FILTER se define más abajo en el módulo;
+    # importamos desde el entorno directamente para no causar NameError.
+    semantic_active = os.environ.get("USE_AI_SEMANTIC_FILTER", "0") == "1"
     return {
         "enabled": USE_OPENAI_DETECT,
         "available": is_openai_available(),
@@ -402,5 +405,213 @@ def get_openai_stats() -> Dict[str, Any]:
         "max_retries": OPENAI_MAX_RETRIES,
         "chunk_tokens": OPENAI_CHUNK_TOKENS,
         "concurrency": OPENAI_CONCURRENCY,
-        "strict_zero_leaks": STRICT_ZERO_LEAKS
+        "strict_zero_leaks": STRICT_ZERO_LEAKS,
+        "ai_semantic_filter": semantic_active,
     }
+
+
+# ============================================================================
+# CAPA IA SEMÁNTICA — VALIDADOR DE CANDIDATOS AMBIGUOS
+# ============================================================================
+#
+# NO procesa el documento completo.
+# Recibe solo candidatos ya detectados por el pipeline local y clasifica
+# los ambiguos con un único llamado a la API.
+#
+# Activación: USE_AI_SEMANTIC_FILTER=1
+# Desactivación: USE_AI_SEMANTIC_FILTER=0  (default)
+# ============================================================================
+
+USE_AI_SEMANTIC_FILTER: bool = os.environ.get("USE_AI_SEMANTIC_FILTER", "0") == "1"
+
+# Tipos que SIEMPRE pasan directo (PII estructurada verificada por regex)
+AI_SKIP_TYPES: frozenset = frozenset({
+    'DNI', 'RUC', 'EMAIL', 'TELEFONO',
+    'CUENTA', 'CCI', 'EXPEDIENTE', 'CASILLA',
+    'COLEGIATURA', 'ACTA_REGISTRO', 'PLACA',
+    'PARTIDA', 'RESOLUCION', 'FECHA_NACIMIENTO',
+})
+
+# Tipos ambiguos que se benefician de validación semántica
+AI_AMBIGUOUS_TYPES: frozenset = frozenset({
+    'PERSONA', 'ENTIDAD', 'DIRECCION',
+    'JUZGADO', 'SALA', 'TRIBUNAL',
+})
+
+# Máximo de candidatos por llamado a la API (control de costo)
+AI_BATCH_SIZE: int = int(os.environ.get("AI_SEMANTIC_BATCH_SIZE", "25"))
+
+# Caracteres de contexto a enviar por candidato (antes y después)
+AI_CONTEXT_WINDOW: int = int(os.environ.get("AI_SEMANTIC_CONTEXT", "100"))
+
+# Decisiones válidas que la IA puede devolver
+AI_KEEP_DECISIONS = frozenset({
+    'PERSONA_REAL', 'ENTIDAD_INSTITUCIONAL', 'DIRECCION_FISICA', 'DUDOSO'
+})
+AI_DROP_DECISIONS = frozenset({
+    'TITULO_JURIDICO', 'TEXTO_NO_SENSIBLE'
+})
+
+# Prompt del validador semántico
+_SEMANTIC_FILTER_SYSTEM = """\
+Eres un VALIDADOR SEMÁNTICO de privacidad para documentos legales peruanos.
+Recibirás una lista de candidatos en formato JSON.
+Cada candidato tiene:
+  - idx:        índice numérico (conservar en la respuesta)
+  - text:       texto del candidato detectado
+  - label:      tipo propuesto (PERSONA / ENTIDAD / DIRECCION / JUZGADO / SALA / TRIBUNAL)
+  - ctx_before: hasta 100 caracteres antes del candidato en el documento
+  - ctx_after:  hasta 100 caracteres después del candidato en el documento
+
+Para CADA candidato devuelve UNA de estas decisiones:
+  PERSONA_REAL          → nombre de persona física real (persona natural)
+  ENTIDAD_INSTITUCIONAL → nombre de organización, empresa o entidad pública
+  DIRECCION_FISICA      → dirección postal o domicilio real
+  TITULO_JURIDICO       → encabezado de sección, título de ley, denominación de órgano judicial
+  TEXTO_NO_SENSIBLE     → expresión genérica, fórmula procesal, no es PII
+  DUDOSO                → ambiguo; no tienes suficiente contexto para decidir
+
+REGLAS ESTRICTAS:
+- Devuelve SOLO JSON: {"results": [{"idx": 0, "decision": "..."}]}
+- Sin explicaciones, sin texto adicional.
+- Si el texto es claramente un nombre de persona (2-6 palabras propias) → PERSONA_REAL.
+- Si es un juzgado, sala, tribunal o fiscalía → TITULO_JURIDICO.
+- Si es una frase jurídica (FUNDAMENTOS DE HECHO, CÓDIGO CIVIL…) → TEXTO_NO_SENSIBLE.
+- En caso de duda real → DUDOSO (se marcará para revisión humana).
+"""
+
+
+def _call_semantic_filter_api(batch: List[Dict[str, Any]]) -> Dict[int, str]:
+    """
+    Llama a la API con un batch de candidatos.
+    Retorna dict {idx: decision}.
+    """
+    try:
+        from openai import OpenAI
+        client = OpenAI(timeout=OPENAI_TIMEOUT_SECONDS)
+
+        user_message = json.dumps({"candidates": batch}, ensure_ascii=False)
+
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _SEMANTIC_FILTER_SYSTEM},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.0,
+            max_tokens=800,
+            response_format={"type": "json_object"},
+        )
+
+        content = response.choices[0].message.content
+        data = json.loads(content)
+        results = data.get("results", [])
+
+        decisions = {}
+        for item in results:
+            idx = item.get("idx")
+            decision = item.get("decision", "DUDOSO")
+            if idx is not None:
+                decisions[idx] = decision
+        logger.info(f"AI_SEMANTIC_FILTER | batch={len(batch)} | decisions={len(decisions)}")
+        return decisions
+
+    except json.JSONDecodeError as e:
+        logger.error(f"AI_SEMANTIC_JSON_ERROR | {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"AI_SEMANTIC_API_ERROR | {e}")
+        return {}
+
+
+def validate_ambiguous_candidates(
+    entities: List[Dict[str, Any]],
+    full_text: str,
+) -> List[Dict[str, Any]]:
+    """
+    Capa IA semántica: valida solo los candidatos ambiguos.
+
+    Flujo:
+      1. Separa PII estructurada (pasa directo) de candidatos ambiguos.
+      2. Construye batches con contexto corto (~100 chars antes/después).
+      3. Un solo llamado a la API por batch (máx AI_BATCH_SIZE candidatos).
+      4. Aplica decisiones:
+           PERSONA_REAL / ENTIDAD_INSTITUCIONAL / DIRECCION_FISICA → conservar
+           DUDOSO → conservar (irá a needs_review)
+           TITULO_JURIDICO / TEXTO_NO_SENSIBLE → descartar
+      5. Retorna entidades estructuradas + ambiguas supervivientes.
+
+    Si la API falla, retorna la lista original sin cambios (fail-safe).
+    """
+    if not entities:
+        return entities
+
+    structured: List[Dict] = []
+    ambiguous: List[Dict] = []
+    other: List[Dict] = []
+
+    for ent in entities:
+        etype = ent.get('type', '').upper()
+        if etype in AI_SKIP_TYPES:
+            structured.append(ent)
+        elif etype in AI_AMBIGUOUS_TYPES:
+            ambiguous.append(ent)
+        else:
+            other.append(ent)
+
+    if not ambiguous:
+        return entities
+
+    # Construir candidatos con contexto
+    candidates_for_ai: List[Dict[str, Any]] = []
+    for idx, ent in enumerate(ambiguous):
+        start = ent.get('start', 0)
+        end = ent.get('end', len(ent.get('value', '')))
+        ctx_before = full_text[max(0, start - AI_CONTEXT_WINDOW):start]
+        ctx_after = full_text[end:min(len(full_text), end + AI_CONTEXT_WINDOW)]
+        candidates_for_ai.append({
+            "idx": idx,
+            "text": ent.get('value', '')[:200],
+            "label": ent.get('type', ''),
+            "ctx_before": ctx_before[-AI_CONTEXT_WINDOW:],
+            "ctx_after": ctx_after[:AI_CONTEXT_WINDOW],
+        })
+
+    # Procesar en batches
+    all_decisions: Dict[int, str] = {}
+    for batch_start in range(0, len(candidates_for_ai), AI_BATCH_SIZE):
+        batch = candidates_for_ai[batch_start:batch_start + AI_BATCH_SIZE]
+        decisions = _call_semantic_filter_api(batch)
+        if not decisions:
+            # API falló → conservar todo este batch sin cambios
+            for c in batch:
+                all_decisions[c["idx"]] = "DUDOSO"
+        else:
+            all_decisions.update(decisions)
+
+    # Aplicar decisiones a los candidatos ambiguos
+    surviving_ambiguous: List[Dict] = []
+    for idx, ent in enumerate(ambiguous):
+        decision = all_decisions.get(idx, "DUDOSO")
+        if decision in AI_DROP_DECISIONS:
+            logger.debug(
+                f"AI_FILTER_DROP | type={ent.get('type')} "
+                f"| value={ent.get('value','')[:40]} | decision={decision}"
+            )
+            continue
+        # Conservar: ajustar confianza según decisión IA
+        if decision in ('PERSONA_REAL', 'ENTIDAD_INSTITUCIONAL', 'DIRECCION_FISICA'):
+            ent['ai_decision'] = decision
+            ent['confidence'] = max(ent.get('confidence', 0.75), 0.80)
+        else:
+            ent['ai_decision'] = 'DUDOSO'
+            ent['confidence'] = min(ent.get('confidence', 0.55), 0.70)
+        surviving_ambiguous.append(ent)
+
+    logger.info(
+        f"AI_SEMANTIC_RESULT | input={len(ambiguous)} ambiguous "
+        f"| kept={len(surviving_ambiguous)} "
+        f"| dropped={len(ambiguous) - len(surviving_ambiguous)}"
+    )
+
+    return structured + other + surviving_ambiguous

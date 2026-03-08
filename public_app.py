@@ -685,9 +685,11 @@ def health():
 @login_required
 def index():
     openai_available = check_openai_available()
+    from detector_openai import USE_AI_SEMANTIC_FILTER
     credits = ensure_trial(current_user.id)
     return render_template("anonymizer_standalone.html",
                            openai_available=openai_available,
+                           ai_semantic_active=USE_AI_SEMANTIC_FILTER,
                            credits=credits)
 
 
@@ -695,9 +697,11 @@ def index():
 @login_required
 def anonymizer_home():
     openai_available = check_openai_available()
+    from detector_openai import USE_AI_SEMANTIC_FILTER
     credits = ensure_trial(current_user.id)
     return render_template("anonymizer_standalone.html",
                            openai_available=openai_available,
+                           ai_semantic_active=USE_AI_SEMANTIC_FILTER,
                            credits=credits)
 
 
@@ -853,23 +857,26 @@ def anonymizer_process():
         all_entities = normalize_entities(entities)
         all_entities = deduplicate_entities(all_entities)
 
-        openai_review_items = []
+        # ── Capa IA semántica (validador de candidatos ambiguos) ─────────────
+        # Solo activa si USE_AI_SEMANTIC_FILTER=1.
+        # NO envía el documento completo: recibe candidatos ya detectados,
+        # clasifica los ambiguos con UN llamado a la API y descarta falsos positivos.
+        # PII estructurada (DNI, RUC, EMAIL, etc.) no pasa por este filtro.
         try:
-            from detector_openai import detect_with_openai, merge_openai_with_local, is_openai_available
-            if is_openai_available():
-                logger.info(f"OPENAI_DETECT | job={job_id} | starting OpenAI detection")
-                openai_entities, openai_review_items = detect_with_openai(full_text)
-                if openai_entities:
-                    entities_dict = [{'type': e.get('type'), 'value': e.get('value'),
-                                     'start': e.get('start', 0), 'end': e.get('end', 0),
-                                     'source': e.get('source', 'local'),
-                                     'confidence': e.get('confidence', 1.0)} for e in all_entities]
-                    merged = merge_openai_with_local(entities_dict, openai_entities, full_text)
-                    all_entities = normalize_entities(merged)
-                    all_entities = deduplicate_entities(all_entities)
-                    logger.info(f"OPENAI_MERGE | job={job_id} | openai_entities={len(openai_entities)} | review={len(openai_review_items)} | total_after_merge={len(all_entities)}")
+            from detector_openai import (
+                USE_AI_SEMANTIC_FILTER, is_openai_available,
+                validate_ambiguous_candidates,
+            )
+            if USE_AI_SEMANTIC_FILTER and is_openai_available():
+                pre_filter_count = len(all_entities)
+                all_entities = validate_ambiguous_candidates(all_entities, full_text)
+                all_entities = deduplicate_entities(all_entities)
+                logger.info(
+                    f"AI_SEMANTIC_FILTER | job={job_id} "
+                    f"| before={pre_filter_count} | after={len(all_entities)}"
+                )
         except Exception as e:
-            logger.warning(f"OPENAI_DETECT_FAIL | job={job_id} | error={str(e)}")
+            logger.warning(f"AI_SEMANTIC_FILTER_FAIL | job={job_id} | error={str(e)}")
 
         confirmed = []
         needs_review = []
