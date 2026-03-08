@@ -356,7 +356,12 @@ def apply_entities_to_docx(input_path, output_path, entity_dicts):
             v_stripped = value.strip()
             if len(v_stripped) < 4:
                 continue
-            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped and len(v_stripped) < 6:
+            # PERSONA y ENTIDAD de una sola palabra son demasiado ambiguas:
+            # para aplicarlas se exige al menos 2 tokens (un espacio interno).
+            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped:
+                continue
+            # DIRECCION sin número ni indicador estructural: descartar
+            if ent_type.upper() == 'DIRECCION' and len(v_stripped) < 8:
                 continue
             all_values = {v_stripped}
         else:
@@ -551,7 +556,9 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
             v_stripped = value.strip()
             if len(v_stripped) < 4:
                 continue
-            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped and len(v_stripped) < 6:
+            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped:
+                continue
+            if ent_type.upper() == 'DIRECCION' and len(v_stripped) < 8:
                 continue
             all_values = {v_stripped}
         else:
@@ -590,8 +597,10 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
     replaced_count = 0
     for value, token, replace_all, soft, ent_type in all_replacements:
         if soft:
-            # Word-boundary: no reemplazar dentro de palabras
-            pattern = r'(?<!\w)' + _re.escape(value) + r'(?!\w)'
+            # Word-boundary estricto: excluye guión y caracteres latinos acentuados
+            # (?<![...]) = no precedido por ninguno de esos chars
+            _WB_INNER = r'A-Za-z0-9_À-ɏ\-'
+            pattern = r'(?<![' + _WB_INNER + r'])' + _re.escape(value) + r'(?![' + _WB_INNER + r'])'
             try:
                 if replace_all:
                     new_text, n = _re.subn(pattern, token, text)
