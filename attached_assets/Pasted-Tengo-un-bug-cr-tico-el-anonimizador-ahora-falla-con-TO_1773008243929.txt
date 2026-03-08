@@ -1,0 +1,89 @@
+Tengo un bug crítico: el anonimizador ahora falla con TODOS los archivos, incluyendo DOCX y PDF.
+
+Síntoma visible en frontend:
+“No se pudo procesar el documento. Verifique el formato e intente nuevamente.”
+
+IMPORTANTE:
+- Antes sí funcionaba
+- El fallo ahora ocurre con cualquier documento
+- Esto indica un problema global del pipeline, no del contenido del archivo
+- NO quiero refactorización
+- NO quiero cambios cosméticos
+- Quiero diagnóstico exacto + arreglo mínimo
+
+OBJETIVO:
+Encontrar y corregir la causa raíz de por qué el backend ya no puede procesar ni DOCX ni PDF.
+
+ARCHIVOS A REVISAR PRIMERO:
+- public_app.py
+- detector_capas.py
+- legal_filters.py
+- processor_docx.py
+- processor_pdf.py
+- cualquier helper usado en upload/process/extract/apply
+
+QUÉ QUIERO QUE HAGAS:
+
+1. TRAZAR EL FLUJO COMPLETO DE PROCESAMIENTO
+Revisa exactamente el flujo desde:
+- subida del archivo
+- validación del formato
+- guardado temporal
+- count_pages()
+- extract_text()
+- detect_all_pii()
+- render de pantalla de revisión
+
+Quiero que identifiques en qué paso exacto está fallando.
+
+2. NO TE QUEDES CON EL ERROR GENÉRICO DEL FRONTEND
+Quiero que revises logs reales / traceback real / excepción real del backend.
+No me digas “podría ser”.
+Quiero la excepción exacta y el archivo/línea exactos.
+
+3. BUSCA ERRORES INTRODUCIDOS RECIENTEMENTE
+Como se hicieron muchos cambios en:
+- detector_capas.py
+- legal_filters.py
+- detector_openai.py
+- patrones nuevos
+- lógica de detección
+quiero que verifiques si alguna función nueva:
+- rompió imports
+- cambió firmas de funciones
+- devuelve tipos incompatibles
+- genera excepción con PDF o DOCX
+- rompe extract_text() o detect_all_pii()
+
+4. VERIFICA DOCX Y PDF POR SEPARADO
+Quiero que compruebes:
+- si falla antes o después de extract_text()
+- si DOCX falla por parser de python-docx / file stream
+- si PDF falla por processor_pdf / import / dependencia
+- si ambos fallan por una misma causa del pipeline general
+
+5. SI EL BACKEND ESTÁ OCULTANDO EL ERROR
+Quiero que temporalmente hagas visible el traceback o al menos lo registres claramente en logs, para identificar el punto exacto de ruptura.
+No quiero dejarlo así al final si afecta seguridad, pero sí usarlo para encontrar el bug.
+
+6. ARREGLO MÍNIMO
+Una vez identificada la causa raíz:
+- corrige solo lo necesario
+- no toques lógica sana
+- no refactorices todo
+- no cambies rutas ni UI salvo necesidad mínima
+- mantén el flujo actual
+
+7. ENTREGA FINAL OBLIGATORIA
+Quiero que me digas:
+- causa raíz exacta
+- archivo y línea aproximada
+- por qué rompía tanto DOCX como PDF
+- qué cambio mínimo hiciste
+- confirmación de que ya vuelve a procesar archivos
+- qué prueba hiciste para verificarlo
+
+IMPORTANTE:
+No quiero teoría.
+No quiero posibilidades abstractas.
+Quiero diagnóstico real del código + fix mínimo.
