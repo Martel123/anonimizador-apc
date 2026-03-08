@@ -148,8 +148,13 @@ DNI_PATTERN = re.compile(r'\b([0-9]{8})\b')
 RUC_PATTERN = re.compile(r'\b((?:10|15|17|20)[0-9]{9})\b')
 
 # Email
+# Email: lookbehind basado en chars válidos de email al INICIO +  \b al FINAL.
+# Lookbehind: impide que una captura parcial ocurra cuando el local-part
+# del email está precedido por un '.' (no-\w), evitando que 'name@domain.com'
+# sea capturado en lugar del full 'user.name@domain.com'.
+# \b al final: maneja correctamente el punto de cierre de frase (ej. '...gob.pe.')
 EMAIL_PATTERN = re.compile(
-    r'\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b',
+    r'(?<![A-Za-z0-9._%+\-])([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})\b',
     re.IGNORECASE
 )
 
@@ -513,12 +518,17 @@ def detect_pii_in_sections(text: str) -> List['Entity']:
 
 
 # Patrones de domicilio
+# DOMICILIO_PATTERNS: el grupo de captura usa [^;\n] (no [^;.\n]).
+# Excluir '.' truncaba las direcciones en la primera abreviatura
+# (Av., Jr., Nro., Dpto., etc.), dejando solo 2-3 chars → no match.
+# Se usa una longitud máxima conservadora (120) y post-trim de
+# \. seguido de espacio+mayúscula para no cruzar oraciones completas.
 DOMICILIO_PATTERNS = [
-    re.compile(r'domicilio\s+(?:real|procesal|legal|fiscal|actual|particular)\s*[:\s]+([^;.\n]{10,150})', re.IGNORECASE),
-    re.compile(r'(?:con\s+)?domicilio\s+(?:en|sito\s+en|ubicado\s+en)\s*[:\s]*([^;.\n]{10,150})', re.IGNORECASE),
-    re.compile(r'(?:reside|vive|habita)\s+en\s*[:\s]*([^;.\n]{10,150})', re.IGNORECASE),
-    re.compile(r'direcci[oó]n\s*[:\s]+([^;.\n]{10,150})', re.IGNORECASE),
-    re.compile(r'ubicad[oa]\s+en\s*[:\s]*([^;.\n]{10,150})', re.IGNORECASE),
+    re.compile(r'domicilio\s+(?:real|procesal|legal|fiscal|actual|particular)\s*[:\s]+([^;\n]{5,120})', re.IGNORECASE),
+    re.compile(r'(?:con\s+)?domicilio\s+(?:en|sito\s+en|ubicado\s+en)\s*[:\s]*([^;\n]{5,120})', re.IGNORECASE),
+    re.compile(r'(?:reside|vive|habita)\s+en\s*[:\s]*([^;\n]{5,120})', re.IGNORECASE),
+    re.compile(r'direcci[oó]n\s*[:\s]+([^;\n]{5,120})', re.IGNORECASE),
+    re.compile(r'ubicad[oa]\s+en\s*[:\s]*([^;\n]{5,120})', re.IGNORECASE),
 ]
 
 # Indicadores de dirección
@@ -582,19 +592,33 @@ def detect_layer2_context(text: str) -> List[Entity]:
         entities.append(Entity(type=label, value=text[s:e], start=s, end=e, source="context_colegio", confidence=conf))
 
 
+    # ── helpers para trim de dirección ─────────────────────────────────────────
+    _SENTENCE_BREAK = re.compile(r'\.\s+[A-ZÁÉÍÓÚÑ]')
+
+    def _trim_address(raw: str) -> str:
+        """Recorta una captura de dirección al primer límite de oración
+        ('. Mayúscula') para no cruzar frases completas.
+        También descarta trailing comas/puntos/espacios."""
+        raw = re.sub(r'\s+', ' ', raw).strip()
+        m = _SENTENCE_BREAK.search(raw)
+        if m:
+            raw = raw[:m.start()].rstrip(' ,;')
+        raw = raw.rstrip(' .,;')
+        return raw
+
     # Domicilio (real/procesal/legal)
     for pattern in DOMICILIO_PATTERNS:
         for match in pattern.finditer(text):
-            address = match.group(1).strip()
-            # Limpiar la dirección
-            address = re.sub(r'\s+', ' ', address)
-            if len(address) > 10:
+            raw_addr = match.group(1)
+            address = _trim_address(raw_addr)
+            if len(address) >= 8:
                 entities.append(Entity(
                     type='DIRECCION',
                     value=address,
                     start=match.start(1),
-                    end=match.end(1),
-                    source='context'
+                    end=match.start(1) + len(raw_addr),
+                    source='context',
+                    confidence=0.75   # siempre goes to needs_review
                 ))
     
     # Direcciones standalone con indicadores

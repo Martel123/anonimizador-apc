@@ -140,7 +140,12 @@ def normalize_entity(ent_dict):
     no_newlines = re.sub(r'\s+', ' ', no_newlines).strip()
     
     ent_type = ent_dict.get('type') or ent_dict.get('entity_type') or ''
-    SOFT_TYPES = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+    # Soft types: sólo valor exacto, sin expansión de candidates.
+    # Debe coincidir con SOFT_MATCH_TYPES y ALWAYS_REVIEW_TYPES.
+    SOFT_TYPES = {
+        'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA',
+        'RESOLUCION', 'PARTIDA', 'JUZGADO', 'SALA', 'TRIBUNAL',
+    }
     include_no_spaces = ent_type.upper() not in SOFT_TYPES
     no_spaces = normalized.replace(' ', '') if (len(normalized) >= 4 and include_no_spaces) else None
 
@@ -314,12 +319,24 @@ def expand_entities_with_candidates(entity_dicts):
 
 
 # Tipos que requieren matching estricto (bordes de palabra, longitud mínima)
-SOFT_MATCH_TYPES = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+# SOFT_MATCH_TYPES: tipos ambiguos que requieren matching estricto en apply.
+# Deben coincidir exactamente con ALWAYS_REVIEW_TYPES para consistencia.
+SOFT_MATCH_TYPES = {
+    'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA',
+    'RESOLUCION', 'PARTIDA', 'JUZGADO', 'SALA', 'TRIBUNAL',
+}
 # Prioridad de aplicación: los tipos estructurados primero para proteger emails, RUC, etc.
+# Orden de aplicación: estructurados primero para proteger sus valores.
+# Prioridad 0 = se aplica primero (AUTO); 10 = se aplica último (REVIEW/SOFT).
 TYPE_APPLY_PRIORITY = {
-    'EMAIL': 0, 'DNI': 0, 'RUC': 0, 'TELEFONO': 0, 'CUENTA': 0,
-    'EXPEDIENTE': 1, 'JUZGADO': 1, 'ACTA': 1, 'CASILLA': 1,
-    'PLACA': 2, 'DIRECCION': 3, 'ENTIDAD': 4, 'PERSONA': 5,
+    # AUTO - structured PII (confianza alta, sin ambigüedad)
+    'EMAIL': 0, 'DNI': 0, 'RUC': 0, 'TELEFONO': 0,
+    'CUENTA': 0, 'CCI': 0, 'COLEGIATURA': 0, 'CASILLA': 0,
+    'EXPEDIENTE': 1, 'ACTA': 1,
+    # REVIEW - ambiguous / soft types (requieren confirmación explícita)
+    'PLACA': 10, 'PARTIDA': 10, 'RESOLUCION': 10,
+    'DIRECCION': 11, 'JUZGADO': 11, 'SALA': 11, 'TRIBUNAL': 11,
+    'ENTIDAD': 12, 'PERSONA': 13,
 }
 
 
@@ -352,15 +369,17 @@ def apply_entities_to_docx(input_path, output_path, entity_dicts):
             continue
 
         # ── Filtro de longitud/estructura para tipos suaves ──────────────────
+        # Soft types: sólo valor exacto; no se expanden candidatos.
+        # Filtros estructurales adicionales para evitar replacements ambiguos.
         if soft:
             v_stripped = value.strip()
             if len(v_stripped) < 4:
                 continue
-            # PERSONA y ENTIDAD de una sola palabra son demasiado ambiguas:
-            # para aplicarlas se exige al menos 2 tokens (un espacio interno).
-            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped:
+            # PERSONA, ENTIDAD, JUZGADO, SALA, TRIBUNAL de una sola palabra
+            # son demasiado ambiguos: se exige al menos 2 tokens.
+            if ent_type.upper() in ('PERSONA', 'ENTIDAD', 'JUZGADO', 'SALA', 'TRIBUNAL')                     and ' ' not in v_stripped:
                 continue
-            # DIRECCION sin número ni indicador estructural: descartar
+            # DIRECCION muy corta: descartar (probablemente captura parcial)
             if ent_type.upper() == 'DIRECCION' and len(v_stripped) < 8:
                 continue
             all_values = {v_stripped}
@@ -556,7 +575,8 @@ def apply_entities_to_text(input_path, output_path, entity_dicts, ext='txt'):
             v_stripped = value.strip()
             if len(v_stripped) < 4:
                 continue
-            if ent_type.upper() in ('PERSONA', 'ENTIDAD') and ' ' not in v_stripped:
+            if ent_type.upper() in ('PERSONA', 'ENTIDAD', 'JUZGADO', 'SALA', 'TRIBUNAL') \
+                    and ' ' not in v_stripped:
                 continue
             if ent_type.upper() == 'DIRECCION' and len(v_stripped) < 8:
                 continue
@@ -828,7 +848,22 @@ def anonymizer_process():
         confirmed = []
         needs_review = []
 
-        ALWAYS_REVIEW_TYPES = {'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA'}
+        # ══════════════════════════════════════════════════════════════════════
+        # POLÍTICA FINAL DE CLASIFICACIÓN POR TIPO
+        # ──────────────────────────────────────────────────────────────────────
+        # AUTO (se aplican automáticamente si confidence >= 0.80):
+        #   DNI, RUC, EMAIL, TELEFONO, CASILLA, COLEGIATURA,
+        #   CUENTA/CCI (con contexto), EXPEDIENTE (con trigger), ACTA (con trigger)
+        #
+        # ALWAYS REVIEW (jamás se aplican sin confirmación explícita del usuario,
+        #   independientemente de la confidence):
+        #   PERSONA, ENTIDAD, DIRECCION, PLACA,
+        #   RESOLUCION, PARTIDA, JUZGADO, SALA, TRIBUNAL
+        # ══════════════════════════════════════════════════════════════════════
+        ALWAYS_REVIEW_TYPES = {
+            'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA',
+            'RESOLUCION', 'PARTIDA', 'JUZGADO', 'SALA', 'TRIBUNAL',
+        }
 
         for i, ent in enumerate(all_entities):
             ent['index'] = i

@@ -1,0 +1,94 @@
+Quiero una ronda de CONSOLIDACIÓN FINAL de alto impacto para acercar el anonimizador a una versión casi final.
+
+IMPORTANTE:
+Esta ronda debe resolver en un solo cambio coherente los principales problemas restantes de precisión.
+No quiero auditoría general.
+No quiero refactorización grande.
+No quiero cambios cosméticos.
+Quiero cerrar bugs estructurales y dejar una política final sólida.
+
+NO TOCAR:
+- créditos / reservas / cobro
+- modelos
+- rutas principales
+- final_auditor.py salvo que sea imprescindible por un bug puntual
+- processor_docx.py salvo que sea imprescindible por matching
+- detector_openai.py
+- detector_ner_local.py
+
+ARCHIVOS PRINCIPALES A TOCAR:
+- public_app.py
+- detector_capas.py
+- legal_filters.py
+- templates/anonymizer_review.html solo si hace falta ajustar selected/review
+
+OBJETIVO CENTRAL:
+Resolver en esta ronda los errores residuales más importantes:
+1. EMAIL parcial o mal reemplazado
+2. DIRECCION capturada parcialmente
+3. ENTIDAD y otros soft_types con matching todavía demasiado permisivo
+4. garantizar que review sea barrera real
+5. dejar una política final clara por tipo: automático vs review
+
+PROBLEMAS OBSERVADOS EN RESULTADOS REALES:
+- sigue apareciendo email tipo: correo_original{{EMAIL_x}}
+- algunas direcciones se tokenizan solo parcialmente
+- todavía existe riesgo de matching excesivo en tipos suaves
+- la política de review debe quedar totalmente cerrada para que lo ambiguo no se aplique sin confirmación
+
+QUIERO ESTOS CAMBIOS EXACTOS:
+
+1) EMAIL — REEMPLAZO LIMPIO Y COMPLETO
+- Verifica que el patrón y el valor capturado de EMAIL correspondan al correo completo.
+- Asegura que EMAIL se reemplace completo en la pasada principal.
+- Evita resultados tipo texto_original{{EMAIL_x}}.
+- Si el problema viene de matching, candidates o doble pasada, corrígelo.
+- EMAIL debe seguir siendo structured_pii automático.
+
+2) DIRECCION — CAPTURA MÁS COMPLETA Y ESTRUCTURADA
+- Ajusta la lógica para que DIRECCION capture el bloque útil completo cuando realmente sea una dirección física.
+- No quiero que capture solo el inicio y deje el resto suelto.
+- Mantén precisión: no volver a abrir el arrastre excesivo.
+- Debe reconocer mejor combinaciones como:
+  vía + nombre + número
+  vía + número + interior/departamento
+  Mz/Lt/Urb/Dpto/Piso/Bloque
+- Si una dirección no es suficientemente clara, que quede en review, no en auto.
+
+3) MATCHING DE REEMPLAZO PARA SOFT_TYPES
+- Revisa toda la política de apply para:
+  PERSONA, ENTIDAD, DIRECCION, PLACA
+- No permitir matching interno de subcadenas.
+- No permitir replacements ambiguos por candidates demasiado amplios.
+- Usar coincidencia exacta o delimitación razonable.
+- Si un soft_type es ambiguo o corto, mejor no aplicarlo.
+
+4) REVIEW COMO BARRERA REAL
+- Confirma y corrige, si hace falta, que:
+  PERSONA, ENTIDAD, DIRECCION y PLACA no entren al apply salvo selección/confirmación explícita.
+- Si ya está implementado, verifica que no haya ninguna ruta residual por la que igual entren.
+
+5) POLÍTICA FINAL POR TIPO
+Quiero que quede explícitamente implementado:
+- AUTO:
+  DNI, RUC, EMAIL, TELEFONO, CASILLA, COLEGIATURA, CUENTA/CCI con contexto claro, EXPEDIENTE con trigger claro, ACTA con trigger claro
+- REVIEW:
+  PERSONA, ENTIDAD, DIRECCION, PLACA, RESOLUCION, PARTIDA, JUZGADO, SALA, TRIBUNAL
+- No quiero que confidence por sí sola contradiga esta política.
+
+6) CANDIDATES
+- Revisa normalize_entity() y expand_entities_with_candidates()
+- Soft_types deben usar candidates mínimos y conservadores
+- Structured_pii pueden mantener normalizaciones seguras
+- No debe quedar expansión agresiva residual para soft_types
+
+7) ENTREGA OBLIGATORIA
+Al terminar, quiero un informe exacto con:
+- archivos tocados
+- funciones tocadas
+- bug raíz encontrado para EMAIL
+- ajuste hecho para DIRECCION
+- cómo quedó el matching para soft_types
+- confirmación de que review ya bloquea apply automático
+- política final por tipo
+- qué problema concreto debería desaparecer ahora en resultados reales
