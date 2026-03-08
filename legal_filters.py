@@ -516,7 +516,8 @@ def should_anonymize_span(text: str, entity_type: str,
     looks_like_proper_name para maximizar recall en esos casos.
     """
     if entity_type in ('DNI', 'RUC', 'EMAIL', 'TELEFONO', 'CUENTA', 'CCI',
-                       'EXPEDIENTE', 'COLEGIATURA', 'CASILLA'):
+                       'EXPEDIENTE', 'COLEGIATURA', 'CASILLA',
+                       'HISTORIA_CLINICA', 'CODIGO_CLIENTE', 'LICENCIA', 'POLIZA'):
         return True, "structured_pii"
     
     if not text or len(text.strip()) < 2:

@@ -172,6 +172,14 @@ NEAR_MONEY_CONTEXT = re.compile(
 # DNI: 8 dígitos con validación
 DNI_PATTERN = re.compile(r'\b([0-9]{8})\b')
 
+# DNI con trigger explícito: siempre captura independiente del contexto monetario
+DNI_EXPLICIT_PATTERN = re.compile(
+    r'(?:D\.?N\.?I\.?|documento\s+(?:nacional\s+)?de\s+identidad'
+    r'|identificad[oa]\s+con|con\s+D\.?N\.?I\.?)\s*(?:n[°oº]?\s*)?[:\-\s]*'
+    r'\b([0-9]{8})\b',
+    re.IGNORECASE
+)
+
 # RUC: 11 dígitos (empieza con 10, 15, 17 o 20)
 RUC_PATTERN = re.compile(r'\b((?:10|15|17|20)[0-9]{9})\b')
 
@@ -200,9 +208,18 @@ PHONE_PATTERNS = [
 
 # Expediente judicial peruano
 EXPEDIENTE_PATTERNS = [
+    # Formato largo completo (00001-2024-1-1801-JR-CI-01)
     re.compile(r'\b(\d{5}-\d{4}-\d+-\d{4}-[A-Z]{2}-[A-Z]{2}-\d{2})\b', re.IGNORECASE),
+    # Formato EXP-NNNN... con guion (EXP-987654321, EXP-01234-2024)
+    re.compile(r'\bEXP[-_]([A-Z0-9][\dA-Z\-]{3,18})\b', re.IGNORECASE),
+    # Formato corto con guion (00001-2024, 00001-2024-01)
     re.compile(r'\b(\d{5,6}-\d{4}(?:-\d+)?)\b'),
-    re.compile(r'(?:expediente|exp\.?)\s*(?:n[°oº]?\s*)?[:\s]*(\d{2,6}[-/]?\d{0,4}[-/]?\d{0,4})', re.IGNORECASE),
+    # "expediente / exp." seguido de número (permite separador : - espacio o guion)
+    re.compile(
+        r'(?:expediente|exp\.?)\s*[-:\s]*(?:n[°oº]?\s*)?[-:\s]*'
+        r'(\d{2,8}(?:[-/]\d{2,8}){0,3})',
+        re.IGNORECASE
+    ),
 ]
 
 # Casilla electrónica
@@ -245,10 +262,46 @@ JUZGADO_PATTERN = re.compile(
 
 # Cuenta bancaria/CCI
 CUENTA_PATTERNS = [
-    re.compile(r'(?:cuenta|cta\.?)\s*(?:de\s+ahorros?|corriente)?\s*(?:n[°oº]?\s*)?(\d{10,20})', re.IGNORECASE),
+    # "cuenta / cuentas" bancaria(s) con número (cubre plural y contexto "bajo el número")
+    re.compile(
+        r'(?:cuentas?\s*(?:bancarias?|de\s+ahorros?|corrientes?)?\s*'
+        r'(?:registrad[ao]s?\s+)?(?:bajo\s+(?:el|la)\s+)?n[°uú]mero\s+|'
+        r'cuentas?\s*(?:de\s+ahorros?|corriente)?\s*(?:n[°oº]?\s*)?|'
+        r'cta\.?\s*(?:n[°oº]?\s*)?)'
+        r'(\d{10,20})',
+        re.IGNORECASE
+    ),
     re.compile(r'(?:CCI|cci)\s*[:.]?\s*(\d{20})'),
     re.compile(r'\b(\d{3}[-\s]?\d{3}[-\s]?\d{10,14})\b'),
 ]
+
+# Historia Clínica (HC-123456 o "historia clínica N° 123456")
+HISTORIA_CLINICA_PATTERN = re.compile(
+    r'(?:HC[-\s]|HC\s*:\s*|historia\s+cl[ií]nica\s*(?:n[°oº]?\s*)?[:\-]?\s*)'
+    r'(\d{4,8})',
+    re.IGNORECASE
+)
+
+# Código de cliente (CLI-12345 o "código de cliente: 12345")
+CODIGO_CLIENTE_PATTERN = re.compile(
+    r'(?:CLI[-\s](\d{4,8})|c[oó]digo\s+de\s+cliente\s*[:\-]\s*(\d{4,8}))',
+    re.IGNORECASE
+)
+
+# Licencia de conducir (LIC-A12345 o "licencia de conducir: A12345")
+LICENCIA_PATTERN = re.compile(
+    r'(?:LIC[-\s]|licencia\s+de\s+conducir\s*[:\-]\s*)'
+    r'([A-Z0-9\-]{5,12})',
+    re.IGNORECASE
+)
+
+# Póliza de seguro (POL-12345 o "póliza N° 12345")
+POLIZA_PATTERN = re.compile(
+    r'(?:POL[-\s]|p[oó]liza\s*(?:de\s+(?:seguro|vida|salud|accidente)s?\s*)?'
+    r'(?:n[°oº]?\s*)?[:\-]?\s*)'
+    r'(\d{5,12})',
+    re.IGNORECASE
+)
 
 # Colegiatura profesional (abogados, médicos, ingenieros, etc.)
 # Requiere trigger explícito para evitar falsos positivos.
@@ -363,11 +416,28 @@ def detect_layer1_regex(text: str) -> List[Entity]:
     """
     entities = []
     
+    # Rastrear posiciones ya ocupadas por DNI explícito para no duplicar
+    _dni_explicit_positions: set = set()
+
+    # DNI con trigger explícito: prioridad máxima, bypass de money_context
+    for match in DNI_EXPLICIT_PATTERN.finditer(text):
+        value = match.group(1)
+        start, end = match.start(1), match.end(1)
+        extended_start = max(0, start - 3)
+        extended_end = min(len(text), end + 3)
+        if not re.search(r'\d{11}', text[extended_start:extended_end]):
+            entities.append(Entity(
+                type='DNI', value=value, start=start, end=end,
+                source='regex', confidence=1.0
+            ))
+            _dni_explicit_positions.add(start)
+
     # DNI (8 dígitos) con validación anti-falsos positivos
     for match in DNI_PATTERN.finditer(text):
         value = match.group(1)
         start, end = match.start(1), match.end(1)
-        
+        if start in _dni_explicit_positions:
+            continue  # ya capturado por DNI_EXPLICIT
         # Verificar que no sea contexto monetario
         if not is_in_money_context(text, start, end):
             # Verificar que no sea parte de RUC
@@ -403,24 +473,12 @@ def detect_layer1_regex(text: str) -> List[Entity]:
             source='regex'
         ))
     
-    # Teléfono
-    for pattern in PHONE_PATTERNS:
-        for match in pattern.finditer(text):
-            value = match.group(1) if match.lastindex else match.group(0)
-            # Normalizar: quitar espacios internos para detectar duplicados
-            normalized = re.sub(r'\s+', '', value)
-            if len(normalized) >= 9:  # Mínimo 9 dígitos
-                entities.append(Entity(
-                    type='TELEFONO',
-                    value=value,
-                    start=match.start(),
-                    end=match.end(),
-                    source='regex'
-                ))
-    
-    # Expediente
+    # ── Expediente: PRIMERO para calcular spans y bloquear TELEFONO ─────────
+    # Recopilar spans de EXPEDIENTE para filtrar TELEFONO solapado
+    _expediente_spans: List[Tuple[int, int]] = []
     for pattern in EXPEDIENTE_PATTERNS:
         for match in pattern.finditer(text):
+            _expediente_spans.append((match.start(), match.end()))
             value = match.group(1) if match.lastindex else match.group(0)
             entities.append(Entity(
                 type='EXPEDIENTE',
@@ -429,6 +487,30 @@ def detect_layer1_regex(text: str) -> List[Entity]:
                 end=match.end(),
                 source='regex'
             ))
+
+    def _in_expediente_span(m_start: int, m_end: int) -> bool:
+        """True si el match solapa con algún span de EXPEDIENTE ya detectado."""
+        return any(
+            exp_s <= m_start and m_end <= exp_e + 5
+            for exp_s, exp_e in _expediente_spans
+        )
+
+    # Teléfono (se filtra si cae dentro de un span de EXPEDIENTE)
+    for pattern in PHONE_PATTERNS:
+        for match in pattern.finditer(text):
+            value = match.group(1) if match.lastindex else match.group(0)
+            # Normalizar: quitar espacios internos para detectar duplicados
+            normalized = re.sub(r'\s+', '', value)
+            if len(normalized) >= 9:  # Mínimo 9 dígitos
+                if _in_expediente_span(match.start(), match.end()):
+                    continue  # Número es parte de un expediente → no es teléfono
+                entities.append(Entity(
+                    type='TELEFONO',
+                    value=value,
+                    start=match.start(),
+                    end=match.end(),
+                    source='regex'
+                ))
     
     # Casilla
     for match in CASILLA_PATTERN.finditer(text):
@@ -520,6 +602,53 @@ def detect_layer1_regex(text: str) -> List[Entity]:
         entities.append(Entity(
             type='RESOLUCION',
             value=match.group(0),
+            start=match.start(),
+            end=match.end(),
+            source='regex'
+        ))
+
+    # Historia Clínica
+    for match in HISTORIA_CLINICA_PATTERN.finditer(text):
+        value = match.group(1) if match.lastindex else match.group(0)
+        entities.append(Entity(
+            type='HISTORIA_CLINICA',
+            value=value,
+            start=match.start(),
+            end=match.end(),
+            source='regex'
+        ))
+
+    # Código de cliente
+    for match in CODIGO_CLIENTE_PATTERN.finditer(text):
+        # Alternativa: grupo 1 para CLI-NNNN, grupo 2 para "código de cliente: NNNN"
+        value = match.group(1) or match.group(2) if match.lastindex and match.lastindex >= 2 else match.group(0)
+        if value:
+            entities.append(Entity(
+                type='CODIGO_CLIENTE',
+                value=value,
+                start=match.start(),
+                end=match.end(),
+                source='regex'
+            ))
+
+    # Licencia de conducir
+    for match in LICENCIA_PATTERN.finditer(text):
+        value = match.group(1) if match.lastindex else match.group(0)
+        if value and len(value) >= 5:
+            entities.append(Entity(
+                type='LICENCIA',
+                value=value,
+                start=match.start(),
+                end=match.end(),
+                source='regex'
+            ))
+
+    # Póliza de seguro
+    for match in POLIZA_PATTERN.finditer(text):
+        value = match.group(1) if match.lastindex else match.group(0)
+        entities.append(Entity(
+            type='POLIZA',
+            value=value,
             start=match.start(),
             end=match.end(),
             source='regex'
@@ -1299,6 +1428,31 @@ def detect_layer3_heuristic(text: str) -> List[Entity]:
                 start=match.start(1), end=match.start(1) + len(value),
                 source='strong_context_persona', confidence=0.82
             ))
+
+    # ── 8. "Demandante: NAME" / "Demandado(a): NAME" / "ciudadano/a NAME" ──
+    # Captura nombres directamente después de etiquetas de parte procesal o de
+    # menciones de ciudadanía, formas que no cubrían los triggers anteriores.
+    partes_pattern = re.compile(
+        r'(?i:'
+        r'demandante[a]?\s*[:(]\s*'
+        r'|demandad[oa]\s*[:(]\s*'
+        r'|codemandad[oa]\s*[:(]\s*'
+        r'|solicitante[a]?\s*[:(]\s*'
+        r'|invitad[oa]\s*[:(]\s*'
+        r'|(?:el|la)[ \t]+ciudadan[oa][ \t]+'
+        r'|ciudadan[oa][ \t]+'
+        r')'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in partes_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.82
+            ))
+
     return entities
 
 

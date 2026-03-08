@@ -17,7 +17,10 @@ The Legal Anonymizer uses the **APC Jurídica** brand identity, featuring a corp
 The application is built with Flask, utilizing Flask-Login for authentication and Flask-SQLAlchemy for ORM. PostgreSQL (Neon) serves as the primary database. Document generation is handled by `python-docx`. AI capabilities are powered by the OpenAI API (specifically `gpt-4o`), and Gunicorn serves the application.
 
 ### Feature Specifications
-- **Legal Anonymizer**: Detects and redacts 21+ categories of PII, outputting anonymized documents and reports. Features a triple-layer zero-leak guarantee with an 8-stage detection pipeline and optional local/OpenAI NER enhancement. Monetized via a page-based credit system.
+- **Legal Anonymizer**: Detects and redacts 27+ categories of PII, outputting anonymized documents and reports. Features a triple-layer zero-leak guarantee with an 8-stage detection pipeline and optional local/OpenAI NER enhancement. Monetized via a page-based credit system.
+  - **AUTO types** (conf≥0.80 → confirmed, no review needed): DNI, RUC, EMAIL, TELEFONO, CASILLA, COLEGIATURA, CUENTA, CCI, EXPEDIENTE, ACTA, HISTORIA_CLINICA, CODIGO_CLIENTE, LICENCIA, POLIZA
+  - **REVIEW types** (always needs_review, user decides): PERSONA, ENTIDAD, DIRECCION, PLACA, RESOLUCION, PARTIDA, JUZGADO, SALA, TRIBUNAL
+  - **Priority rules**: EXPEDIENTE has priority over TELEFONO (span-based pre-filter); DNI_EXPLICIT_PATTERN bypasses money_context check when trigger word is present
 - **Multi-Tenancy**: Enforced data isolation per tenant using `tenant_id` across all primary tables and separate document storage.
 - **Role-Based Access Control**: `super_admin`, `admin_estudio`, and `usuario_estudio` roles with specific access decorators.
 - **Subscription Management**: Features gated by tenant subscription plans (Basic, Medium, Advanced).

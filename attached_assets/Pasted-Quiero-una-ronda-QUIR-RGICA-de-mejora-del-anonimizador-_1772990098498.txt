@@ -1,0 +1,123 @@
+Quiero una ronda QUIRÚRGICA de mejora del anonimizador, enfocada únicamente en los errores reales detectados en documentos recientes.
+
+NO quiero refactorización grande.
+NO quiero cambios cosméticos.
+NO quiero tocar créditos, reservas, cobro, rutas, modelos, final_auditor.py ni processor_docx.py salvo bug crítico.
+Quiero cambios mínimos, controlados y de alto impacto.
+
+OBJETIVO CENTRAL:
+Corregir los errores reales que siguen apareciendo:
+1. EXPEDIENTE confundido con TELEFONO
+2. PERSONA con recall insuficiente en contextos fuertes
+3. falta de detección de identificadores estructurados nuevos
+4. blindaje adicional de DNI en contexto explícito
+
+ARCHIVOS A TOCAR:
+- detector_capas.py
+- legal_filters.py
+- public_app.py solo si hace falta para clasificación/política por tipo
+- detector_openai.py solo si hace falta sincronizar tipos con la capa IA
+
+NO TOCAR:
+- créditos
+- reservas
+- cobro
+- rutas
+- modelos
+- final_auditor.py
+- processor_docx.py
+- templates salvo necesidad mínima
+
+CAMBIOS EXACTOS QUE QUIERO:
+
+1) EXPEDIENTE > TELEFONO
+- Corrige la prioridad y exclusión entre EXPEDIENTE y TELEFONO.
+- Si un número aparece en contexto:
+  - EXP-
+  - EXPEDIENTE
+  - EXP.
+  - Expediente Judicial
+  entonces NO debe clasificarse como TELEFONO.
+- Quiero que EXPEDIENTE tenga prioridad absoluta sobre TELEFONO en esos contextos.
+- Corrige los casos reales tipo:
+  EXP-{{TELEFONO_x}}-LIMA
+
+2) PERSONA — RECUPERAR RECALL EN CONTEXTOS FUERTES
+Quiero mejorar la detección de nombres reales en contextos como:
+- Demandante:
+- Demandado:
+- El ciudadano X identificado con DNI
+- La ciudadana X identificada con DNI
+- bloques de encabezado de partes
+- contextos típicos de identificación personal en documentos legales
+
+IMPORTANTE:
+- No quiero volver a la sobredetección anterior.
+- No quiero que FUNDAMENTOS DE HECHO, ACUERDO FINAL, CÓDIGO CIVIL, PRIMERA SALA CIVIL o títulos jurídicos vuelvan a entrar como PERSONA.
+- Quiero más recall útil, no caos.
+
+3) NUEVOS TIPOS ESTRUCTURADOS
+Agrega detección estructurada real para:
+- HISTORIA_CLINICA → patrones tipo HC-123456 o HC-1234567
+- CODIGO_CLIENTE → patrones tipo CLI-123456
+- LICENCIA → patrones tipo LIC-1234567
+- POLIZA → patrones tipo POL-1234567
+- CUENTA_BANCARIA → números largos en contexto bancario real
+
+4) CUENTA_BANCARIA
+Verifica por qué cuentas como:
+- cuentas bancarias registradas bajo el número 978789875951
+- ... 195685617546
+- ... 317967572624
+no están quedando tokenizadas aunque existe patrón de cuenta.
+Corrige el contexto, prioridad o filtro para que entren correctamente como tipo sensible estructurado.
+
+5) DNI — BLINDAJE FINAL
+Aunque en muchos documentos ya funciona bien, quiero blindar DNI cuando haya contexto explícito:
+- DNI
+- D.N.I.
+- documento de identidad
+- identificado con
+- identificada con
+En esos casos, no debe escaparse.
+
+6) POLÍTICA FINAL POR TIPO
+Quiero dejar clara la política:
+AUTO:
+- DNI
+- RUC
+- EMAIL
+- TELEFONO
+- CASILLA
+- COLEGIATURA
+- CUENTA_BANCARIA
+- EXPEDIENTE
+- ACTA
+- HISTORIA_CLINICA
+- CODIGO_CLIENTE
+- LICENCIA
+- POLIZA
+
+REVIEW:
+- PERSONA
+- ENTIDAD
+- DIRECCION
+- PLACA
+- RESOLUCION
+- PARTIDA
+- JUZGADO
+- SALA
+- TRIBUNAL
+
+7) IA
+Si hay que sincronizar la capa IA con estos nuevos tipos, hazlo solo mínimamente.
+La IA debe seguir actuando solo sobre ambiguos, no sobre structured_pii.
+
+ENTREGA OBLIGATORIA:
+- archivos tocados
+- funciones/patrones tocados
+- qué cambio exacto hiciste para EXPEDIENTE vs TELEFONO
+- qué cambio exacto hiciste para PERSONA en contextos fuertes
+- qué tipos nuevos agregaste
+- qué corregiste en CUENTA_BANCARIA
+- confirmación de la política final por tipo

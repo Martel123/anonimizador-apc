@@ -428,11 +428,13 @@ USE_AI_SEMANTIC_FILTER: bool = os.environ.get("USE_AI_SEMANTIC_FILTER", "0") == 
 # Incluye PII estructurada (regex determinístico) + entidades judiciales
 # detectadas con patrones conservadores que siempre van a ALWAYS_REVIEW.
 AI_SKIP_TYPES: frozenset = frozenset({
-    # PII estructurada
+    # PII estructurada (regex determinístico, bypass total de IA)
     'DNI', 'RUC', 'EMAIL', 'TELEFONO',
     'CUENTA', 'CCI', 'EXPEDIENTE', 'CASILLA',
     'COLEGIATURA', 'ACTA', 'ACTA_REGISTRO', 'PLACA',
     'PARTIDA', 'RESOLUCION', 'FECHA_NACIMIENTO',
+    # Nuevos identificadores estructurados
+    'HISTORIA_CLINICA', 'CODIGO_CLIENTE', 'LICENCIA', 'POLIZA',
     # Entidades judiciales con patrones conservadores (siempre → ALWAYS_REVIEW)
     'JUZGADO', 'SALA', 'TRIBUNAL',
 })
