@@ -300,6 +300,14 @@ EXCLUDED_UPPERCASE_WORDS = {
     'LUCRO', 'CESANTE', 'MORAL', 'EMERGENTE',
     'MENOR', 'MENORES', 'HIJOS', 'HIJAS', 'PADRE', 'MADRE', 'CONYUGE',
     'ESPOSO', 'ESPOSA', 'CONVIVIENTE', 'HEREDERO', 'HEREDEROS',
+    # ── Palabras de tiempo y ordinales de uso general ─────────────────────────
+    'AÑO', 'AÑOS', 'MES', 'MESES', 'DIA', 'DÍAS', 'DIAS',
+    'FINAL', 'INICIAL', 'ANTERIOR', 'POSTERIOR', 'PREVIO', 'PREVIA',
+    # ── Sustantivos genéricos frecuentes en encabezados ───────────────────────
+    'ACUERDO', 'ACUERDOS', 'RESULTADO', 'RESULTADOS', 'INFORME', 'INFORMES',
+    'REPORTE', 'REPORTES', 'NOTA', 'NOTAS', 'OFICIO', 'OFICIOS',
+    'CARGO', 'CARGOS', 'NOMBRE', 'NOMBRES', 'APELLIDO', 'APELLIDOS',
+    'FECHA', 'FECHAS', 'HORA', 'HORAS',
 }
 
 
@@ -424,13 +432,10 @@ def is_common_noun(word: str) -> bool:
 
 def looks_like_proper_name(text: str) -> bool:
     """
-    Heurística endurecida para detectar nombres propios de personas.
-    Favorece PRECISIÓN sobre recall: prefiere perder un nombre real antes
-    que aceptar una frase jurídica o una expresión de fecha.
-
-    Criterios estrictos:
-    - 2 a 4 palabras (nombres + apellidos peruanos típicos)
-    - Máximo 60 caracteres
+    Heurística para detectar nombres propios de personas peruanas.
+    Balance precisión/recall:
+    - 2 a 6 palabras (cubrir nombres con partículas: "María De Los Ángeles")
+    - Máximo 80 caracteres
     - No contiene mes, día de la semana ni expresión de fecha
     - No es whitelist exacta, patrón legal, verbo legal ni conector
     - No es título de sección legal
@@ -443,10 +448,11 @@ def looks_like_proper_name(text: str) -> bool:
     words = text.split()
 
     # Rango razonable de palabras para nombre + apellido(s)
-    if len(words) < 2 or len(words) > 4:
+    # 6 cubre: Nombre1 Nombre2 + De La + Apellido1 Apellido2
+    if len(words) < 2 or len(words) > 6:
         return False
 
-    if len(text) > 60:
+    if len(text) > 80:
         return False
 
     # Rechazo por fecha / calendario
@@ -488,8 +494,8 @@ def looks_like_proper_name(text: str) -> bool:
         if word_upper in name_particles:
             continue
 
-        # Rechazar si es una palabra excluida o sustantivo común
-        if is_common_noun(word):
+        # Rechazar si es palabra excluida o sustantivo común
+        if word_upper in EXCLUDED_UPPERCASE_WORDS or is_common_noun(word):
             continue
 
         # Contar si tiene forma de nombre propio real
@@ -499,10 +505,15 @@ def looks_like_proper_name(text: str) -> bool:
     return valid_name_tokens >= 2
 
 
-def should_anonymize_span(text: str, entity_type: str) -> Tuple[bool, str]:
+def should_anonymize_span(text: str, entity_type: str,
+                          strong_context: bool = False) -> Tuple[bool, str]:
     """
     Determina si un span debe ser anonimizado.
     Retorna (should_anonymize, reason).
+
+    strong_context=True: el span vino de un contexto fuerte (señor/doña/DNI/
+    procurador/firmante/…). Se aplican solo exclusiones básicas; se omite
+    looks_like_proper_name para maximizar recall en esos casos.
     """
     if entity_type in ('DNI', 'RUC', 'EMAIL', 'TELEFONO', 'CUENTA', 'CCI', 'EXPEDIENTE'):
         return True, "structured_pii"
@@ -511,6 +522,10 @@ def should_anonymize_span(text: str, entity_type: str) -> Tuple[bool, str]:
         return False, "too_short"
     
     if entity_type in ('PERSONA', 'PER'):
+        # Valores que cruzan saltos de línea nunca son un nombre limpio
+        if '\n' in text or '\r' in text:
+            return False, "contains_newline"
+
         if is_in_exact_whitelist(text):
             return False, "whitelist_exact"
         
@@ -528,33 +543,43 @@ def should_anonymize_span(text: str, entity_type: str) -> Tuple[bool, str]:
         
         if is_all_excluded_words(text):
             return False, "all_excluded_words"
+
+        # ── Ruta rápida para contexto fuerte ─────────────────────────────────
+        # El trigger ya garantiza que es una persona; solo rechazamos si el
+        # texto es claramente una frase jurídica o no tiene ningún token nominal.
+        if strong_context:
+            words = text.split()
+            # Rechazar cadenas excesivamente largas (>7 palabras) o sin letras
+            if len(words) > 7:
+                return False, "too_long_strong_ctx"
+            if not re.search(r'[A-Za-záéíóúñÁÉÍÓÚÑ]', text):
+                return False, "no_alpha_strong_ctx"
+            # Rechazar si solo contiene meses/fechas
+            if contains_month(text) and len(words) <= 2:
+                return False, "contains_month_or_date"
+            return True, "context_persona"
         
         words = text.split()
-        if len(words) > 5:
+        if len(words) > 7:
             if not looks_like_proper_name(text):
                 return False, "too_long_not_name"
         
         if looks_like_proper_name(text):
             return True, "proper_name"
         
-        # ── possible_name: fallback muy conservador ──────────────────────────
-        # Solo aplica si ningún filtro anterior lo rechazó y el texto tiene
-        # forma nominal real (no basta con "tiene letras mayúsculas").
+        # ── possible_name: fallback conservador ──────────────────────────────
         if contains_month(text):
             return False, "contains_month_or_date"
 
         has_name_chars = bool(re.match(r'^[A-Za-záéíóúñÁÉÍÓÚÑ\s]+$', text))
-        if has_name_chars and 2 <= len(words) <= 4:
-            # Filtrar palabras excluidas y sustantivos comunes
+        if has_name_chars and 2 <= len(words) <= 5:
             non_excluded = [
                 w for w in words
                 if w.upper() not in EXCLUDED_UPPERCASE_WORDS
                 and not is_common_noun(w)
             ]
-            # Exigir al menos 1 token con forma de nombre propio real
-            # (Title Case >= 4 chars o ALL CAPS >= 3 chars) en los no excluidos
-            name_form_pat_tc = re.compile(r'^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,}$')   # Title >=4
-            name_form_pat_uc = re.compile(r'^[A-ZÁÉÍÓÚÑ]{3,}$')              # CAPS >=3
+            name_form_pat_tc = re.compile(r'^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,}$')
+            name_form_pat_uc = re.compile(r'^[A-ZÁÉÍÓÚÑ]{3,}$')
             proper_tokens = [
                 w for w in non_excluded
                 if name_form_pat_tc.match(w) or name_form_pat_uc.match(w)

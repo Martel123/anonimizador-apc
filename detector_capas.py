@@ -602,11 +602,18 @@ ADDRESS_STANDALONE_PATTERN = re.compile(
 )
 
 # Patrón para "identificado con DNI" -> captura nombre + DNI
+# El nombre requiere forma Title Case estricta (sin IGNORECASE en ese grupo)
+# para evitar capturar cláusulas tipo "La demandada es Fulano".
 IDENTIFICADO_PATTERN = re.compile(
-    r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]+?)\s*,?\s*'
-    r'identificad[oa]\s+con\s+(?:DNI|D\.?N\.?I\.?|documento)\s*(?:n[°oº]?\s*)?[:\s]*'
-    r'(\d{8})',
-    re.IGNORECASE
+    # Nombre: Title Case o ALL CAPS, 2-6 tokens, sin IGNORECASE
+    r'('
+    r'(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+|[A-ZÁÉÍÓÚÑ]{2,})'           # Token 1
+    r'(?:\s+(?:de\s+(?:la\s+|los\s+|las\s+)?|del\s+)?'
+    r'(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+|[A-ZÁÉÍÓÚÑ]{2,})){1,5}'     # Tokens 2-6
+    r')'
+    r'\s*,?\s*'
+    r'(?i:identificad[oa]\s+con\s+(?:DNI|D\.?N\.?I\.?|documento)\s*(?:n[°oº]?\s*)?[:\s]*)'
+    r'(\d{8})'
 )
 
 # Patrón para contexto de teléfono
@@ -1022,52 +1029,172 @@ def detect_layer3_spacy(text: str) -> List[Entity]:
 
 def detect_layer3_heuristic(text: str) -> List[Entity]:
     """
-    Fallback heurístico para detección de personas.
-    Detecta nombres en MAYÚSCULAS o Title Case con contexto.
+    Heurístico expandido para detección de personas con contexto.
+    Detecta nombres en MAYÚSCULAS/Title Case con triggers fuertes o débiles.
+    Usa source='strong_context_persona' para saltar looks_like_proper_name.
     """
     entities = []
-    
-    # Patrón para nombres en MAYÚSCULAS (2-4 palabras)
-    uppercase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\b')
-    
+
+    # ── Patrón de nombre (reutilizado) ───────────────────────────────────────
+    # Nombre: 1-6 tokens de letras (incluyendo partículas De/Del/De La…)
+    _NAME_TC = (
+        r'[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+'          # Token Title Case
+        r'(?:\s+(?:de\s+(?:la\s+|los\s+|las\s+)?|del\s+)?'
+        r'[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,5}'    # + hasta 5 tokens adicionales c/partículas
+    )
+    _NAME_UC = (
+        r'[A-ZÁÉÍÓÚÑ]{2,}'
+        r'(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){0,5}'
+    )
+    _NAME_MIX = rf'(?:{_NAME_TC}|{_NAME_UC})'
+
+    # ── 1. Nombres en MAYÚSCULAS ─────────────────────────────────────────────
+    uppercase_pattern = re.compile(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,5})\b')
+
     for match in uppercase_pattern.finditer(text):
         value = match.group(1)
         start = match.start(1)
-        
-        # Verificar que no sea palabra excluida
+
         if is_excluded_word(value):
             continue
-        
-        # Verificar contexto o al menos 3 palabras
+
         words = value.split()
-        if len(words) >= 3 or has_trigger_nearby(text, start):
+        trigger_close = has_trigger_nearby(text, start)
+        if trigger_close:
+            # Contexto fuerte → strong_context_persona
             entities.append(Entity(
-                type='PERSONA',
-                value=value,
-                start=start,
-                end=match.end(1),
-                source='heuristic',
-                confidence=0.8
+                type='PERSONA', value=value,
+                start=start, end=match.end(1),
+                source='strong_context_persona', confidence=0.80
             ))
-    
-    # Patrón para nombres en Title Case con contexto
-    titlecase_pattern = re.compile(
-        r'(?:señor|señora|sr\.?|sra\.?|don|doña|abogad[oa]|el\s+demandante|la\s+demandada?|el\s+demandado)\s+'
-        r'([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})',
-        re.IGNORECASE
+        elif len(words) >= 3:
+            # Sin trigger pero 3+ palabras → heurístico normal
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=start, end=match.end(1),
+                source='heuristic', confidence=0.70
+            ))
+
+    # ── 2. Triggers de Title Case expandidos ─────────────────────────────────
+    _TITLE_TRIGGERS = (
+        r'se[ñn]or[a]?|sr\.?|sra\.?|don|do[ñn]a'
+        r'|abogad[oa]|letrad[oa]|dr\.?|dra\.?'
+        r'|el\s+demandante|la\s+demandante'
+        r'|el\s+demandado|la\s+demandada'
+        r'|el\s+codemandado|la\s+codemandada'
+        r'|el\s+recurrente|la\s+recurrente'
+        r'|el\s+apelante|la\s+apelante'
+        r'|el\s+agraviado|la\s+agraviada'
+        r'|el\s+imputado|la\s+imputada'
+        r'|el\s+investigado|la\s+investigada'
+        r'|el\s+procesado|la\s+procesada'
+        r'|el\s+actor|la\s+actora'
+        r'|el\s+solicitante|la\s+solicitante'
+        r'|el\s+apoderado|la\s+apoderada'
+        r'|representante\s+legal'
     )
-    
+    # (?i:trigger) aplica IGNORECASE solo al trigger, no al nombre capturado
+    # Así "compareció" (minúscula inicial) no se captura como token de nombre.
+    titlecase_pattern = re.compile(
+        rf'(?i:(?:{_TITLE_TRIGGERS}))\s+({_NAME_TC})'
+    )
     for match in titlecase_pattern.finditer(text):
-        value = match.group(1)
+        value = match.group(1).strip()
         if not is_excluded_word(value):
             entities.append(Entity(
-                type='PERSONA',
-                value=value,
-                start=match.start(1),
-                end=match.end(1),
-                source='heuristic'
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.82
             ))
-    
+
+    # ── Patrón de nombre estricto (solo mayúsculas iniciales, sin newline) ─────
+    # Usando [ \t] en lugar de \s para no cruzar líneas.
+    _NAME_STRICT = (
+        r'(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+|[A-ZÁÉÍÓÚÑ]{2,})'           # Token 1
+        r'(?:[ \t]+(?:de(?:[ \t]+(?:la|los|las))?[ \t]+|del[ \t]+)?'
+        r'(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+|[A-ZÁÉÍÓÚÑ]{2,})){0,5}'     # Tokens 2-6
+    )
+
+    # ── 3. Procurador / Procuradores Judiciales ───────────────────────────────
+    procurador_pattern = re.compile(
+        r'(?i:procurador(?:es)?[ \t]+(?:p[uú]blic[oa]s?[ \t]+|judiciales?[ \t]+)?'
+        r'|procurador(?:es)?[ \t]+a[ \t]+cargo[ \t]+)'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in procurador_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 3:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.82
+            ))
+
+    # ── 4. Firmantes y suscriptores ──────────────────────────────────────────
+    # Usa [ \t] para no cruzar saltos de línea dentro del nombre.
+    firmante_pattern = re.compile(
+        r'(?i:atentamente[,\t ]+|firma[ \t]*:[ \t]*|firman?[ \t]*:[ \t]*'
+        r'|suscrit[oa][ \t]+por[ \t]+|suscrib[eo][ \t]+(?:la[ \t]+)?(?:presente[ \t]+)?(?:el[ \t]+)?'
+        r'|abogado[ \t]+defensor[ \t]*:[ \t]*|abogad[oa][ \t]+patrocinante[ \t]*:[ \t]*'
+        r'|nombre[ \t]+del[ \t]+firmante[ \t]*:[ \t]*)'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in firmante_pattern.finditer(text):
+        value = match.group(1).strip().rstrip(',.:;')
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.80
+            ))
+
+    # ── 5. Remitente / Destinatario ───────────────────────────────────────────
+    remitente_pattern = re.compile(
+        r'(?i:de[ \t]*:[ \t]*|a[ \t]*:[ \t]*|para[ \t]*:[ \t]*|remitente[ \t]*:[ \t]*'
+        r'|destinatario[ \t]*:[ \t]*|dirigido[ \t]+a[ \t]*:[ \t]*|emisor[ \t]*:[ \t]*)'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in remitente_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.80
+            ))
+
+    # ── 6. Menores / Hijos / Filiación ───────────────────────────────────────
+    menor_pattern = re.compile(
+        r'(?i:menor[ \t]+(?:de[ \t]+nombre|llamad[oa]|de[ \t]+edad[ \t]+llamad[oa])[ \t]+'
+        r'|hij[oa][ \t]+(?:de[ \t]+nombre[ \t]+|llamad[oa][ \t]+|menor[ \t]+)?'
+        r'|hijos?[ \t]+menores?[ \t]+(?:de[ \t]+nombre[ \t]+)?'
+        r'|(?:la|el)[ \t]+menor[ \t]+)'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in menor_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.80
+            ))
+
+    # ── 7. "de apellido(s)" / "apellidado(a)" / "de nombre(s)" ─────────────
+    apellido_pattern = re.compile(
+        r'(?i:de[ \t]+apellidos?[ \t]+|apellidad[oa][ \t]+|cuyo[ \t]+apellido[ \t]+es[ \t]+'
+        r'|cuyos?[ \t]+nombres?[ \t]+(?:son[ \t]+|es[ \t]+)?'
+        r'|de[ \t]+nombres?[ \t]+(?:y[ \t]+apellidos?[ \t]+)?)'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in apellido_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.82
+            ))
     return entities
 
 
@@ -1162,15 +1289,28 @@ def apply_legal_filters(entities: List[Entity]) -> Tuple[List[Entity], Dict[str,
         'rejected_reasons': {}
     }
     
+    # Fuentes que implican contexto fuerte ya validado
+    STRONG_CTX_SOURCES = frozenset({
+        'strong_context_persona', 'context', 'context_identificado',
+    })
+
     for entity in entities:
-        should_keep, reason = should_anonymize_span(entity.value, entity.type)
+        use_strong = (
+            entity.type in ('PERSONA', 'PER')
+            and entity.source in STRONG_CTX_SOURCES
+        )
+        should_keep, reason = should_anonymize_span(
+            entity.value, entity.type,
+            strong_context=use_strong
+        )
         
         if should_keep:
-            if reason == "possible_name":
-                # possible_name: revisión débil, debajo del umbral de confirmado
+            if reason == "context_persona":
+                # Contexto fuerte → needs_review garantizado (PERSONA siempre en ALWAYS_REVIEW)
+                entity.confidence = min(entity.confidence, 0.78)
+            elif reason == "possible_name":
                 entity.confidence = min(entity.confidence, 0.55)
             elif reason == "proper_name":
-                # proper_name: válido pero siempre entra como needs_review para PERSONA
                 entity.confidence = min(entity.confidence, 0.75)
             filtered.append(entity)
             filter_stats['accepted'] += 1

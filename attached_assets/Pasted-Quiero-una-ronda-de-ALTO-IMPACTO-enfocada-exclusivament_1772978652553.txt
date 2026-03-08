@@ -1,0 +1,72 @@
+Quiero una ronda de ALTO IMPACTO enfocada exclusivamente en recuperar detección útil de PERSONA sin volver a la sobredetección anterior.
+
+OBJETIVO CENTRAL:
+Subir recall de nombres sensibles reales, manteniendo precisión alta.
+
+PROBLEMA ACTUAL:
+El sistema ya no destruye el documento, pero está dejando visibles muchos nombres reales sensibles:
+- remitente / destinatario
+- demandante / demandada
+- menores
+- abogados / procuradores
+- firmantes finales
+Eso significa que PERSONA quedó demasiado conservadora.
+
+ARCHIVOS A TOCAR:
+- legal_filters.py
+- detector_capas.py
+- public_app.py solo si hace falta ajustar clasificación final por tipo/contexto
+
+NO TOCAR:
+- créditos
+- rutas
+- modelos
+- detector_openai.py
+- detector_ner_local.py
+- final_auditor.py
+- processor_docx.py salvo dependencia mínima
+
+QUIERO ESTOS CAMBIOS EXACTOS:
+
+1) RECUPERAR PERSONA CON CONTEXTO FUERTE
+Quiero que PERSONA vuelva a detectarse/mejor clasificarse cuando haya contextos claros como:
+- identificado con D.N.I.
+- identificada con D.N.I.
+- señor / doña / abogado / abogada
+- demandante / demandada
+- procurador / procuradores judiciales
+- firmas finales
+- encabezados claros de remitente/destinatario
+- nombres de menores en contexto familiar o filiación
+
+2) NO VOLVER A CUALQUIER TITLE CASE
+No quiero volver a marcar cualquier secuencia Title Case o mayúsculas.
+Mantén precisión.
+Quiero recuperar nombres reales, no reabrir el caos anterior.
+
+3) DIFFERENCIAR proper_name vs possible_name
+- proper_name con contexto fuerte puede seguir a review o incluso confirmed según política final
+- possible_name debe seguir siendo débil, no casi-confirmada
+
+4) FORTALECER EXCLUSIONES
+No marcar como PERSONA:
+- títulos jurídicos
+- instituciones
+- salas
+- juzgados
+- meses
+- expresiones de fecha
+- frases tipo “ACUERDO FINAL PRIMERO”, “PRIMERA SALA CIVIL”, “CÓDIGO CIVIL PERUANO”
+
+5) POLÍTICA FINAL DE PERSONA
+Quiero que PERSONA quede así:
+- si el contexto es muy fuerte → review útil o confirmed controlado
+- si es ambigua → review
+- si parece título jurídico o institución → descartar
+
+ENTREGA OBLIGATORIA:
+- funciones exactas tocadas
+- nuevos contextos positivos añadidos
+- nuevas exclusiones añadidas
+- ejemplos concretos de nombres que ahora sí deberían detectarse
+- ejemplos concretos de frases que ahora deben seguir descartándose
