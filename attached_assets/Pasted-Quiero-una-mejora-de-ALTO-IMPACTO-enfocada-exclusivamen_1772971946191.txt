@@ -1,0 +1,60 @@
+Quiero una mejora de ALTO IMPACTO enfocada exclusivamente en PERSONA.
+
+OBJETIVO CENTRAL:
+Reducir drásticamente falsos positivos de PERSONA en documentos legales peruanos.
+
+PROBLEMA ACTUAL:
+Aunque PERSONA vaya a review, la detección sigue generando demasiado ruido: fechas, meses, títulos, frases Title Case, encabezados legales, nombres institucionales y contenido jurídico terminan pareciéndose a PERSONA.
+
+ARCHIVOS A TOCAR:
+- legal_filters.py
+- detector_capas.py solo si es estrictamente necesario
+- NO tocar frontend en esta ronda
+
+NO TOCAR:
+- final_auditor.py
+- processor_docx.py
+- créditos
+- rutas
+- apply/download
+- detector_openai.py
+
+CAMBIOS EXACTOS QUE QUIERO:
+
+1. Reforzar la política de PERSONA para favorecer PRECISIÓN sobre recall.
+
+2. "possible_name" ya no debe comportarse como una entidad casi válida:
+   - debe quedar claramente como revisión débil
+   - no debe acercarse a confirmada
+   - si hace falta, bajar más confidence o marcar reason específica
+
+3. "proper_name" debe mantenerse, pero endurecido:
+   - no aceptar secuencias Title Case que parezcan títulos jurídicos
+   - no aceptar meses, cargos, instituciones, nombres de secciones
+   - no aceptar frases como "Primera Sala Civil", "Código Civil Peruano", etc.
+
+4. Reutilizar y fortalecer lo que ya existe:
+   - whitelist exacta
+   - patrones legales
+   - verbos legales
+   - conectores
+   - títulos
+   - excluded words
+
+5. Si existe una función como looks_like_proper_name():
+   - endurecerla para que exija mejor forma nominal
+   - mejor perder algunos nombres que seguir marcando frases normales
+
+6. Si hace falta, agregar exclusiones adicionales para:
+   - meses
+   - expresiones de fecha
+   - instituciones frecuentes
+   - términos jurídicos compuestos que siguen apareciendo como PERSONA
+
+7. No tocar structured_pii.
+
+ENTREGA OBLIGATORIA:
+- funciones exactas tocadas
+- antes vs después de proper_name y possible_name
+- ejemplos concretos de frases que antes podían entrar como PERSONA y ahora deberían quedar fuera
+- confirmación de que PERSONA quedó mucho más conservadora

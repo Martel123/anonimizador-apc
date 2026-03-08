@@ -263,6 +263,34 @@ EXCLUDED_UPPERCASE_WORDS = {
     'LAMBAYEQUE', 'LORETO', 'MADRE', 'DIOS', 'PASCO', 'SAN', 'MARTIN',
     'UCAYALI', 'AMAZONAS', 'APURIMAC', 'AYACUCHO', 'CAJAMARCA', 'HUANUCO',
     'HUANCAVELICA',
+    # ── Artículos y preposiciones cortas (gap crítico) ───────────────────────
+    'DE', 'EL', 'LA', 'LO', 'AL', 'UN', 'UNA', 'LES', 'LE',
+    'SU', 'SUS', 'MI', 'MIS', 'TU', 'TUS',
+    # ── Meses del año ────────────────────────────────────────────────────────
+    'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+    # ── Días de la semana ────────────────────────────────────────────────────
+    'LUNES', 'MARTES', 'MIÉRCOLES', 'MIERCOLES', 'JUEVES',
+    'VIERNES', 'SÁBADO', 'SABADO', 'DOMINGO',
+    # ── Ordinales femeninos (PRIMERO…DÉCIMO ya están, faltan femeninos) ──────
+    'PRIMERA', 'SEGUNDA', 'TERCERA', 'CUARTA', 'QUINTA',
+    'SEXTA', 'SÉPTIMA', 'SEPTIMA', 'OCTAVA', 'NOVENA', 'DÉCIMA', 'DECIMA',
+    # ── Gentilicios y demográficos ───────────────────────────────────────────
+    'PERUANO', 'PERUANA', 'PERUANOS', 'PERUANAS',
+    # ── Tipos de sala / juzgado ──────────────────────────────────────────────
+    'FAMILIA', 'LABORAL', 'AGRARIO', 'ADMINISTRATIVO', 'CORRECCIONAL',
+    'ESPECIALIZADO', 'ESPECIALIZADA', 'MIXTO', 'MIXTA',
+    'NACIONAL', 'REGIONAL', 'PROVINCIAL', 'DISTRITAL', 'MUNICIPAL',
+    # ── Calificativos que aparecen en cargos y títulos ───────────────────────
+    'GENERAL', 'ESPECIAL', 'PLENA', 'PLENO', 'ÚNICO', 'UNICO', 'ÚNICA', 'UNICA',
+    'PRESENTE', 'PRESENTES', 'VIGENTE', 'VIGENTES', 'ACTUAL', 'ACTUALES',
+    'CITADO', 'CITADA', 'MENCIONADO', 'MENCIONADA', 'INDICADO', 'INDICADA',
+    'REFERIDO', 'REFERIDA', 'SEÑALADO', 'SEÑALADA',
+    # ── Sustantivos jurídicos adicionales ────────────────────────────────────
+    'PROCESO', 'ACCIÓN', 'ACCION', 'PRETENSIÓN', 'PRETENSION',
+    'DEMANDADO', 'DEMANDADA', 'PARTE', 'PARTES', 'ACTO', 'ACTOS',
+    'HECHO', 'DERECHO', 'DEBER', 'FACULTAD', 'CAUSA', 'EFECTOS',
+    'RESOLUCIÓN', 'DISPOSITION', 'TÉRMINO', 'TERMINO', 'PLAZO',
     'ALIMENTOS', 'DIVORCIO', 'TENENCIA', 'REGIMEN', 'RÉGIMEN', 'VISITAS',
     'FILIACION', 'FILIACIÓN', 'ADOPCION', 'ADOPCIÓN', 'SUCESION', 'SUCESIÓN',
     'TESTAMENTO', 'HERENCIA', 'ANTICIPO', 'LEGÍTIMA', 'LEGITIMA',
@@ -330,51 +358,145 @@ def is_all_excluded_words(text: str) -> bool:
     return excluded_count == len(words)
 
 
+SPANISH_MONTHS = {
+    'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+}
+
+SPANISH_WEEKDAYS = {
+    'LUNES', 'MARTES', 'MIÉRCOLES', 'MIERCOLES',
+    'JUEVES', 'VIERNES', 'SÁBADO', 'SABADO', 'DOMINGO',
+}
+
+# Sustantivos comunes que pueden aparecer en Title Case pero NO son nombres propios
+COMMON_NOUNS_TITLE = {
+    'ACTA', 'ACTAS', 'SALA', 'CORTE', 'JUZGADO', 'JUICIO', 'PROCESO',
+    'PARTE', 'PARTES', 'OBJETO', 'MATERIA', 'ASUNTO', 'CAUSA', 'CASO',
+    'CÓDIGO', 'CODIGO', 'ARTÍCULO', 'ARTICULO', 'REGLAMENTO', 'DECRETO',
+    'RESOLUCIÓN', 'RESOLUCION', 'SENTENCIA', 'AUTO', 'FALLO', 'ESCRITO',
+    'RECURSO', 'APELACIÓN', 'APELACION', 'CASACIÓN', 'CASACION',
+    'PODER', 'ESTADO', 'NACIÓN', 'NACION', 'REPÚBLICA', 'REPUBLICA',
+    'MINISTERIO', 'FISCALÍA', 'FISCALIA', 'DEFENSORÍA', 'DEFENSORIA',
+    'SUPERINTENDENCIA', 'DIRECCION', 'DIRECCIÓN', 'GERENCIA', 'OFICINA',
+    'NOTARIA', 'NOTARÍA', 'REGISTROS', 'REGISTRO',
+    'CONTRATO', 'CONVENIO', 'ACUERDO', 'PACTO',
+    'TUTELA', 'AMPARO', 'HABEAS', 'CORPUS', 'HÁBEAS',
+    'DEMANDA', 'DENUNCIA', 'QUEJA', 'RECURSO', 'ESCRITO',
+    'CONCILIACION', 'CONCILIACIÓN', 'ARBITRAJE', 'MEDIACIÓN', 'MEDIACION',
+}
+
+
+def contains_month(text: str) -> bool:
+    """Retorna True si el texto contiene nombre de mes o día de la semana."""
+    words_upper = {w.upper().rstrip('.,;:') for w in text.split()}
+    return bool(words_upper & (SPANISH_MONTHS | SPANISH_WEEKDAYS))
+
+
+# Sufijos de sustantivos abstractos y adjetivos relacionales en español
+# → no pueden ser nombres propios de persona
+_COMMON_NOUN_SUFFIXES = (
+    'IDAD', 'IDAD', 'CIÓN', 'CION', 'SIÓN', 'SION', 'MIENTO',
+    'ANZA', 'ENCIA', 'ANCIA', 'ISMO', 'TURA', 'DURA', 'URA',
+)
+_COMMON_ADJ_SUFFIXES = (
+    'ENTAL', 'IONAL', 'ONAL', 'INAL', 'ERAL', 'ORAL', 'URAL',
+    'IENTE', 'ENTE', 'ANTE', 'ARIO', 'ARIA', 'ARIO', 'TIVO', 'TIVA',
+    'TICO', 'TICA', 'OSO', 'OSA', 'ESCO', 'ESCA',
+)
+
+
+def is_common_noun(word: str) -> bool:
+    """Retorna True si la palabra es un sustantivo o adjetivo común
+    (no puede ser un nombre propio de persona).
+    Chequea:
+    1. Listas explícitas de exclusión
+    2. Sufijos típicos de sustantivos abstractos y adjetivos relacionales
+    """
+    w = word.upper()
+    if w in COMMON_NOUNS_TITLE or w in EXCLUDED_UPPERCASE_WORDS:
+        return True
+    # Sufijo de sustantivo abstracto (>= 7 chars para evitar falsos como "Rial")
+    if len(w) >= 7:
+        if w.endswith(_COMMON_NOUN_SUFFIXES) or w.endswith(_COMMON_ADJ_SUFFIXES):
+            return True
+    return False
+
+
 def looks_like_proper_name(text: str) -> bool:
     """
-    Heurística para determinar si el texto parece un nombre propio.
-    Los nombres propios típicamente:
-    - Tienen 2-4 palabras
-    - Cada palabra empieza con mayúscula
-    - No contienen verbos ni conectores
-    - No son frases jurídicas conocidas
+    Heurística endurecida para detectar nombres propios de personas.
+    Favorece PRECISIÓN sobre recall: prefiere perder un nombre real antes
+    que aceptar una frase jurídica o una expresión de fecha.
+
+    Criterios estrictos:
+    - 2 a 4 palabras (nombres + apellidos peruanos típicos)
+    - Máximo 60 caracteres
+    - No contiene mes, día de la semana ni expresión de fecha
+    - No es whitelist exacta, patrón legal, verbo legal ni conector
+    - No es título de sección legal
+    - Al menos 2 tokens que sean "nombres propios reales":
+        * Forma Title Case >= 3 chars, sin ser sustantivo común
+        * O forma ALL CAPS >= 3 chars (apellido en mayúsculas)
+    - Las partículas de nombre (de, del, de la…) son toleradas pero
+      NO cuentan como tokens válidos.
     """
     words = text.split()
-    
-    if len(words) < 2 or len(words) > 5:
+
+    # Rango razonable de palabras para nombre + apellido(s)
+    if len(words) < 2 or len(words) > 4:
         return False
-    
+
     if len(text) > 60:
         return False
-    
+
+    # Rechazo por fecha / calendario
+    if contains_month(text):
+        return False
+
+    # Rechazos por whitelists y filtros legales
     if is_in_exact_whitelist(text):
         return False
-    
+
     if matches_whitelist_pattern(text):
         return False
-    
+
     if contains_legal_verb(text):
         return False
-    
+
     if is_legal_connector(text):
         return False
-    
+
     if is_legal_title(text):
         return False
-    
+
     if is_all_excluded_words(text):
         return False
-    
-    proper_name_pattern = re.compile(r'^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]*$')
-    uppercase_word_pattern = re.compile(r'^[A-ZÁÉÍÓÚÑ]+$')
-    
-    valid_words = 0
+
+    # Patrones de forma de nombre propio
+    title_case_pat = re.compile(r'^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}$')   # Forma: Title (>= 3 chars)
+    uppercase_pat  = re.compile(r'^[A-ZÁÉÍÓÚÑ]{3,}$')               # APELLIDO en mayúsculas
+
+    # Partículas de nombre que se toleran (no cuentan como válidas ni inválidas)
+    name_particles = {'DE', 'DEL', 'DE LA', 'DE LOS', 'DE LAS', 'LA', 'EL',
+                      'VAN', 'VON', 'MC', 'MAC', 'DA', 'DI'}
+
+    valid_name_tokens = 0
     for word in words:
-        if proper_name_pattern.match(word) or uppercase_word_pattern.match(word):
-            if word.upper() not in EXCLUDED_UPPERCASE_WORDS:
-                valid_words += 1
-    
-    return valid_words >= 2
+        word_upper = word.upper()
+
+        # Partícula → tolerar, no contar
+        if word_upper in name_particles:
+            continue
+
+        # Rechazar si es una palabra excluida o sustantivo común
+        if is_common_noun(word):
+            continue
+
+        # Contar si tiene forma de nombre propio real
+        if title_case_pat.match(word) or uppercase_pat.match(word):
+            valid_name_tokens += 1
+
+    return valid_name_tokens >= 2
 
 
 def should_anonymize_span(text: str, entity_type: str) -> Tuple[bool, str]:
@@ -415,13 +537,31 @@ def should_anonymize_span(text: str, entity_type: str) -> Tuple[bool, str]:
         if looks_like_proper_name(text):
             return True, "proper_name"
         
-        has_uppercase = bool(re.search(r'[A-ZÁÉÍÓÚÑ]', text))
+        # ── possible_name: fallback muy conservador ──────────────────────────
+        # Solo aplica si ningún filtro anterior lo rechazó y el texto tiene
+        # forma nominal real (no basta con "tiene letras mayúsculas").
+        if contains_month(text):
+            return False, "contains_month_or_date"
+
         has_name_chars = bool(re.match(r'^[A-Za-záéíóúñÁÉÍÓÚÑ\s]+$', text))
-        if has_uppercase and has_name_chars and len(words) >= 2 and len(words) <= 4:
-            non_excluded = [w for w in words if w.upper() not in EXCLUDED_UPPERCASE_WORDS]
-            if len(non_excluded) >= 2:
+        if has_name_chars and 2 <= len(words) <= 4:
+            # Filtrar palabras excluidas y sustantivos comunes
+            non_excluded = [
+                w for w in words
+                if w.upper() not in EXCLUDED_UPPERCASE_WORDS
+                and not is_common_noun(w)
+            ]
+            # Exigir al menos 1 token con forma de nombre propio real
+            # (Title Case >= 4 chars o ALL CAPS >= 3 chars) en los no excluidos
+            name_form_pat_tc = re.compile(r'^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,}$')   # Title >=4
+            name_form_pat_uc = re.compile(r'^[A-ZÁÉÍÓÚÑ]{3,}$')              # CAPS >=3
+            proper_tokens = [
+                w for w in non_excluded
+                if name_form_pat_tc.match(w) or name_form_pat_uc.match(w)
+            ]
+            if len(non_excluded) >= 2 and len(proper_tokens) >= 1:
                 return True, "possible_name"
-        
+
         return False, "default_reject_persona"
     
     if entity_type == 'DIRECCION':

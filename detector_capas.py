@@ -479,20 +479,23 @@ def detect_pii_in_sections(text: str) -> List['Entity']:
             section_text = match.group(1)
             section_start = match.start(1)
             
+            from legal_filters import looks_like_proper_name as _looks_like_name
             name_in_section = re.compile(
-                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})',
+                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})',
                 re.UNICODE
             )
             for name_match in name_in_section.finditer(section_text):
                 value = name_match.group(1)
-                if not is_excluded_word(value) and len(value.split()) >= 2:
+                if (not is_excluded_word(value)
+                        and len(value.split()) >= 2
+                        and _looks_like_name(value)):
                     entities.append(Entity(
                         type='PERSONA',
                         value=value,
                         start=section_start + name_match.start(1),
                         end=section_start + name_match.end(1),
                         source='section',
-                        confidence=0.95
+                        confidence=0.65
                     ))
             
             dni_in_section = re.compile(r'\b(\d{8})\b')
@@ -1093,7 +1096,11 @@ def apply_legal_filters(entities: List[Entity]) -> Tuple[List[Entity], Dict[str,
         
         if should_keep:
             if reason == "possible_name":
-                entity.confidence = min(entity.confidence, 0.65)
+                # possible_name: revisión débil, debajo del umbral de confirmado
+                entity.confidence = min(entity.confidence, 0.55)
+            elif reason == "proper_name":
+                # proper_name: válido pero siempre entra como needs_review para PERSONA
+                entity.confidence = min(entity.confidence, 0.75)
             filtered.append(entity)
             filter_stats['accepted'] += 1
         else:
