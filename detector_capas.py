@@ -250,6 +250,60 @@ CUENTA_PATTERNS = [
     re.compile(r'\b(\d{3}[-\s]?\d{3}[-\s]?\d{10,14})\b'),
 ]
 
+# Colegiatura profesional (abogados, médicos, ingenieros, etc.)
+# Requiere trigger explícito para evitar falsos positivos.
+COLEGIATURA_PATTERN = re.compile(
+    r'(?:C\.?A\.?L\.?|C\.?A\.?C\.?|C\.?A\.?A\.?|CMP|CIP|CAP|CPA|CPP|CNP'
+    r'|[Cc]olegiatura|[Cc]olegio\s+de\s+[Aa]bogados)'
+    r'(?:\s+(?:N[°oº]?|n[°oº]?|n[uú]mero|numero|no\.?|es|de|:))?\s*'
+    r'(?:N[°oº]?\s*)?[:\-]?\s*(\d{3,6})',
+    re.IGNORECASE
+)
+
+# Sala jurisdiccional (Primera Sala Civil, Segunda Sala Penal, etc.)
+SALA_PATTERN = re.compile(
+    r'\b('
+    r'(?:primer[oa]?\s+|segundo[a]?\s+|tercer[oa]?\s+|cuart[oa]?\s+|quint[oa]?\s+|sext[oa]?\s+|'
+    r'\d{1,2}\s*[°ºo]?\s+)?'
+    r'sala\s+'
+    r'(?:de\s+)?'
+    r'(?:civil|penal|laboral|familia|mixta?|comercial|constitucional|suprema?|superior|'
+    r'apelaciones?|audiencia|litigios|conflictos)'
+    r'(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,5}'
+    r')',
+    re.IGNORECASE
+)
+
+# Tribunal (Tribunal Constitucional, Tribunal Arbitral, etc.)
+TRIBUNAL_PATTERN = re.compile(
+    r'\b('
+    r'tribunal\s+'
+    r'(?:constitucional|supremo?|arbitral|de\s+justicia|de\s+honor|militar|administrativo|'
+    r'fiscal|de\s+apelaci[oó]n|de\s+garant[ií]as?|de\s+contrataciones?)'
+    r'(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ]+){0,4}'
+    r')',
+    re.IGNORECASE
+)
+
+# Partida electrónica/registral (SUNARP)
+PARTIDA_PATTERN = re.compile(
+    r'(?:partida\s+(?:electr[oó]nica|registral|sunarp)?'
+    r'|asiento\s+registral'
+    r'|tomo\s+registral'
+    r'|(?:SUNARP|sunarp)\s*[:,]?)'
+    r'\s*(?:n[°oº]?\s*)?[:\s]*(\d{4,12}(?:[-/]\d{2,6})?)',
+    re.IGNORECASE
+)
+
+# Resolución/Auto/Decreto con número (requiere "n°" para evitar "auto" falso)
+RESOLUCION_PATTERN = re.compile(
+    r'(?:resoluci[oó]n|auto|decreto|acuerdo|oficio|informe)\s+'
+    r'(?:[a-záéíóúñ]+\s+)*'          # palabras intermedias opcionales (directoral, gerencial…)
+    r'n[°oº][.:/ ]*'                   # obligatorio "n°" para reducir falsos positivos
+    r'(\d{2,6}(?:[-/]\d{2,6})?)',
+    re.IGNORECASE
+)
+
 
 PLACA_VEHICLE_CONTEXTS = [
     'placa', 'vehículo', 'vehiculo', 'auto', 'camioneta', 'moto',
@@ -421,6 +475,56 @@ def detect_layer1_regex(text: str) -> List[Entity]:
                 source='regex'
             ))
     
+    # Colegiatura profesional
+    for match in COLEGIATURA_PATTERN.finditer(text):
+        entities.append(Entity(
+            type='COLEGIATURA',
+            value=match.group(0),
+            start=match.start(),
+            end=match.end(),
+            source='regex'
+        ))
+
+    # Sala jurisdiccional
+    for match in SALA_PATTERN.finditer(text):
+        entities.append(Entity(
+            type='SALA',
+            value=match.group(1),
+            start=match.start(1),
+            end=match.end(1),
+            source='regex'
+        ))
+
+    # Tribunal
+    for match in TRIBUNAL_PATTERN.finditer(text):
+        entities.append(Entity(
+            type='TRIBUNAL',
+            value=match.group(1),
+            start=match.start(1),
+            end=match.end(1),
+            source='regex'
+        ))
+
+    # Partida electrónica/registral
+    for match in PARTIDA_PATTERN.finditer(text):
+        entities.append(Entity(
+            type='PARTIDA',
+            value=match.group(0),
+            start=match.start(),
+            end=match.end(),
+            source='regex'
+        ))
+
+    # Resolución/Auto/Decreto con número
+    for match in RESOLUCION_PATTERN.finditer(text):
+        entities.append(Entity(
+            type='RESOLUCION',
+            value=match.group(0),
+            start=match.start(),
+            end=match.end(),
+            source='regex'
+        ))
+
     # Placa vehicular - confidence alta solo si hay contexto vehicular
     for match in PLACA_PATTERN.finditer(text):
         start, end = match.start(1), match.end(1)

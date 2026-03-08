@@ -424,18 +424,23 @@ def get_openai_stats() -> Dict[str, Any]:
 
 USE_AI_SEMANTIC_FILTER: bool = os.environ.get("USE_AI_SEMANTIC_FILTER", "0") == "1"
 
-# Tipos que SIEMPRE pasan directo (PII estructurada verificada por regex)
+# Tipos que SIEMPRE pasan directo al clasificador (sin filtro IA).
+# Incluye PII estructurada (regex determinístico) + entidades judiciales
+# detectadas con patrones conservadores que siempre van a ALWAYS_REVIEW.
 AI_SKIP_TYPES: frozenset = frozenset({
+    # PII estructurada
     'DNI', 'RUC', 'EMAIL', 'TELEFONO',
     'CUENTA', 'CCI', 'EXPEDIENTE', 'CASILLA',
-    'COLEGIATURA', 'ACTA_REGISTRO', 'PLACA',
+    'COLEGIATURA', 'ACTA', 'ACTA_REGISTRO', 'PLACA',
     'PARTIDA', 'RESOLUCION', 'FECHA_NACIMIENTO',
+    # Entidades judiciales con patrones conservadores (siempre → ALWAYS_REVIEW)
+    'JUZGADO', 'SALA', 'TRIBUNAL',
 })
 
-# Tipos ambiguos que se benefician de validación semántica
+# Tipos con ambigüedad semántica real que se benefician del filtro IA.
+# SOLO estas categorías pasan por el llamado a la API.
 AI_AMBIGUOUS_TYPES: frozenset = frozenset({
     'PERSONA', 'ENTIDAD', 'DIRECCION',
-    'JUZGADO', 'SALA', 'TRIBUNAL',
 })
 
 # Máximo de candidatos por llamado a la API (control de costo)

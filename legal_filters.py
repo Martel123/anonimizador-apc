@@ -515,7 +515,8 @@ def should_anonymize_span(text: str, entity_type: str,
     procurador/firmante/…). Se aplican solo exclusiones básicas; se omite
     looks_like_proper_name para maximizar recall en esos casos.
     """
-    if entity_type in ('DNI', 'RUC', 'EMAIL', 'TELEFONO', 'CUENTA', 'CCI', 'EXPEDIENTE'):
+    if entity_type in ('DNI', 'RUC', 'EMAIL', 'TELEFONO', 'CUENTA', 'CCI',
+                       'EXPEDIENTE', 'COLEGIATURA', 'CASILLA'):
         return True, "structured_pii"
     
     if not text or len(text.strip()) < 2:
@@ -604,7 +605,8 @@ def should_anonymize_span(text: str, entity_type: str,
             return True, "address_structure"
         return False, "no_address_structure"
     
-    if entity_type in ('JUZGADO', 'CASILLA', 'ACTA'):
+    if entity_type in ('JUZGADO', 'SALA', 'TRIBUNAL', 'CASILLA', 'ACTA',
+                       'PARTIDA', 'RESOLUCION'):
         return True, "legal_entity"
 
     if entity_type == 'ENTIDAD':
