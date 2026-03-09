@@ -2898,21 +2898,57 @@ def _send_verification_email(user, verify_url):
 @app.route("/verify-email/<token>")
 def verify_email(token):
     """Valida el token de verificación de email y marca la cuenta como verificada."""
+    logging.info(f"VERIFY_EMAIL_LINK_OPENED | token={token[:12]}...")
+
+    # 1. Buscar el token
     activation = ActivationToken.query.filter_by(token=token, tipo='email_verify').first()
-    if not activation or not activation.is_valid():
-        flash("El enlace de verificación es inválido o ha expirado. Solicita uno nuevo.", "error")
+    if not activation:
+        logging.warning(f"VERIFY_EMAIL_FAIL | token not found | token={token[:12]}...")
+        flash("El enlace de verificación es inválido o ya fue utilizado.", "error")
         return redirect(url_for('login'))
+
+    # 2. Verificar validez (expiración + used)
+    if not activation.is_valid():
+        logging.warning(
+            f"VERIFY_EMAIL_FAIL | token invalid | token_id={activation.id} "
+            f"used={activation.used} expires_at={activation.expires_at}"
+        )
+        flash("El enlace de verificación ha expirado o ya fue utilizado. Solicita uno nuevo.", "error")
+        return redirect(url_for('login'))
+
+    logging.info(f"VERIFY_EMAIL_TOKEN_VALID | token_id={activation.id} user_id={activation.user_id}")
+
+    # 3. Marcar email_verified = True y consumir el token
     user = activation.user
     user.email_verified = True
     activation.mark_used()
     db.session.commit()
-    log_audit(
-        tenant_id=user.tenant_id,
-        evento='email_verified',
-        descripcion=f'Email verificado: {user.email}',
-        user_id=user.id,
-    )
-    flash("¡Correo verificado correctamente! Ya puedes usar todas las funciones.", "success")
+
+    logging.info(f"VERIFY_EMAIL_USER_MARKED_VERIFIED | user_id={user.id} email={user.email}")
+    logging.info(f"VERIFY_EMAIL_TOKEN_CONSUMED | token_id={activation.id}")
+
+    # 4. Registrar en auditoría
+    try:
+        log_audit(
+            tenant_id=user.tenant_id,
+            evento='email_verified',
+            descripcion=f'Email verificado: {user.email}',
+            user_id=user.id,
+        )
+    except Exception as _e:
+        logging.warning(f"VERIFY_EMAIL | log_audit failed (non-critical): {_e}")
+
+    # 5. Refrescar la sesión si el usuario ya está autenticado como ese mismo usuario,
+    #    para que current_user.email_verified quede en True de inmediato sin nuevo login.
+    if current_user.is_authenticated and current_user.id == user.id:
+        login_user(user)  # recarga el objeto desde DB, borra cache de sesión
+        logging.info(f"VERIFY_EMAIL_REDIRECT_SUCCESS | session refreshed | user_id={user.id} → anonymizer_home")
+        flash("¡Correo verificado correctamente! Ya puedes usar todas las funciones.", "success")
+        return redirect(url_for('anonymizer.anonymizer_home'))
+
+    # 6. Si no tenía sesión → ir a login con mensaje de éxito
+    logging.info(f"VERIFY_EMAIL_REDIRECT_SUCCESS | no active session | user_id={user.id} → login")
+    flash("¡Correo verificado correctamente! Inicia sesión para continuar.", "success")
     return redirect(url_for('login'))
 
 

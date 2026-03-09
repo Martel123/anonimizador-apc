@@ -1,0 +1,154 @@
+Ya logramos que el correo de verificación sí se envíe. El problema actual está SOLO en el flujo de confirmación al hacer clic en el botón del email.
+
+Comportamiento esperado:
+El usuario debe poder tocar el botón "Confirmar mi correo" y con SOLO ese clic el correo debe quedar confirmado automáticamente.
+
+Comportamiento actual:
+- el usuario recibe el correo
+- hace clic en el botón
+- la app lo manda a iniciar sesión
+- entra a la plataforma
+- pero sigue apareciendo como si el correo no estuviera confirmado
+
+Objetivo:
+Corregir el flujo para que el enlace del email confirme el correo en un solo clic, sin pasos extra.
+
+IMPORTANTE:
+- No quiero rediseños grandes
+- No quiero rehacer todo el sistema de usuarios
+- No quiero romper login, reset password ni registro
+- Quiero un fix quirúrgico, robusto y claro
+- No quiero respuestas generales: revisa y corrige el código real
+
+========================================
+COMPORTAMIENTO CORRECTO QUE QUIERO
+========================================
+
+Cuando el usuario haga clic en el botón del correo de verificación:
+
+1. Se debe abrir la ruta de confirmación
+2. El token debe validarse inmediatamente
+3. Si el token es válido:
+   - marcar user.email_verified = True
+   - guardar en base de datos con commit
+   - invalidar/consumir el token
+4. Luego recién redirigir:
+   - a una pantalla de éxito
+   - o a login/dashboard con mensaje de éxito
+5. No debe pedir login ANTES de procesar la verificación
+6. El enlace del correo debe bastar para confirmar automáticamente el correo
+
+========================================
+QUÉ QUIERO QUE REVISES EXACTAMENTE
+========================================
+
+1. Buscar la ruta real de verificación de email
+   - /verify-email/<token>
+   - /verify-email?token=...
+   - o la equivalente real del proyecto
+
+2. Confirmar si esa ruta tiene:
+   - @login_required
+   - middleware o guardas que obligan a iniciar sesión
+   - redirects prematuros antes de procesar el token
+
+3. Si hoy la ruta redirige a login antes de verificar, corregirlo.
+   La verificación debe ocurrir ANTES de cualquier redirección.
+
+4. Revisar la lógica exacta del token:
+   - buscar token por valor
+   - verificar tipo correcto (email verification)
+   - verificar expiración
+   - verificar que no haya sido usado
+   - obtener usuario relacionado
+
+5. Asegurarte de que la lógica haga realmente:
+   - user.email_verified = True
+   - db.session.commit()
+   - invalidar o consumir el token
+   - evitar reutilización
+
+6. Agregar logs claros y específicos:
+   - VERIFY_EMAIL_LINK_OPENED
+   - VERIFY_EMAIL_TOKEN_VALID
+   - VERIFY_EMAIL_USER_MARKED_VERIFIED
+   - VERIFY_EMAIL_TOKEN_CONSUMED
+   - VERIFY_EMAIL_REDIRECT_SUCCESS
+   - VERIFY_EMAIL_FAIL
+
+7. Revisar si el backend sí actualiza email_verified pero la interfaz sigue mostrando estado viejo.
+   Si pasa eso:
+   - refrescar la sesión si hace falta
+   - o volver a leer el usuario desde BD
+   - o corregir la condición del aviso de “correo no verificado”
+
+8. Si el token de verificación se está marcando como válido pero el usuario ya tenía sesión iniciada o se redirige a login, asegúrate de que la verificación ocurra ANTES de cualquier redirección y que el estado email_verified se persista en la base de datos inmediatamente.
+
+9. Después de marcar email_verified = True, fuerza una nueva lectura del usuario desde la base o refresca la sesión si hace falta, para que la interfaz ya no muestre el aviso de correo no verificado.
+
+========================================
+UX QUE QUIERO
+========================================
+
+Quiero que, después de hacer clic en el botón del correo, la experiencia sea elegante y clara.
+
+Opciones válidas:
+A) Redirigir a una pantalla simple de éxito, por ejemplo:
+   "✅ Tu correo fue confirmado correctamente"
+   botón: "Ir a la plataforma"
+
+o
+
+B) Redirigir a login con mensaje flash claro:
+   "Tu correo fue confirmado correctamente. Ya puedes continuar."
+
+Lo importante:
+- confirmar primero
+- redirigir después
+- no pedir pasos extra
+
+========================================
+RESTRICCIONES
+========================================
+
+- No romper login
+- No romper reset password
+- No romper registro
+- No romper resend-verification
+- No cambiar la arquitectura completa
+- No mezclar layouts del otro sistema
+- No hacer doble verificación innecesaria
+
+========================================
+PRUEBA FINAL OBLIGATORIA
+========================================
+
+Quiero que valides este flujo completo:
+
+1. Crear un usuario nuevo con email_verified = False
+2. Enviar el correo de verificación
+3. Hacer clic en el enlace del correo
+4. Confirmar que:
+   - el token se valida
+   - el usuario queda con email_verified = True en la BD
+   - el token queda consumido/inválido
+   - el usuario ve mensaje de éxito
+   - al entrar a la plataforma ya no aparece el aviso de correo no verificado
+
+Además:
+5. Probar que un token expirado o reutilizado muestre mensaje correcto y no vuelva a confirmar nada.
+
+========================================
+RESPUESTA FINAL QUE QUIERO
+========================================
+
+Respóndeme EXACTAMENTE con esta estructura:
+
+1. Ruta de verificación corregida
+2. Problema exacto que causaba que no se confirmara el correo
+3. Archivos modificados
+4. Qué se cambió en cada archivo
+5. Si había @login_required o redirección prematura
+6. Cómo quedó el flujo de confirmación en un clic
+7. Cómo probar manualmente que ya funciona
+8. Si queda algún riesgo residual
