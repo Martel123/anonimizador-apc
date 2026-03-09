@@ -848,7 +848,44 @@ def validate_ambiguous_candidates(
 # ============================================================================
 
 _RECALL_CHUNK_CHARS: int = int(os.environ.get("AI_RECALL_CHUNK_CHARS", "2000"))
-_RECALL_OVERLAP_CHARS: int = 150
+_RECALL_OVERLAP_CHARS: int = 100
+_AUDIT_TAIL_CHARS: int = int(os.environ.get("AI_AUDIT_TAIL_CHARS", "2000"))
+
+# ── Palabras clave para extraer líneas sensibles del cuerpo del documento ──
+_SENSITIVE_LINE_RE = re.compile(
+    r'\b(?:dni|d\.n\.i|correo|email|domicilio|casilla|juez|especialista|'
+    r'agraviado|imputado|identificad[oa]|nombre|firma|abogad[oa]|'
+    r'procurador|letrad[oa]|colegiatura|cal\s+n|cmp\s+n|expediente)\b',
+    re.IGNORECASE,
+)
+
+
+def detect_signature_block(text: str) -> str:
+    """
+    Extrae el texto de auditoría focalizada:
+      1. Las últimas _AUDIT_TAIL_CHARS caracteres (bloque de firma potencial).
+      2. Todas las líneas del cuerpo que contengan palabras clave sensibles
+         (DNI, correo, casilla, domicilio, firma, abogado, etc.).
+
+    Esto reduce drásticamente el volumen enviado a la auditoría final:
+    en vez de 22 chunks del documento completo, normalmente 1-2 chunks.
+    """
+    tail_chars = _AUDIT_TAIL_CHARS
+    if len(text) <= tail_chars:
+        return text
+
+    tail = text[-tail_chars:]
+    head = text[:-tail_chars]
+
+    sensitive_lines = [
+        line for line in head.splitlines()
+        if _SENSITIVE_LINE_RE.search(line)
+    ]
+
+    if sensitive_lines:
+        return "\n".join(sensitive_lines) + "\n\n---FIRMA---\n\n" + tail
+    return tail
+
 
 _RECALL_SYSTEM_PROMPT = """\
 Eres un DETECTOR DE PII (información personal identificable) especializado en \
@@ -993,14 +1030,13 @@ def detect_missing_pii_with_ai(full_text: str,
     """
     Capa AI Recall: detecta PII que el pipeline base omitió.
 
-    Parámetros
-    ----------
-    full_text          : texto completo del documento
-    existing_entities  : entidades ya detectadas (para evitar duplicados)
+    Ejecuta las llamadas a la API en paralelo (hasta OPENAI_CONCURRENCY workers)
+    para reducir el tiempo total cuando el documento tiene muchos chunks.
 
     Retorna lista de entidades nuevas (dicts con type/value/start/end/confidence/source).
     No modifica existing_entities.
     """
+    import time as _time
     if not USE_AI_RECALL:
         return []
     if not is_openai_available():
@@ -1013,26 +1049,54 @@ def detect_missing_pii_with_ai(full_text: str,
         if e.get("value")
     }
 
-    logger.info(f"AI_RECALL_START | text_len={len(full_text)} | known={len(known_values)}")
-
     chunks = _chunk_text_for_recall(full_text)
+    t0 = _time.time()
+    logger.info(
+        f"AI_RECALL_START | text_len={len(full_text)} "
+        f"| known={len(known_values)} | chunks={len(chunks)}"
+    )
+
+    # ── Ejecución paralela ────────────────────────────────────────────────────
+    # Envía todos los chunks a la API simultáneamente (hasta OPENAI_CONCURRENCY
+    # workers). El conjunto known_values se congela aquí para el contexto de
+    # cada worker; la deduplicación final se hace sobre los resultados reunidos.
+    frozen_known = frozenset(known_values)
+    raw_results: List[Tuple[int, List[Dict]]] = []
+
+    with ThreadPoolExecutor(max_workers=OPENAI_CONCURRENCY) as executor:
+        future_map = {
+            executor.submit(
+                _call_recall_api, chunk, set(frozen_known), offset, full_text
+            ): chunk_idx
+            for chunk_idx, (offset, chunk) in enumerate(chunks)
+        }
+        for future in as_completed(future_map):
+            chunk_idx = future_map[future]
+            try:
+                raw_results.append((chunk_idx, future.result()))
+            except Exception as exc:
+                logger.warning(f"AI_RECALL_WORKER_FAIL | chunk={chunk_idx} | {exc}")
+
+    # ── Deduplicar y acumular ─────────────────────────────────────────────────
     all_new: List[Dict] = []
+    seen_in_results: set = set(known_values)
 
-    for chunk_idx, (chunk_offset, chunk) in enumerate(chunks):
-        logger.debug(f"AI_RECALL_CHUNK | idx={chunk_idx} | offset={chunk_offset} | len={len(chunk)}")
-        new_ents = _call_recall_api(chunk, known_values, chunk_offset, full_text)
-
+    for chunk_idx, new_ents in sorted(raw_results, key=lambda x: x[0]):
         for ent in new_ents:
             val_lower = ent["value"].lower()
-            if val_lower not in known_values:
-                known_values.add(val_lower)
+            if val_lower not in seen_in_results:
+                seen_in_results.add(val_lower)
                 all_new.append(ent)
                 logger.info(
                     f"AI_RECALL_FOUND | chunk={chunk_idx} "
                     f"| type={ent['type']} | value={ent['value'][:60]!r}"
                 )
 
-    logger.info(f"AI_RECALL_MERGED | new_entities={len(all_new)}")
+    elapsed = _time.time() - t0
+    logger.info(
+        f"AI_RECALL_MERGED | new_entities={len(all_new)} "
+        f"| calls={len(chunks)} | elapsed={elapsed:.1f}s"
+    )
     return all_new
 
 
@@ -1168,13 +1232,15 @@ def ai_final_audit(full_text: str,
     """
     Auditoría final de IA: verifica si queda PII visible tras el pipeline completo.
 
-    Parámetros
-    ----------
-    full_text  : texto completo del documento
-    entities   : todas las entidades ya detectadas (merged)
+    OPTIMIZACIÓN DE VELOCIDAD:
+    En lugar de chunking el documento completo, la auditoría se focaliza en:
+      1. El bloque de firma (últimas _AUDIT_TAIL_CHARS caracteres).
+      2. Líneas del cuerpo que contengan palabras clave sensibles.
+    Esto reduce las llamadas de ~22 a 1-2 por documento de 40KB.
 
-    Retorna lista de entidades adicionales encontradas.
+    Los valores encontrados se mapean al texto completo antes de retornar.
     """
+    import time as _time
     if not USE_AI_RECALL:
         return []
     if not is_openai_available():
@@ -1187,23 +1253,39 @@ def ai_final_audit(full_text: str,
         if e.get("value")
     }
 
-    logger.info(f"AI_AUDIT_START | text_len={len(full_text)} | known={len(known_values)}")
+    # ── Texto focalizado: firma + líneas sensibles ────────────────────────────
+    audit_text = detect_signature_block(full_text)
+    chunks = _chunk_text_for_recall(audit_text)
+    t0 = _time.time()
 
-    chunks = _chunk_text_for_recall(full_text)
+    logger.info(
+        f"AI_AUDIT_START | full_text_len={len(full_text)} "
+        f"| audit_text_len={len(audit_text)} "
+        f"| chunks={len(chunks)} | known={len(known_values)}"
+    )
+
     all_new: List[Dict] = []
+    seen: set = set(known_values)
 
     for chunk_idx, (chunk_offset, chunk) in enumerate(chunks):
-        new_ents = _call_audit_api(chunk, known_values, chunk_offset, full_text)
+        # _call_audit_api verifica anti-alucinación contra el chunk (audit_text)
+        # y mapea posiciones contra el full_text original
+        new_ents = _call_audit_api(chunk, seen, chunk_offset, full_text)
 
         for ent in new_ents:
             val_lower = ent["value"].lower()
-            if val_lower not in known_values:
-                known_values.add(val_lower)
+            if val_lower not in seen:
+                seen.add(val_lower)
                 all_new.append(ent)
+                priority_tag = f" [CRITICAL]" if ent.get("ai_priority") == "critical" else ""
                 logger.info(
                     f"AI_AUDIT_FOUND | chunk={chunk_idx} "
-                    f"| type={ent['type']} | value={ent['value'][:60]!r}"
+                    f"| type={ent['type']} | value={ent['value'][:60]!r}{priority_tag}"
                 )
 
-    logger.info(f"AI_AUDIT_MERGED | new_entities={len(all_new)}")
+    elapsed = _time.time() - t0
+    logger.info(
+        f"AI_AUDIT_MERGED | new_entities={len(all_new)} "
+        f"| audit_calls={len(chunks)} | elapsed={elapsed:.1f}s"
+    )
     return all_new

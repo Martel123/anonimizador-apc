@@ -1,0 +1,245 @@
+Quiero mejorar el anonimizador actual en tres aspectos críticos sin rehacer toda la arquitectura.
+
+Situación actual del sistema:
+
+El pipeline tiene ahora estas fases:
+
+FASE 1
+STRUCTURED_DETECT_START
+Detector estructurado basado en regex y reglas.
+
+FASE 2
+AI_PRIMARY_DETECT → AI_PRIMARY_FOUND → AI_PRIMARY_MERGED
+IA detecta entidades contextuales.
+
+FASE 3
+AI_SEMANTIC_FILTER (opcional)
+
+FASE 5
+AI_AUDIT_START → AI_RESIDUAL_FOUND → AI_CRITICAL_FORCE → AI_REPLACEMENT_FINAL
+
+El sistema funciona mejor que antes, pero hay tres problemas:
+
+PROBLEMA 1 — Velocidad
+Procesar un documento .docx de ~40 KB tarda más de 2 minutos.
+
+Esto es demasiado lento para experiencia de usuario.
+
+PROBLEMA 2 — Emails mal reemplazados
+Aparecen resultados como:
+
+correo@gmail.com{{EMAIL_7}}otrocorreo@gmail.com
+
+Esto indica que el reemplazo de emails múltiples está fallando.
+
+PROBLEMA 3 — Fuga en la firma final
+En algunos casos queda visible algo como:
+
+CRISILDA CORDERO ROMANI DE FUENTES
+D.N.I N°07002685
+
+Esto ocurre al final del documento en el bloque de firma.
+
+Necesito una optimización completa del pipeline que solucione estos tres problemas sin destruir la arquitectura actual.
+
+--------------------------------
+
+OBJETIVOS
+
+1) Reducir el tiempo de procesamiento drásticamente
+2) Corregir el reemplazo de emails múltiples
+3) Garantizar que el bloque final de firma nunca deje DNI o nombre visible
+4) Mantener IA como detector principal contextual
+5) Mantener protección anti-alucinación
+
+--------------------------------
+
+CAMBIOS QUE QUIERO IMPLEMENTAR
+
+OPTIMIZACIÓN DE VELOCIDAD
+
+1) Reducir llamadas innecesarias a OpenAI.
+
+AI_PRIMARY_DETECT solo debe ejecutarse sobre entidades no estructuradas:
+
+PERSONA
+DIRECCION
+CASILLA
+JUZGADO
+ENTIDAD
+SALA
+TRIBUNAL
+
+NO usar IA para:
+
+EMAIL
+DNI
+RUC
+TELEFONO
+CUENTA
+PLACA
+POLIZA
+COLEGIATURA
+EXPEDIENTE
+
+Estos siguen siendo responsabilidad del detector estructurado.
+
+2) Optimizar chunking.
+
+- usar chunks de aproximadamente 2000 caracteres
+- usar overlap máximo de 100 caracteres
+- no procesar chunks vacíos o redundantes
+- no procesar chunks que solo contienen placeholders
+
+3) Reducir auditoría final.
+
+AI_AUDIT debe revisar solo:
+
+- bloque final del documento (firma)
+- líneas que contengan:
+  DNI
+  correo
+  domicilio
+  casilla
+  juez
+  especialista
+  agraviado
+  imputado
+- encabezados judiciales
+
+No auditar nuevamente todo el documento completo.
+
+4) Agregar métricas de tiempo.
+
+Logs nuevos:
+
+TIME_STRUCTURED_DETECT
+TIME_AI_PRIMARY
+TIME_AI_AUDIT
+TIME_REPLACEMENT
+TIME_TOTAL_DOCUMENT
+OPENAI_CALL_COUNT
+CHUNK_COUNT
+
+--------------------------------
+
+CORRECCIÓN DE EMAILS
+
+Problema actual:
+
+correo@gmail.com{{EMAIL_7}}otrocorreo@gmail.com
+
+Solución:
+
+1) Detectar emails múltiples correctamente.
+
+Separadores posibles:
+
+/
+;
+,
+espacio
+
+2) Cuando se haga reemplazo:
+
+- ordenar spans de reemplazo en orden descendente
+- aplicar reemplazos desde el final del texto hacia el inicio
+- evitar que placeholders se mezclen con texto original
+
+3) Asegurar que cada email detectado se reemplace completamente.
+
+Logs:
+
+EMAIL_REPLACEMENT_FIX
+
+--------------------------------
+
+CORRECCIÓN DE FIRMA FINAL
+
+Agregar función:
+
+detect_signature_block(text)
+
+Debe detectar el bloque final del documento que contenga:
+
+- nombre completo
+- DNI
+- palabras como:
+  firma
+  abogado
+  agraviado
+  imputado
+  DNI
+  identificado con
+
+Ese bloque debe ser enviado obligatoriamente a AI_AUDIT.
+
+Si AI_AUDIT detecta:
+
+- PERSONA
+- DNI
+
+con priority = critical
+
+entonces:
+
+AI_CRITICAL_FORCE
+
+debe forzar reemplazo aunque el detector base no lo haya detectado.
+
+--------------------------------
+
+MEJORAS EN IA
+
+Mejorar prompt interno de IA para que busque explícitamente:
+
+- nombres completos en mayúsculas
+- nombres con comas
+- cargos procesales
+- juzgados
+- salas
+- casillas electrónicas
+- direcciones completas
+- residuales de DNI
+- residuales de correo
+
+Formato JSON obligatorio:
+
+[
+  {
+    "type": "PERSONA",
+    "value": "CRISILDA CORDERO ROMANI DE FUENTES",
+    "priority": "critical",
+    "reason": "nombre completo en bloque de firma"
+  }
+]
+
+Reglas:
+
+- no inventar valores
+- solo devolver valores presentes textualmente
+- descartar valores que no puedan mapearse a spans
+
+--------------------------------
+
+RESTRICCIONES
+
+NO eliminar la arquitectura actual.
+
+Solo optimizar:
+
+- detect_missing_pii_with_ai
+- ai_final_audit
+- reemplazo de emails
+- detección de bloque final
+
+--------------------------------
+
+AL FINAL EXPLÍCAME:
+
+1) Cuántas llamadas OpenAI hacía antes
+2) Cuántas hará ahora
+3) Qué fase era la más lenta
+4) Cuánto tiempo debería bajar el procesamiento
+5) Qué cambios hiciste en public_app.py
+6) Qué cambios hiciste en detector_openai.py

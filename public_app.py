@@ -8,6 +8,7 @@ import os
 import re
 import uuid
 import json
+import time
 import logging
 import tempfile
 import traceback
@@ -427,6 +428,47 @@ def apply_entities_to_docx(input_path, output_path, entity_dicts):
 def _is_word_char(c):
     """Retorna True si el carácter es alfanumérico o guión bajo (parte de una palabra)."""
     return c.isalnum() or c == '_'
+
+
+_EMAIL_SINGLE_RE = re.compile(
+    r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}',
+    re.IGNORECASE,
+)
+
+
+def _split_combined_emails(entities: list, full_text: str) -> list:
+    """
+    Post-procesamiento de entidades EMAIL.
+
+    Problema: cuando varios correos aparecen en el texto separados por '/', ';',
+    ',' o espacios, el detector o la IA puede devolverlos como un solo valor.
+    Eso causa reemplazos incorrectos tipo:
+        correo1@gmail.com{{EMAIL_7}}correo2@gmail.com
+
+    Solución: si el value de un EMAIL contiene más de una dirección, se divide en
+    entidades individuales, mapeando cada una al texto original.
+    """
+    result = []
+    for e in entities:
+        if e.get('type', '').upper() != 'EMAIL':
+            result.append(e)
+            continue
+        value = e.get('value', '')
+        found_emails = _EMAIL_SINGLE_RE.findall(value)
+        if len(found_emails) <= 1:
+            result.append(e)
+            continue
+        for email in found_emails:
+            pos = full_text.find(email)
+            if pos < 0:
+                continue
+            new_e = dict(e)
+            new_e['value'] = email
+            new_e['start'] = pos
+            new_e['end'] = pos + len(email)
+            result.append(new_e)
+            logger.info(f"EMAIL_REPLACEMENT_FIX | combined_split → {email!r}")
+    return result
 
 
 def apply_replacements_to_docx(doc, replacements):
@@ -866,18 +908,19 @@ def anonymizer_process():
             _ai_recall_on   = False
             _ai_semantic_on = False
 
+        _t_total_start = time.time()
+
         # ════════════════════════════════════════════════════════════════════
         # FASE 1 — Detector estructurado (regex + reglas)
-        # Mantiene DNI, RUC, EMAIL, TELEFONO, CUENTA/CCI, PLACA, POLIZA,
-        # COLEGIATURA, EXPEDIENTE, ACTA y variantes con alta precisión.
-        # Los tipos contextuales (PERSONA, DIRECCION, JUZGADO, ENTIDAD, etc.)
-        # se detectan primariamente por la IA en la FASE 2.
         # ════════════════════════════════════════════════════════════════════
+        _t0 = time.time()
         logger.info(f"STRUCTURED_DETECT_START | job={job_id}")
         from detector_capas import detect_all_pii
         entities, detect_meta = detect_all_pii(full_text)
         all_entities_raw = normalize_entities(entities)
         all_entities_raw = deduplicate_entities(all_entities_raw)
+        # Corregir emails combinados (bug: correo1@x.com{{TOKEN}}correo2@x.com)
+        all_entities_raw = _split_combined_emails(all_entities_raw, full_text)
 
         _STRUCTURAL_TYPES = frozenset({
             'DNI', 'RUC', 'EMAIL', 'TELEFONO', 'CUENTA', 'CCI',
@@ -887,41 +930,54 @@ def anonymizer_process():
         })
 
         if _ai_recall_on:
-            # Solo los estructurados pasan como base; IA cubre el resto
             structural_entities = [
                 e for e in all_entities_raw
                 if e.get('type', '').upper() in _STRUCTURAL_TYPES
             ]
             all_entities = structural_entities
         else:
-            # Sin IA: usar pipeline base completo (comportamiento anterior)
             all_entities = all_entities_raw
+
+        _t_structured = time.time() - _t0
+        logger.info(
+            f"TIME_STRUCTURED_DETECT | job={job_id} "
+            f"| entities={len(all_entities)} | elapsed={_t_structured:.2f}s"
+        )
 
         # ════════════════════════════════════════════════════════════════════
         # FASE 2 — IA como detector principal contextual
-        # Detecta: PERSONA, DIRECCION, CASILLA, JUZGADO, ENTIDAD, SALA,
-        # TRIBUNAL y roles jurídicos (juez, abogado, especialista, etc.)
-        # Recibe solo valores estructurados como "ya conocidos" para evitar
-        # duplicados y no contaminar el contexto de la IA.
+        # (PERSONA, DIRECCION, CASILLA, JUZGADO, ENTIDAD, SALA, TRIBUNAL)
+        # Paralelo: hasta OPENAI_CONCURRENCY chunks simultáneos.
         # ════════════════════════════════════════════════════════════════════
         if _ai_recall_on:
+            _t0 = time.time()
             try:
+                from detector_openai import OPENAI_CONCURRENCY as _ai_concurrency
+                _text_len = len(full_text)
+                _chunk_size = int(os.environ.get("AI_RECALL_CHUNK_CHARS", "2000"))
+                _overlap = 100
+                _n_chunks = max(1, (_text_len - _overlap) // (_chunk_size - _overlap) + 1)
                 logger.info(
                     f"AI_PRIMARY_DETECT | job={job_id} "
-                    f"| structural_base={len(all_entities)}"
+                    f"| structural_base={len(all_entities)} "
+                    f"| CHUNK_COUNT={_n_chunks} | workers={_ai_concurrency}"
                 )
                 ai_contextual = detect_missing_pii_with_ai(full_text, all_entities)
+                # Corregir emails combinados que pueda haber devuelto la IA
+                ai_contextual = _split_combined_emails(ai_contextual, full_text)
                 logger.info(f"AI_PRIMARY_FOUND | job={job_id} | found={len(ai_contextual)}")
                 all_entities = normalize_entities(all_entities + ai_contextual)
                 all_entities = deduplicate_entities(all_entities)
                 logger.info(f"AI_PRIMARY_MERGED | job={job_id} | total={len(all_entities)}")
             except Exception as e:
                 logger.warning(f"AI_PRIMARY_FAIL | job={job_id} | error={str(e)}")
+            _t_ai_primary = time.time() - _t0
+            logger.info(
+                f"TIME_AI_PRIMARY | job={job_id} | elapsed={_t_ai_primary:.2f}s"
+            )
 
         # ════════════════════════════════════════════════════════════════════
         # FASE 3 — Filtro semántico opcional
-        # Descarta falsos positivos PERSONA/ENTIDAD/DIRECCION ambiguos.
-        # Solo activo si USE_AI_SEMANTIC_FILTER=1.
         # ════════════════════════════════════════════════════════════════════
         if _ai_semantic_on:
             try:
@@ -936,22 +992,20 @@ def anonymizer_process():
                 logger.warning(f"AI_SEMANTIC_FILTER_FAIL | job={job_id} | error={str(e)}")
 
         # ════════════════════════════════════════════════════════════════════
-        # FASE 5 — Auditoría final obligatoria
-        # Verifica si queda PII residual visible tras el pipeline completo.
-        # Entidades con priority="critical" se fuerzan como confirmed.
+        # FASE 5 — Auditoría final focalizada
+        # Solo audita: bloque de firma + líneas con palabras clave sensibles.
+        # Reduce de ~22 llamadas a 1-2 para doc de 40KB.
         # ════════════════════════════════════════════════════════════════════
         if _ai_recall_on:
+            _t0 = time.time()
             try:
-                logger.info(
-                    f"AI_AUDIT_START | job={job_id} "
-                    f"| current_total={len(all_entities)}"
-                )
                 audit_entities = ai_final_audit(full_text, all_entities)
                 residual_count = len(audit_entities)
                 critical_count = sum(
                     1 for e in audit_entities if e.get('ai_priority') == 'critical'
                 )
                 if audit_entities:
+                    audit_entities = _split_combined_emails(audit_entities, full_text)
                     all_entities = normalize_entities(all_entities + audit_entities)
                     all_entities = deduplicate_entities(all_entities)
                 if residual_count:
@@ -968,6 +1022,19 @@ def anonymizer_process():
                 )
             except Exception as e:
                 logger.warning(f"AI_AUDIT_FAIL | job={job_id} | error={str(e)}")
+            _t_ai_audit = time.time() - _t0
+            logger.info(
+                f"TIME_AI_AUDIT | job={job_id} | elapsed={_t_ai_audit:.2f}s"
+            )
+
+        _t_total_detect = time.time() - _t_total_start
+        logger.info(
+            f"OPENAI_CALL_COUNT | job={job_id} | "
+            f"estimated={getattr(__import__('detector_openai'), 'OPENAI_CONCURRENCY', 2)}"
+        )
+        logger.info(
+            f"TIME_TOTAL_DOCUMENT | job={job_id} | detect_elapsed={_t_total_detect:.2f}s"
+        )
 
         confirmed = []
         needs_review = []
