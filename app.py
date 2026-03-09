@@ -718,13 +718,29 @@ def start_argumentation_worker():
 def get_resend_credentials():
     """Get Resend API credentials.
 
-    Priority:
-    1. Replit connector (dev environment) — uses REPLIT_CONNECTORS_HOSTNAME
-    2. Env vars RESEND_API_KEY + MAIL_FROM (Render / any external deployment)
+    Priority order (env vars FIRST — works in any environment):
+    1. RESEND_API_KEY env var — si existe, lo usa directamente (Render, producción, cualquier entorno)
+    2. Replit connector — solo si RESEND_API_KEY no está configurada (entorno Replit dev)
     """
     from_email = os.environ.get('MAIL_FROM', 'notificaciones@notificaciones.apcjuridica.com')
 
-    # ── Path 1: Replit connector ─────────────────────────────────────────────
+    # Diagnóstico inicial visible en logs
+    env_key = os.environ.get('RESEND_API_KEY', '')
+    logging.info(
+        f"RESEND_ENV_CHECK | api_key_present={bool(env_key)} | "
+        f"mail_from_present={bool(os.environ.get('MAIL_FROM'))} | "
+        f"mail_from={from_email}"
+    )
+
+    # ── Path 1: RESEND_API_KEY env var (Render / cualquier entorno) ──────────
+    if env_key:
+        logging.info(
+            f"RESEND_SOURCE | using=env_var | "
+            f"RESEND_ENV_VALUES | mail_from={from_email} | api_key_length={len(env_key)}"
+        )
+        return env_key, from_email
+
+    # ── Path 2: Replit connector (solo si no hay RESEND_API_KEY) ─────────────
     hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
     token = os.environ.get('REPL_IDENTITY')
     if not token:
@@ -746,18 +762,18 @@ def get_resend_credentials():
                 settings = data['items'][0].get('settings', {})
                 api_key = settings.get('api_key')
                 if api_key:
-                    logging.info(f"Resend credentials loaded via Replit connector, from_email: {from_email}")
+                    logging.info(
+                        f"RESEND_SOURCE | using=replit_connector | "
+                        f"RESEND_ENV_VALUES | mail_from={from_email} | api_key_length={len(api_key)}"
+                    )
                     return api_key, from_email
         except Exception as e:
-            logging.warning(f"get_resend_credentials | Replit connector failed: {e} — trying env var fallback")
+            logging.warning(f"get_resend_credentials | Replit connector failed: {e}")
 
-    # ── Path 2: RESEND_API_KEY env var (Render / external) ──────────────────
-    api_key = os.environ.get('RESEND_API_KEY')
-    if api_key:
-        logging.info(f"Resend credentials loaded via RESEND_API_KEY env var, from_email: {from_email}")
-        return api_key, from_email
-
-    logging.error("get_resend_credentials | No Resend API key available (neither connector nor RESEND_API_KEY env var)")
+    logging.error(
+        "get_resend_credentials | RESEND_API_KEY not set and Replit connector unavailable — "
+        "configure RESEND_API_KEY env var to enable email sending"
+    )
     return None, None
 
 
