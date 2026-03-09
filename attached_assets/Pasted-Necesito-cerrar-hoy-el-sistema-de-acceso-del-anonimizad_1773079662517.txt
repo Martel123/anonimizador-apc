@@ -1,0 +1,215 @@
+Necesito cerrar hoy el sistema de acceso del anonimizador. Hay dos problemas concretos y quiero que los arregles de forma quirúrgica, sin refactorizar toda la app.
+
+IMPORTANTE:
+- Primero diagnostica con precisión antes de tocar.
+- No des respuestas generales: corrige el código real.
+- No rompas login, sesiones ni reset password.
+- No mezcles nada del otro sistema.
+- Al final explícame exactamente qué fallaba, qué cambiaste y cómo probarlo.
+
+========================================
+PROBLEMA 1 — INTERNAL SERVER ERROR AL CAMBIAR CONTRASEÑA
+========================================
+
+Situación real:
+- La pantalla propia de cambiar contraseña ya existe y carga bien.
+- Cuando lleno:
+  - contraseña actual
+  - nueva contraseña
+  - confirmar nueva contraseña
+- y hago submit,
+- aparece "Internal Server Error".
+
+Objetivo:
+Corregir por completo el flujo POST de cambio de contraseña para que funcione de extremo a extremo.
+
+Qué quiero que hagas:
+
+1. Revisar la ruta real de cambiar contraseña
+   - endpoint Flask
+   - método GET/POST
+   - nombre exacto de la función
+   - template asociado
+
+2. Diagnosticar la causa exacta del 500.
+   Quiero que revises especialmente:
+   - nombres de campos del formulario vs request.form
+   - validación de current_password / new_password / confirm_password
+   - acceso al usuario logueado
+   - verificación del password hash actual
+   - actualización del password hash nuevo
+   - commit a base de datos
+   - flashes / redirects
+   - imports faltantes
+   - uso de funciones que no existen
+   - nombres de columnas distintos en el modelo User
+   - errores por blueprint/url_for
+
+3. Agregar manejo de error controlado.
+   Si algo falla en POST:
+   - loggear el traceback real en consola
+   - mostrar flash de error amigable
+   - no devolver 500 crudo al usuario si puede evitarse
+
+4. Validaciones mínimas que debe tener:
+   - contraseña actual obligatoria
+   - nueva contraseña mínima 8 caracteres
+   - confirmación debe coincidir
+   - nueva contraseña no debe ser igual a la actual
+   - si la contraseña actual es incorrecta, mostrar mensaje claro
+
+5. Mantener:
+   - la vista propia del anonimizador
+   - el toggle mostrar/ocultar contraseña
+   - el flujo de volver al panel o dashboard
+
+6. Probar el flujo completo:
+   - login con usuario real
+   - cambio exitoso
+   - logout
+   - login con nueva contraseña
+   - confirmar que la antigua ya no funciona
+
+========================================
+PROBLEMA 2 — CONFIRMAR QUE EL EMAIL SEA REAL
+========================================
+
+Quiero implementar verificación de correo del anonimizador para confirmar que el email del usuario es real.
+
+Objetivo:
+Cuando un usuario se registre, debe recibir un correo de verificación. Hasta verificar su email, su cuenta no debe considerarse plenamente confirmada.
+
+Qué quiero exactamente:
+
+1. Revisar el modelo User.
+   Si no existe un campo como:
+   - email_verified
+   créalo con valor por defecto False.
+
+2. En el registro:
+   - cuando se cree el usuario, dejar email_verified = False
+   - generar un token seguro de verificación
+   - enviar correo con enlace de verificación usando la infraestructura actual de email/Resend
+
+3. Crear ruta de verificación, por ejemplo:
+   /verify-email/<token>
+   o la ruta equivalente coherente con el proyecto
+
+4. Cuando el usuario haga clic:
+   - validar token
+   - verificar expiración
+   - marcar email_verified = True
+   - invalidar token si corresponde
+   - redirigir a login o dashboard con mensaje de éxito
+
+5. Seguridad:
+   - no revelar en pantalla si el correo existe o no cuando corresponda
+   - token con expiración razonable (24h máximo, ideal 1h-24h)
+   - reutilizar la infraestructura de tokens si ya existe una clase tipo ActivationToken o similar
+   - no guardar contraseñas ni tokens inseguros
+
+6. UI:
+   - si el usuario no verificó su correo, mostrar un aviso claro después del login o en el panel
+   - agregar opción "Reenviar correo de verificación"
+   - no romper usuarios existentes
+
+7. Restricción funcional:
+   Quiero que, hasta que el correo no esté verificado, el usuario NO pueda ejecutar acciones críticas, idealmente:
+   - anonimizar documentos
+   - descargar resultados
+   - comprar créditos
+   Elige el punto de control más simple y seguro del proyecto y aplícalo ahí.
+
+8. Compatibilidad:
+   - usuarios ya existentes no deben romperse
+   - si ya hay usuarios antiguos, define una estrategia segura:
+     - o asumir email_verified = True para legacy users
+     - o manejar migración clara
+   Elige la opción más estable para no romper la demo de hoy y explícala.
+
+========================================
+EMAIL DE VERIFICACIÓN / CONFIGURACIÓN DEL REMITENTE
+========================================
+
+Quiero que use el branding del anonimizador, no del otro sistema.
+
+Requisitos:
+- asunto: "Confirma tu correo – Anonimizador APC"
+- diseño coherente con APC
+- botón rojo APC (#B30000)
+- enlace correcto al dominio/ruta del anonimizador
+- nada de "Centro de Conciliación" ni branding ajeno
+
+IMPORTANTE SOBRE EL REMITENTE:
+- Configurar el sistema para usar una dirección del dominio APC, no resend.dev ni gmail.
+- Quiero usar como remitente preferido:
+  seguridad@apcjuridica.com
+- Si el sistema usa una variable como MAIL_FROM, DEFAULT_FROM o similar, configurarlo para usar:
+  seguridad@apcjuridica.com
+- Si hoy está hardcodeado otro remitente, reemplazarlo por la variable de entorno correcta.
+- Si falta la variable de entorno, dime exactamente cuál crear.
+- El código debe usar esa variable, no dejar el correo fijo en el código.
+- Si el dominio apcjuridica.com debe estar verificado en Resend para que funcione correctamente, indícalo claramente en el resumen final.
+
+Si ya existe Resend:
+- reutilízalo
+- no inventes otro sistema de correo
+
+========================================
+RESTRICCIONES
+========================================
+
+- No refactorices todo el sistema de usuarios
+- No cambies pantallas innecesarias
+- No rompas reset password
+- No rompas login actual
+- No mezcles layouts del otro sistema
+- Haz cambios mínimos y robustos
+
+========================================
+VALIDACIÓN FINAL OBLIGATORIA
+========================================
+
+Quiero que al final verifiques y me reportes esto:
+
+1. Cambio de contraseña
+- qué causaba el Internal Server Error
+- qué línea o lógica fallaba
+- cómo quedó corregido
+- prueba exitosa completa del flujo
+
+2. Verificación de email
+- qué campo o estructura se agregó
+- qué ruta verifica el email
+- cómo se envía el correo
+- cómo se reenvía el correo
+- qué acción crítica queda bloqueada hasta verificar
+
+3. Remitente del correo
+- qué variable usa el sistema para el remitente
+- qué valor debe tener exactamente
+- si quedó configurado para seguridad@apcjuridica.com
+- si el dominio necesita validación en Resend
+
+4. Variables de entorno necesarias
+Dime exactamente cuáles necesito configurar o revisar, por ejemplo:
+- RESEND_API_KEY
+- MAIL_FROM
+- APP_BASE_URL
+o las equivalentes reales
+
+========================================
+RESPUESTA FINAL QUE QUIERO
+========================================
+
+Respóndeme EXACTAMENTE con esta estructura:
+
+1. Causa exacta del Internal Server Error
+2. Archivos modificados
+3. Qué se cambió en cada archivo
+4. Cómo quedó el flujo de cambiar contraseña
+5. Cómo quedó el flujo de verificación de email
+6. Qué variable usa el remitente del correo y qué valor debe tener
+7. Qué variables de entorno necesito
+8. Cómo probar manualmente ambos flujos
+9. Si queda algún riesgo residual

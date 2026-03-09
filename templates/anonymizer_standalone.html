@@ -184,6 +184,43 @@
     </div>
   </header>
 
+  {% if not email_verified %}
+  <!-- Banner: email no verificado -->
+  <div style="background:#FEF3C7;border-bottom:1px solid #F59E0B;" class="px-4 py-3">
+    <div class="max-w-3xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3 text-sm text-yellow-800">
+        <i class="fas fa-envelope-open-text text-yellow-600"></i>
+        <span>
+          <strong>Confirma tu correo electrónico</strong> para poder anonimizar documentos.
+          Revisa tu bandeja de entrada o carpeta de spam.
+        </span>
+      </div>
+      <form action="{{ url_for('resend_verification') }}" method="POST" class="flex-shrink-0">
+        <button type="submit"
+          style="background:#B30000;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:pointer;">
+          Reenviar correo
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="max-w-3xl mx-auto px-4 pt-4">
+    {% for category, message in messages %}
+    <div class="mb-3 p-3 rounded-xl text-sm font-medium
+      {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200
+      {% elif category == 'info' %}bg-blue-50 text-blue-700 border border-blue-200
+      {% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
   <!-- Main Content -->
   <main class="flex-1 py-10 px-4">
     <div class="max-w-3xl mx-auto">

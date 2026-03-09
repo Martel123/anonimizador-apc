@@ -117,6 +117,7 @@ class User(UserMixin, db.Model):
 
     unlimited_access = db.Column(db.Boolean, default=False)
     override_pages_limit = db.Column(db.Integer, nullable=True)
+    email_verified = db.Column(db.Boolean, default=True, server_default='true')
     
     documents = db.relationship('DocumentRecord', backref='user', lazy='dynamic')
     

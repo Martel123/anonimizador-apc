@@ -741,10 +741,12 @@ def anonymizer_home():
     openai_available = check_openai_available()
     from detector_openai import USE_AI_SEMANTIC_FILTER
     credits = ensure_trial(current_user.id)
+    email_verified = getattr(current_user, 'email_verified', True)
     return render_template("anonymizer_standalone.html",
                            openai_available=openai_available,
                            ai_semantic_active=USE_AI_SEMANTIC_FILTER,
-                           credits=credits)
+                           credits=credits,
+                           email_verified=email_verified)
 
 
 @anonymizer_bp.route("/anonymizer/onboarding", methods=["GET"])
@@ -814,6 +816,11 @@ def anonymizer_process():
     from models import db, AnonymizerJob
 
     if request.method == "GET":
+        return redirect(url_for('anonymizer.anonymizer_home'))
+
+    # Bloquear proceso si el email no está verificado
+    if not getattr(current_user, 'email_verified', True):
+        flash("Debes verificar tu correo electrónico antes de anonimizar documentos. Revisa tu bandeja de entrada.", "error")
         return redirect(url_for('anonymizer.anonymizer_home'))
 
     try:

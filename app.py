@@ -739,8 +739,8 @@ def get_resend_credentials():
         if data.get('items'):
             settings = data['items'][0].get('settings', {})
             api_key = settings.get('api_key')
-            # Use verified subdomain for sending emails
-            from_email = "notificaciones@notificaciones.apcjuridica.com"
+            # Use verified subdomain for sending emails (override via MAIL_FROM env var)
+            from_email = os.environ.get('MAIL_FROM', 'notificaciones@notificaciones.apcjuridica.com')
             logging.info(f"Resend credentials loaded, from_email: {from_email}")
             return api_key, from_email
     except Exception as e:
@@ -2834,6 +2834,80 @@ def login():
     return render_template("login.html")
 
 
+def _send_verification_email(user, verify_url):
+    """Envía el correo de verificación de email al usuario del anonimizador."""
+    mail_from = os.environ.get('MAIL_FROM', 'seguridad@apcjuridica.com')
+    html_content = f'''
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:32px 24px;border-radius:12px;">
+      <div style="background:#0B0B0B;border-radius:10px 10px 0 0;padding:20px 24px;">
+        <span style="color:#fff;font-size:18px;font-weight:700;">Anonimizador APC</span>
+      </div>
+      <div style="background:#fff;border-radius:0 0 10px 10px;padding:28px 24px;border:1px solid #eee;border-top:none;">
+        <h2 style="color:#0B0B0B;margin-top:0;">Confirma tu correo electrónico</h2>
+        <p style="color:#444;">Hola <strong>{user.username}</strong>,</p>
+        <p style="color:#444;">Gracias por registrarte. Haz clic en el botón para confirmar tu dirección de correo:</p>
+        <p style="margin:28px 0;text-align:center;">
+          <a href="{verify_url}"
+             style="background-color:#B30000;color:#fff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px;">
+            Confirmar mi correo
+          </a>
+        </p>
+        <p style="color:#666;font-size:13px;">Este enlace expira en <strong>24 horas</strong>.</p>
+        <p style="color:#666;font-size:13px;">Si no creaste esta cuenta, puedes ignorar este correo.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+        <p style="color:#aaa;font-size:11px;margin:0;">Anonimizador APC &mdash; Protección de datos en documentos legales</p>
+      </div>
+    </div>
+    '''
+    send_notification_email(user.email, "Confirma tu correo \u2013 Anonimizador APC", html_content)
+
+
+@app.route("/verify-email/<token>")
+def verify_email(token):
+    """Valida el token de verificación de email y marca la cuenta como verificada."""
+    activation = ActivationToken.query.filter_by(token=token, tipo='email_verify').first()
+    if not activation or not activation.is_valid():
+        flash("El enlace de verificación es inválido o ha expirado. Solicita uno nuevo.", "error")
+        return redirect(url_for('login'))
+    user = activation.user
+    user.email_verified = True
+    activation.mark_used()
+    db.session.commit()
+    log_audit(
+        tenant_id=user.tenant_id,
+        evento='email_verified',
+        descripcion=f'Email verificado: {user.email}',
+        user_id=user.id,
+    )
+    flash("¡Correo verificado correctamente! Ya puedes usar todas las funciones.", "success")
+    return redirect(url_for('login'))
+
+
+@app.route("/resend-verification", methods=["POST"])
+@login_required
+def resend_verification():
+    """Reenvía el correo de verificación al usuario autenticado."""
+    if current_user.email_verified:
+        flash("Tu correo ya está verificado.", "info")
+        return redirect(url_for('anonymizer.anonymizer_home'))
+    try:
+        existing = ActivationToken.query.filter_by(
+            user_id=current_user.id, tipo='email_verify', used=False
+        ).all()
+        for t in existing:
+            t.used = True
+        db.session.commit()
+        verify_token = ActivationToken.create_token(current_user.id, tipo='email_verify', hours=24)
+        app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
+        verify_url = f"{app_base_url}/verify-email/{verify_token.token}"
+        _send_verification_email(current_user, verify_url)
+        flash("Te enviamos un nuevo enlace de verificación. Revisa tu correo.", "success")
+    except Exception as e:
+        logging.error(f"resend_verification error: {e}", exc_info=True)
+        flash("No se pudo enviar el correo. Intenta más tarde.", "error")
+    return redirect(url_for('anonymizer.anonymizer_home'))
+
+
 @app.route("/forgot_password", methods=["GET", "POST"])
 def forgot_password():
     if current_user.is_authenticated:
@@ -2863,50 +2937,36 @@ def forgot_password():
             try:
                 app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
                 reset_url = f"{app_base_url}/reset_password/{token.token}"
-                
-                if resend is None:
-                    logging.warning("Resend module not available - password reset email not sent")
-                    flash('El sistema de correo no está disponible. Contacta al administrador.', 'warning')
-                else:
-                    resend.api_key = os.environ.get('RESEND_API_KEY')
-                    mail_from = os.environ.get('MAIL_FROM', 'noreply@resend.dev')
-                
-                if resend is not None:
-                    html_content = f'''
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px 24px; border-radius: 12px;">
-                      <div style="background:#0B0B0B; border-radius:10px 10px 0 0; padding:20px 24px;">
-                        <span style="color:#fff; font-size:18px; font-weight:700;">Anonimizador APC</span>
-                      </div>
-                      <div style="background:#fff; border-radius:0 0 10px 10px; padding:28px 24px; border:1px solid #eee; border-top:none;">
-                        <h2 style="color:#0B0B0B; margin-top:0;">Recupera tu contraseña</h2>
-                        <p style="color:#444;">Hola <strong>{user.username}</strong>,</p>
-                        <p style="color:#444;">Recibimos una solicitud para restablecer la contraseña de tu cuenta. Haz clic en el botón para crear una nueva:</p>
-                        <p style="margin: 28px 0; text-align:center;">
-                          <a href="{reset_url}"
-                             style="background-color:#B30000; color:#fff; padding:13px 28px; text-decoration:none; border-radius:8px; display:inline-block; font-weight:600; font-size:15px;">
-                            Restablecer contraseña
-                          </a>
-                        </p>
-                        <p style="color:#666; font-size:13px;">Este enlace expirará en <strong>24 horas</strong>.</p>
-                        <p style="color:#666; font-size:13px;">Si no solicitaste este cambio, puedes ignorar este correo con total seguridad.</p>
-                        <hr style="border:none; border-top:1px solid #eee; margin:24px 0;">
-                        <p style="color:#aaa; font-size:11px; margin:0;">Anonimizador APC &mdash; Protección de datos en documentos legales</p>
-                      </div>
-                    </div>
-                    '''
 
-                    resend.Emails.send({
-                        "from": f"Anonimizador APC <{mail_from}>",
-                        "to": [user.email],
-                        "subject": "Recupera tu contraseña \u2013 Anonimizador APC",
-                        "html": html_content
-                    })
+                html_content = f'''
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:32px 24px;border-radius:12px;">
+                  <div style="background:#0B0B0B;border-radius:10px 10px 0 0;padding:20px 24px;">
+                    <span style="color:#fff;font-size:18px;font-weight:700;">Anonimizador APC</span>
+                  </div>
+                  <div style="background:#fff;border-radius:0 0 10px 10px;padding:28px 24px;border:1px solid #eee;border-top:none;">
+                    <h2 style="color:#0B0B0B;margin-top:0;">Recupera tu contraseña</h2>
+                    <p style="color:#444;">Hola <strong>{user.username}</strong>,</p>
+                    <p style="color:#444;">Recibimos una solicitud para restablecer la contraseña de tu cuenta. Haz clic en el botón para crear una nueva:</p>
+                    <p style="margin:28px 0;text-align:center;">
+                      <a href="{reset_url}"
+                         style="background-color:#B30000;color:#fff;padding:13px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px;">
+                        Restablecer contraseña
+                      </a>
+                    </p>
+                    <p style="color:#666;font-size:13px;">Este enlace expirará en <strong>24 horas</strong>.</p>
+                    <p style="color:#666;font-size:13px;">Si no solicitaste este cambio, puedes ignorar este correo con total seguridad.</p>
+                    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+                    <p style="color:#aaa;font-size:11px;margin:0;">Anonimizador APC &mdash; Protección de datos en documentos legales</p>
+                  </div>
+                </div>
+                '''
+                send_notification_email(user.email, "Recupera tu contraseña \u2013 Anonimizador APC", html_content)
                 
                 log_audit(
                     tenant_id=user.tenant_id,
+                    evento='password_reset_requested',
+                    descripcion=f'Solicitud de recuperación de contraseña para {user.email}',
                     user_id=user.id,
-                    accion='password_reset_requested',
-                    detalle=f'Solicitud de recuperación de contraseña para {user.email}'
                 )
             except Exception as e:
                 logging.error(f"Error sending password reset email: {e}")
@@ -2975,31 +3035,36 @@ def cambiar_password():
         if not current_user.check_password(current_password):
             flash("La contraseña actual es incorrecta.", "error")
             return render_template("cambiar_password.html")
-        
-        if len(new_password) < 8:
-            flash("La nueva contraseña debe tener al menos 8 caracteres.", "error")
+
+        pw_ok, pw_msg = validate_password_strength(new_password)
+        if not pw_ok:
+            flash(pw_msg, "error")
             return render_template("cambiar_password.html")
-        
+
         if new_password != confirm_password:
             flash("Las contraseñas nuevas no coinciden.", "error")
             return render_template("cambiar_password.html")
-        
+
         if current_password == new_password:
             flash("La nueva contraseña debe ser diferente a la actual.", "error")
             return render_template("cambiar_password.html")
-        
-        current_user.set_password(new_password)
-        db.session.commit()
-        
-        log_audit(
-            tenant_id=current_user.tenant_id,
-            user_id=current_user.id,
-            accion='password_changed',
-            detalle='El usuario cambió su contraseña'
-        )
-        
-        flash("Tu contraseña ha sido actualizada correctamente.", "success")
-        return redirect(url_for('dashboard'))
+
+        try:
+            current_user.set_password(new_password)
+            db.session.commit()
+            log_audit(
+                tenant_id=current_user.tenant_id,
+                evento='password_changed',
+                descripcion='El usuario cambió su contraseña',
+                user_id=current_user.id,
+            )
+            flash("Tu contraseña ha sido actualizada correctamente.", "success")
+            return redirect(url_for('anonymizer.anonymizer_home'))
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"cambiar_password POST error: {e}", exc_info=True)
+            flash("Ocurrió un error al actualizar la contraseña. Intenta nuevamente.", "error")
+            return render_template("cambiar_password.html")
     
     return render_template("cambiar_password.html")
 
@@ -3044,13 +3109,24 @@ def registro_usuario():
             username=username,
             email=email,
             role='usuario_estudio',
-            activo=True
+            activo=True,
+            email_verified=False,
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
 
         _promote_if_superadmin(user)
+
+        # Enviar email de verificación (no bloquea el registro si falla)
+        try:
+            verify_token = ActivationToken.create_token(user.id, tipo='email_verify', hours=24)
+            app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
+            verify_url = f"{app_base_url}/verify-email/{verify_token.token}"
+            _send_verification_email(user, verify_url)
+        except Exception as _ve:
+            logging.warning(f"registro_usuario | no se pudo enviar verificación: {_ve}")
+
         login_user(user)
         flash("Cuenta creada exitosamente.", "success")
         return redirect(url_for('anonymizer.anonymizer_onboarding'))
