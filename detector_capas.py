@@ -175,12 +175,15 @@ DNI_PATTERN = re.compile(r'\b([0-9]{8})\b')
 # DNI con trigger explícito: siempre captura independiente del contexto monetario
 DNI_EXPLICIT_PATTERN = re.compile(
     r'(?:D\.?N\.?I\.?|documento\s+(?:nacional\s+)?de\s+identidad'
-    r'|identificad[oa]\s+con|con\s+D\.?N\.?I\.?)\s*(?:n[°oº]?\s*)?[:\-\s]*'
-    r'\b([0-9]{8})\b',
+    r'|identificad[oa]\s+con|con\s+D\.?N\.?I\.?)'
+    r'\s*(?:n[°oº]?|nro\.?|número|numero)?\s*'
+    r'[:\-\s]*\b([0-9]{8})\b',
     re.IGNORECASE
 )
 DNI_EXPLICIT_PATTERN_2 = re.compile(
-    r'(?:D\s*\.?\s*N\s*\.?\s*I\s*\.?\s*[:N°ºo-]*\s*)(\d{8})',
+    r'(?:D\s*\.?\s*N\s*\.?\s*I\s*\.?)'
+    r'\s*(?:n[°oº]?|nro\.?|número|numero)?\s*'
+    r'[:\-\s]*([0-9]{8})\b',
     re.IGNORECASE
 )
 
@@ -427,56 +430,88 @@ def detect_layer1_regex(text: str) -> List[Entity]:
     """
     entities = []
     
-    # Rastrear posiciones ya ocupadas por DNI explícito para no duplicar
+    # Rastrear spans ya ocupados por DNI explícito para no duplicar
     _dni_explicit_positions: set = set()
 
-    # DNI con trigger explícito: prioridad máxima, bypass de money_context
+    # 1) DNI con trigger explícito: prioridad máxima
     for match in DNI_EXPLICIT_PATTERN.finditer(text):
         value = match.group(1)
         start, end = match.start(1), match.end(1)
+
         extended_start = max(0, start - 3)
         extended_end = min(len(text), end + 3)
-        if not re.search(r'\d{11}', text[extended_start:extended_end]):
-            entities.append(Entity(
-                type='DNI', value=value, start=start, end=end,
-                source='regex', confidence=1.0
-            ))
-            _dni_explicit_positions.add(start)
-            # DNI explícito con formato flexible D . N . I .
-            for match in DNI_EXPLICIT_PATTERN_2.finditer(text):
-                value = match.group(1)
-                start, end = match.start(1), match.end(1)
+        nearby_text = text[extended_start:extended_end]
 
-                if (start, end) not in _dni_explicit_positions:
-                    _dni_explicit_positions.add((start, end))
-                    entities.append(Entity(
-                        type='DNI',
-                        value=value,
-                        start=start,
-                        end=end,
-                        source='regex',
-                        confidence=1.0
-                    ))
-    # DNI (8 dígitos) con validación anti-falsos positivos
+        # Evitar capturar fragmentos de RUC u otros números largos
+        if re.search(r'\d{11}', nearby_text):
+            continue
+
+        span = (start, end)
+        if span not in _dni_explicit_positions:
+            _dni_explicit_positions.add(span)
+            entities.append(Entity(
+                type='DNI',
+                value=value,
+                start=start,
+                end=end,
+                source='regex',
+                confidence=1.0
+            ))
+
+    # 2) DNI explícito flexible: D.N.I / D N I / con N°, Nº, Nro, etc.
+    for match in DNI_EXPLICIT_PATTERN_2.finditer(text):
+        value = match.group(1)
+        start, end = match.start(1), match.end(1)
+
+        extended_start = max(0, start - 3)
+        extended_end = min(len(text), end + 3)
+        nearby_text = text[extended_start:extended_end]
+
+        if re.search(r'\d{11}', nearby_text):
+            continue
+
+        span = (start, end)
+        if span not in _dni_explicit_positions:
+            _dni_explicit_positions.add(span)
+            entities.append(Entity(
+                type='DNI',
+                value=value,
+                start=start,
+                end=end,
+                source='regex',
+                confidence=1.0
+            ))
+    for e in entities:
+        if e.type == 'DNI':
+            print("DNI CAPA1:", e.value, e.start, e.end)
+    # 3) DNI general: 8 dígitos, si no fue capturado antes y no está en contexto monetario
     for match in DNI_PATTERN.finditer(text):
         value = match.group(1)
         start, end = match.start(1), match.end(1)
-        if start in _dni_explicit_positions:
-            continue  # ya capturado por DNI_EXPLICIT
-        # Verificar que no sea contexto monetario
-        if not is_in_money_context(text, start, end):
-            # Verificar que no sea parte de RUC
-            extended_start = max(0, start - 3)
-            extended_end = min(len(text), end + 3)
-            extended_text = text[extended_start:extended_end]
-            if not re.search(r'\d{11}', extended_text):
-                entities.append(Entity(
-                    type='DNI',
-                    value=value,
-                    start=start,
-                    end=end,
-                    source='regex'
-                ))
+        span = (start, end)
+
+        if span in _dni_explicit_positions:
+            continue
+
+        # evitar dinero pero no DNIs explícitos
+        if is_in_money_context(text, start, end) and "dni" not in text[max(0,start-10):start].lower():
+            continue
+
+        extended_start = max(0, start - 3)
+        extended_end = min(len(text), end + 3)
+        nearby_text = text[extended_start:extended_end]
+
+        if re.search(r'\d{11}', nearby_text):
+            continue
+
+        entities.append(Entity(
+            type='DNI',
+            value=value,
+            start=start,
+            end=end,
+            source='regex',
+            confidence=1.0
+        )) 
     
     # RUC (11 dígitos)
     for match in RUC_PATTERN.finditer(text):
@@ -658,16 +693,16 @@ def detect_layer1_regex(text: str) -> List[Entity]:
             source='regex'
         ))
 
-    # Historia Clínica
-    for match in HISTORIA_CLINICA_PATTERN.finditer(text):
-        full_value = match.group(0).strip()
-        entities.append(Entity(
-            type='HISTORIA_CLINICA',
-            value=full_value,
-            start=match.start(),
-            end=match.end(),
-            source='regex'
-        ))
+        # Historia Clínica
+        for match in HISTORIA_CLINICA_PATTERN.finditer(text):
+            full_value = match.group(0).strip()
+            entities.append(Entity(
+                type='HISTORIA_CLINICA',
+                value=full_value,
+                start=match.start(),
+                end=match.end(),
+                source='regex'
+            ))
 
         # Código de cliente
         for match in CODIGO_CLIENTE_PATTERN.finditer(text):
@@ -943,16 +978,31 @@ def detect_layer2_context(text: str) -> List[Entity]:
     # ── helpers para trim de dirección ─────────────────────────────────────────
     _SENTENCE_BREAK = re.compile(r'\.\s+[A-ZÁÉÍÓÚÑ]')
 
-    def _trim_address(raw: str) -> str:
-        """Recorta una captura de dirección al primer límite de oración
-        ('. Mayúscula') para no cruzar frases completas.
-        También descarta trailing comas/puntos/espacios."""
-        raw = re.sub(r'\s+', ' ', raw).strip()
-        m = _SENTENCE_BREAK.search(raw)
-        if m:
-            raw = raw[:m.start()].rstrip(' ,;')
-        raw = raw.rstrip(' .,;')
-        return raw
+    def _trim_address(value: str) -> str:
+        value = re.sub(r'\s+', ' ', value).strip()
+
+        ADDRESS_CONTINUATION_TOKENS = [
+            'departamento', 'departamento.', 'depto', 'depto.',
+            'interior', 'int.', 'oficina', 'of.', 'piso',
+            'bloque', 'urb.', 'urbanización', 'urbanizacion',
+            'distrito', 'provincia', 'lima'
+        ]
+
+        parts = re.split(r'(?<=[\.;])\s+(?=[A-ZÁÉÍÓÚÑ])', value)
+
+        if not parts:
+            return value
+
+        kept = [parts[0].strip()]
+
+        for part in parts[1:]:
+            lower = part.strip().lower()
+            if any(lower.startswith(tok) for tok in ADDRESS_CONTINUATION_TOKENS):
+                kept.append(part.strip())
+            else:
+                break
+
+        return ', '.join([p.rstrip(';, ') for p in kept if p]).strip()
 
     # Domicilio (real/procesal/legal)
     for pattern in DOMICILIO_PATTERNS:
@@ -1513,7 +1563,52 @@ def detect_layer3_heuristic(text: str) -> List[Entity]:
                 start=match.start(1), end=match.start(1) + len(value),
                 source='strong_context_persona', confidence=0.82
             ))
+    # ── 11. Nombre solo en bloque de remitente/destinatario/firma ───────────
+    standalone_name_patterns = [
+        re.compile(
+            r'(?im)^(?:REMITENTE|DESTINATARIO)\s*:?\s*\n'
+            r'([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+(?:de|del|la|los|las))?'
+            r'(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,5})\s*$'
+        ),
+        re.compile(
+            r'(?im)^Atentamente,?\s*\n'
+            r'([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+(?:de|del|la|los|las))?'
+            r'(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,5})\s*$'
+        ),
+    ]
 
+    for pattern in standalone_name_patterns:
+        for match in pattern.finditer(text):
+            value = match.group(1).strip()
+            if not is_excluded_word(value):
+                entities.append(Entity(
+                    type='PERSONA',
+                    value=value,
+                    start=match.start(1),
+                    end=match.end(1),
+                    source='strong_context_persona',
+                    confidence=0.82
+                ))
+    # ── 12. Nombre + identificado con DNI ─────────
+    identificado_nombre_pattern = re.compile(
+        r'([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+'
+        r'(?:\s+(?:de|del|la|los|las))?'
+        r'(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,5})'
+        r'\s*,?\s*(?i:identificad[oa]\s+con\s+(?:D\.?\s*N\.?\s*I\.?|DNI|documento\s+de\s+identidad))'
+    )
+
+    for match in identificado_nombre_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value):
+            entities.append(Entity(
+                type='PERSONA',
+                value=value,
+                start=match.start(1),
+                end=match.end(1),
+                source='strong_context_persona',
+                confidence=0.80
+            ))
+            
     return entities
 
 

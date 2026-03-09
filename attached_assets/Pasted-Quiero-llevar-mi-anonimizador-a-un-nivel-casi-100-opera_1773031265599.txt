@@ -1,0 +1,142 @@
+Quiero llevar mi anonimizador a un nivel casi 100% operativo usando IA como capa de rescate, sin romper el sistema actual.
+
+Contexto:
+- Ya existe detector_capas.py con regex, contexto, heurísticas y spaCy.
+- Ya existe public_app.py que procesa el documento, normaliza entidades, deduplica y aplica reemplazos.
+- El sistema actual aún falla en DNI, emails, nombres, direcciones, casillas, juzgados y entidades.
+- No quiero reemplazar el detector actual. Quiero agregar una capa de IA para capturar lo que el sistema base deja pasar.
+
+Objetivo:
+Implementar una capa "AI Recall + AI Final Audit" para maximizar detección de datos sensibles.
+
+Arquitectura que quiero:
+1. Mantener detector_capas.py como detector principal.
+2. Después de detect_all_pii(full_text), normalize_entities y deduplicate_entities:
+   - ejecutar una nueva capa de IA llamada detect_missing_pii_with_ai(full_text, existing_entities)
+   - esta capa debe encontrar entidades faltantes que el detector base no detectó
+3. Después del merge de esas entidades IA:
+   - volver a normalizar y deduplicar
+4. Antes del reemplazo final:
+   - ejecutar una segunda capa llamada ai_final_audit(full_text, entities)
+   - esta capa debe revisar si todavía queda PII sensible visible y proponer entidades adicionales faltantes
+
+Importante:
+- La IA NO debe devolver el documento anonimizado completo
+- La IA debe devolver SOLO JSON estructurado
+- La IA NO debe calcular offsets exactos
+- El sistema debe mapear localmente cada value encontrado al texto para obtener start/end
+- No romper la lógica actual de reemplazo
+- Mantener trazabilidad total
+
+Tipos que la IA debe intentar detectar o rescatar:
+- DNI
+- RUC
+- EMAIL
+- TELEFONO
+- CASILLA
+- PERSONA
+- DIRECCION
+- JUZGADO
+- ENTIDAD
+- SALA
+- TRIBUNAL
+- COLEGIATURA
+- EXPEDIENTE
+- PLACA
+- POLIZA
+- CUENTA
+
+Reglas funcionales:
+1. La IA debe recibir el texto completo por chunks razonables.
+2. La IA debe recibir también las entidades ya detectadas para evitar duplicados.
+3. La IA debe responder con JSON como este:
+
+[
+  {
+    "type": "DNI",
+    "value": "07002685",
+    "reason": "Aparece como D.N.I N° 07002685"
+  },
+  {
+    "type": "EMAIL",
+    "value": "criseldacordero@gmail.com",
+    "reason": "Correo explícito en datos de contacto"
+  }
+]
+
+4. Luego el backend debe:
+   - buscar cada value en el texto original
+   - generar start/end localmente
+   - convertirlo a Entity
+   - fusionarlo con las entidades existentes
+   - normalizar y deduplicar otra vez
+
+5. El auditor final de IA debe revisar si aún quedan visibles:
+- nombres completos
+- direcciones completas
+- DNIs
+- correos
+- casillas
+- nombres de jueces, especialistas, imputados, agraviadas, abogadas
+- juzgados y órganos jurisdiccionales
+
+Implementación exacta que quiero:
+1. Crear en detector_openai.py:
+   - USE_AI_RECALL = os.getenv("USE_AI_RECALL", "1") == "1"
+   - OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+   - detect_missing_pii_with_ai(full_text, existing_entities)
+   - ai_final_audit(full_text, entities)
+
+2. En public_app.py:
+   - después de detect_all_pii(full_text)
+   - después de normalize_entities
+   - después de deduplicate_entities
+   agregar la llamada a detect_missing_pii_with_ai
+   luego merge + normalize + deduplicate
+   y antes del reemplazo final agregar ai_final_audit
+
+3. Agregar logs claros:
+- AI_RECALL_START
+- AI_RECALL_CHUNK
+- AI_RECALL_FOUND
+- AI_RECALL_MERGED
+- AI_AUDIT_START
+- AI_AUDIT_FOUND
+- AI_AUDIT_MERGED
+- AI_RECALL_FAIL
+- AI_AUDIT_FAIL
+
+4. Crear prompts internos robustos para que la IA:
+   - sea muy estricta con datos sensibles
+   - prefiera sobre-detectar antes que dejar pasar PII obvia
+   - clasifique correctamente por tipo
+   - no invente valores
+   - solo devuelva valores textualmente presentes en el chunk
+
+5. Agregar protección anti-alucinación:
+   - si el value no existe textualmente en el chunk, descartarlo
+   - si no se puede mapear al texto original, descartarlo
+   - si es duplicado, descartarlo
+
+6. No cambiar el reemplazo final salvo lo necesario para aceptar las nuevas entidades IA
+
+7. Usar la variable de entorno:
+- OPENAI_API_KEY
+
+8. Dejar el sistema listo para probar con este texto:
+CRISILDA CORDERO ROMANI DE FUENTES; identificada con D.N.I N° 07002685; con correos electrónicos: criseldacordero@gmail.com / fuentescorderohector@gmail.com; con domicilio procesal en Av. Javier Prado Este N°255, oficina 701-B; con CASILLA ELECTRÓNICA NRO. 55503.
+
+Resultado esperado mínimo:
+- 07002685 → DNI
+- criseldacordero@gmail.com → EMAIL
+- fuentescorderohector@gmail.com → EMAIL
+- Av. Javier Prado Este N°255, oficina 701-B → DIRECCION
+- 55503 → CASILLA
+- CRISILDA CORDERO ROMANI DE FUENTES → PERSONA
+
+Quiero que implementes esto con cambios mínimos y me expliques exactamente:
+- qué archivos cambiaste
+- qué funciones nuevas creaste
+- qué modelo usaste
+- qué variables de entorno debo configurar
+- cómo probarlo manualmente en Replit

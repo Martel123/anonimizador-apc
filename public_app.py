@@ -878,6 +878,42 @@ def anonymizer_process():
         except Exception as e:
             logger.warning(f"AI_SEMANTIC_FILTER_FAIL | job={job_id} | error={str(e)}")
 
+        # ── Capa AI Recall: detecta PII omitida por el pipeline base ─────────
+        # Activa si USE_AI_RECALL=1 (default). Divide el texto en chunks,
+        # pide a la IA que encuentre PII faltante y fusiona las entidades nuevas.
+        try:
+            from detector_openai import (
+                USE_AI_RECALL, is_openai_available,
+                detect_missing_pii_with_ai,
+            )
+            if USE_AI_RECALL and is_openai_available():
+                ai_recall_entities = detect_missing_pii_with_ai(full_text, all_entities)
+                if ai_recall_entities:
+                    all_entities = normalize_entities(all_entities + ai_recall_entities)
+                    all_entities = deduplicate_entities(all_entities)
+                    logger.info(
+                        f"AI_RECALL_MERGED | job={job_id} "
+                        f"| added={len(ai_recall_entities)} | total={len(all_entities)}"
+                    )
+        except Exception as e:
+            logger.warning(f"AI_RECALL_FAIL | job={job_id} | error={str(e)}")
+
+        # ── Auditoría final de IA: revisa si queda PII residual visible ───────
+        # Se ejecuta DESPUÉS del recall. Solo busca lo que aún no está cubierto.
+        try:
+            from detector_openai import ai_final_audit
+            if USE_AI_RECALL and is_openai_available():
+                audit_entities = ai_final_audit(full_text, all_entities)
+                if audit_entities:
+                    all_entities = normalize_entities(all_entities + audit_entities)
+                    all_entities = deduplicate_entities(all_entities)
+                    logger.info(
+                        f"AI_AUDIT_MERGED | job={job_id} "
+                        f"| added={len(audit_entities)} | total={len(all_entities)}"
+                    )
+        except Exception as e:
+            logger.warning(f"AI_AUDIT_FAIL | job={job_id} | error={str(e)}")
+
         confirmed = []
         needs_review = []
 
@@ -894,8 +930,8 @@ def anonymizer_process():
         #   RESOLUCION, PARTIDA, JUZGADO, SALA, TRIBUNAL
         # ══════════════════════════════════════════════════════════════════════
         ALWAYS_REVIEW_TYPES = {
-            'PERSONA', 'ENTIDAD', 'DIRECCION', 'PLACA',
-            'RESOLUCION', 'PARTIDA', 'JUZGADO', 'SALA', 'TRIBUNAL',
+            'ENTIDAD', 'DIRECCION', 'PLACA',
+            'RESOLUCION', 'PARTIDA', 'JUZGADO', 'SALA', 'TRIBUNAL'
         }
 
         for i, ent in enumerate(all_entities):

@@ -17,7 +17,8 @@ from functools import lru_cache
 logger = logging.getLogger(__name__)
 
 USE_OPENAI_DETECT = os.environ.get("USE_OPENAI_DETECT", "1") == "1"
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+USE_AI_RECALL = os.environ.get("USE_AI_RECALL", "1") == "1"
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
 OPENAI_TIMEOUT_SECONDS = int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20"))
 OPENAI_MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", "1"))
 OPENAI_CHUNK_TOKENS = int(os.environ.get("OPENAI_CHUNK_TOKENS", "1500"))
@@ -830,3 +831,370 @@ def validate_ambiguous_candidates(
     )
 
     return structured + other + surviving_ambiguous
+
+
+# ============================================================================
+# AI RECALL — DETECCIÓN DE PII FALTANTE
+# ============================================================================
+#
+# Recibe el texto completo + entidades ya detectadas.
+# Busca en chunks lo que el pipeline base pudo haber omitido.
+# Activación: USE_AI_RECALL=1 (default)
+#
+# Tipos objetivo:
+#   DNI, RUC, EMAIL, TELEFONO, CASILLA, PERSONA, DIRECCION,
+#   JUZGADO, ENTIDAD, SALA, TRIBUNAL, COLEGIATURA,
+#   EXPEDIENTE, PLACA, POLIZA, CUENTA
+# ============================================================================
+
+_RECALL_CHUNK_CHARS: int = int(os.environ.get("AI_RECALL_CHUNK_CHARS", "2000"))
+_RECALL_OVERLAP_CHARS: int = 150
+
+_RECALL_SYSTEM_PROMPT = """\
+Eres un DETECTOR DE PII (información personal identificable) especializado en \
+documentos legales peruanos. Tu única tarea es encontrar datos sensibles que \
+un detector automático pudo haber omitido.
+
+IMPORTANTE — REGLAS ABSOLUTAS:
+1. Devuelve SOLO JSON válido. Sin texto antes ni después.
+2. Cada "value" debe aparecer TEXTUALMENTE en el fragmento que recibes. NUNCA inventes.
+3. No incluyas entidades cuyo "value" ya aparezca en el campo "ya_detectadas".
+4. Prefiere sobre-detectar antes que omitir. Ante la duda, incluye.
+5. Si no encuentras nada nuevo, devuelve [].
+
+Tipos que debes detectar:
+  DNI        → 8 dígitos: "12345678", "D.N.I N° 07002685", "DNI: 43210987"
+  RUC        → 11 dígitos que empiezan con 10/15/17/20
+  EMAIL      → cualquier correo electrónico, incluidos los separados por / o coma
+  TELEFONO   → 9 dígitos (empieza con 9) con o sin +51, guiones, paréntesis, espacios
+  CASILLA    → "CASILLA ELECTRÓNICA NRO. 55503", "casilla Nro. 12345"  → value=número
+  PERSONA    → nombre propio de persona natural (2-5 palabras en mayúsculas o Title Case)
+               Excluye términos jurídicos: JUZGADO, SALA, TRIBUNAL, MINISTERIO, etc.
+  DIRECCION  → dirección postal o procesal completa con nombre de vía y número
+  JUZGADO    → nombre de órgano jurisdiccional que contenga "Juzgado"
+  ENTIDAD    → nombre de empresa, institución u organismo (no personas naturales)
+  SALA       → "Sala Civil", "Sala Penal", "Sala Superior", etc.
+  TRIBUNAL   → "Tribunal Constitucional", "Tribunal Arbitral", etc.
+  COLEGIATURA→ "CAL N° 49657", "CMP 28391", "CAL 3412", etc.
+  EXPEDIENTE → "Exp. 1234-2023", "EXPEDIENTE N° 00123-2022-0-1801-JR-CI-01"
+  PLACA      → placa vehicular peruana: "ABC-123", "A1B-234"
+  POLIZA     → número de póliza de seguro
+  CUENTA     → número de cuenta bancaria o CCI
+
+Formato de respuesta (JSON array, SIN texto adicional):
+[
+  {"type": "DNI",   "value": "07002685",                      "reason": "D.N.I N° 07002685"},
+  {"type": "EMAIL", "value": "criseldacordero@gmail.com",     "reason": "correo en datos de contacto"},
+  {"type": "CASILLA","value": "55503",                        "reason": "CASILLA ELECTRÓNICA NRO. 55503"}
+]"""
+
+
+def _chunk_text_for_recall(text: str) -> List[Tuple[int, str]]:
+    """Divide el texto en chunks con solapamiento. Retorna (offset, chunk)."""
+    chunks = []
+    size = _RECALL_CHUNK_CHARS
+    overlap = _RECALL_OVERLAP_CHARS
+    start = 0
+    while start < len(text):
+        end = min(start + size, len(text))
+        chunks.append((start, text[start:end]))
+        if end == len(text):
+            break
+        start += size - overlap
+    return chunks
+
+
+def _call_recall_api(chunk: str, already_known_values: set, chunk_offset: int,
+                     full_text: str) -> List[Dict]:
+    """Llama a la API para un chunk y retorna entidades nuevas mapeadas al texto completo."""
+    try:
+        import openai
+        client = openai.OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
+            timeout=OPENAI_TIMEOUT_SECONDS,
+        )
+
+        known_sample = list(already_known_values)[:60]
+        user_msg = (
+            f"ya_detectadas (ignora estos values):\n{json.dumps(known_sample, ensure_ascii=False)}\n\n"
+            f"FRAGMENTO A ANALIZAR:\n{chunk}"
+        )
+
+        resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _RECALL_SYSTEM_PROMPT},
+                {"role": "user",   "content": user_msg},
+            ],
+            temperature=0.0,
+            max_tokens=1200,
+        )
+
+        raw = resp.choices[0].message.content.strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = re.sub(r'^```[a-z]*\n?', '', raw)
+            raw = re.sub(r'\n?```$', '', raw)
+        raw = raw.strip()
+
+        parsed = json.loads(raw)
+        if not isinstance(parsed, list):
+            return []
+
+        entities = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            ent_type = str(item.get("type", "")).upper().strip()
+            value    = str(item.get("value", "")).strip()
+            if not ent_type or not value:
+                continue
+
+            # Anti-alucinación: el value debe existir textualmente en el chunk
+            if value not in chunk:
+                logger.debug(f"AI_RECALL_HALLUCINATION | value={value!r} not in chunk → descartado")
+                continue
+
+            # Anti-duplicado: el value ya estaba detectado
+            if value.lower() in already_known_values:
+                continue
+
+            # Mapear al texto completo buscando todas las ocurrencias
+            search_start = 0
+            found_any = False
+            while True:
+                pos = full_text.find(value, search_start)
+                if pos == -1:
+                    break
+                found_any = True
+                entities.append({
+                    "type":       ent_type,
+                    "value":      value,
+                    "start":      pos,
+                    "end":        pos + len(value),
+                    "confidence": 0.85,
+                    "source":     "ai_recall",
+                    "ai_reason":  str(item.get("reason", ""))[:120],
+                })
+                search_start = pos + len(value)
+
+            if not found_any:
+                logger.debug(f"AI_RECALL_NO_POSITION | value={value!r} not found in full_text → descartado")
+
+        return entities
+
+    except Exception as exc:
+        logger.warning(f"AI_RECALL_FAIL | chunk_offset={chunk_offset} | error={exc}")
+        return []
+
+
+def detect_missing_pii_with_ai(full_text: str,
+                                existing_entities: List[Dict]) -> List[Dict]:
+    """
+    Capa AI Recall: detecta PII que el pipeline base omitió.
+
+    Parámetros
+    ----------
+    full_text          : texto completo del documento
+    existing_entities  : entidades ya detectadas (para evitar duplicados)
+
+    Retorna lista de entidades nuevas (dicts con type/value/start/end/confidence/source).
+    No modifica existing_entities.
+    """
+    if not USE_AI_RECALL:
+        return []
+    if not is_openai_available():
+        logger.info("AI_RECALL_SKIP | OpenAI no disponible")
+        return []
+
+    known_values: set = {
+        e.get("value", "").lower()
+        for e in existing_entities
+        if e.get("value")
+    }
+
+    logger.info(f"AI_RECALL_START | text_len={len(full_text)} | known={len(known_values)}")
+
+    chunks = _chunk_text_for_recall(full_text)
+    all_new: List[Dict] = []
+
+    for chunk_idx, (chunk_offset, chunk) in enumerate(chunks):
+        logger.debug(f"AI_RECALL_CHUNK | idx={chunk_idx} | offset={chunk_offset} | len={len(chunk)}")
+        new_ents = _call_recall_api(chunk, known_values, chunk_offset, full_text)
+
+        for ent in new_ents:
+            val_lower = ent["value"].lower()
+            if val_lower not in known_values:
+                known_values.add(val_lower)
+                all_new.append(ent)
+                logger.info(
+                    f"AI_RECALL_FOUND | chunk={chunk_idx} "
+                    f"| type={ent['type']} | value={ent['value'][:60]!r}"
+                )
+
+    logger.info(f"AI_RECALL_MERGED | new_entities={len(all_new)}")
+    return all_new
+
+
+# ============================================================================
+# AI FINAL AUDIT — REVISIÓN RESIDUAL POST-DETECCIÓN
+# ============================================================================
+#
+# Se ejecuta DESPUÉS de que todas las entidades han sido detectadas y
+# fusionadas. Verifica si aún queda PII visible en el texto y propone
+# entidades adicionales.
+# ============================================================================
+
+_AUDIT_SYSTEM_PROMPT = """\
+Eres un AUDITOR FINAL DE PRIVACIDAD para documentos legales peruanos.
+Tu tarea: dado un fragmento de texto Y la lista de entidades ya detectadas,
+determinar si todavía hay datos sensibles visibles que NO están cubiertos.
+
+IMPORTANTE — REGLAS ABSOLUTAS:
+1. Devuelve SOLO JSON válido. Sin texto antes ni después.
+2. Cada "value" debe aparecer TEXTUALMENTE en el fragmento. NUNCA inventes.
+3. No incluyas entidades cuyo "value" (case-insensitive) ya esté en "ya_detectadas".
+4. Enfócate en lo que claramente debe anonimizarse y aún es visible.
+5. Si no encuentras nada nuevo, devuelve [].
+
+Datos sensibles a buscar residualmente:
+- Nombres completos de personas (imputados, agraviados, jueces, abogados, especialistas)
+- DNI de 8 dígitos
+- Correos electrónicos
+- Casillas electrónicas (número)
+- Domicilios y direcciones postales
+- Juzgados y órganos jurisdiccionales específicos con nombre de juez
+- Teléfonos y celulares
+- Números de colegiatura (CAL, CMP, CIP, etc.)
+
+Formato de respuesta (JSON array):
+[
+  {"type": "PERSONA", "value": "CRISILDA CORDERO ROMANI DE FUENTES", "reason": "nombre completo aún visible"}
+]"""
+
+
+def _call_audit_api(chunk: str, already_known_values: set,
+                    chunk_offset: int, full_text: str) -> List[Dict]:
+    """Llama a la API para auditoría de un chunk."""
+    try:
+        import openai
+        client = openai.OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
+            timeout=OPENAI_TIMEOUT_SECONDS,
+        )
+
+        known_sample = list(already_known_values)[:60]
+        user_msg = (
+            f"ya_detectadas (NO repitas estos):\n{json.dumps(known_sample, ensure_ascii=False)}\n\n"
+            f"FRAGMENTO:\n{chunk}"
+        )
+
+        resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _AUDIT_SYSTEM_PROMPT},
+                {"role": "user",   "content": user_msg},
+            ],
+            temperature=0.0,
+            max_tokens=800,
+        )
+
+        raw = resp.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r'^```[a-z]*\n?', '', raw)
+            raw = re.sub(r'\n?```$', '', raw)
+        raw = raw.strip()
+
+        parsed = json.loads(raw)
+        if not isinstance(parsed, list):
+            return []
+
+        entities = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            ent_type = str(item.get("type", "")).upper().strip()
+            value    = str(item.get("value", "")).strip()
+            if not ent_type or not value:
+                continue
+
+            # Anti-alucinación
+            if value not in chunk:
+                logger.debug(f"AI_AUDIT_HALLUCINATION | value={value!r} → descartado")
+                continue
+
+            if value.lower() in already_known_values:
+                continue
+
+            search_start = 0
+            found_any = False
+            while True:
+                pos = full_text.find(value, search_start)
+                if pos == -1:
+                    break
+                found_any = True
+                entities.append({
+                    "type":       ent_type,
+                    "value":      value,
+                    "start":      pos,
+                    "end":        pos + len(value),
+                    "confidence": 0.82,
+                    "source":     "ai_final_audit",
+                    "ai_reason":  str(item.get("reason", ""))[:120],
+                })
+                search_start = pos + len(value)
+
+            if not found_any:
+                logger.debug(f"AI_AUDIT_NO_POSITION | value={value!r} → descartado")
+
+        return entities
+
+    except Exception as exc:
+        logger.warning(f"AI_AUDIT_FAIL | chunk_offset={chunk_offset} | error={exc}")
+        return []
+
+
+def ai_final_audit(full_text: str,
+                   entities: List[Dict]) -> List[Dict]:
+    """
+    Auditoría final de IA: verifica si queda PII visible tras el pipeline completo.
+
+    Parámetros
+    ----------
+    full_text  : texto completo del documento
+    entities   : todas las entidades ya detectadas (merged)
+
+    Retorna lista de entidades adicionales encontradas.
+    """
+    if not USE_AI_RECALL:
+        return []
+    if not is_openai_available():
+        logger.info("AI_AUDIT_SKIP | OpenAI no disponible")
+        return []
+
+    known_values: set = {
+        e.get("value", "").lower()
+        for e in entities
+        if e.get("value")
+    }
+
+    logger.info(f"AI_AUDIT_START | text_len={len(full_text)} | known={len(known_values)}")
+
+    chunks = _chunk_text_for_recall(full_text)
+    all_new: List[Dict] = []
+
+    for chunk_idx, (chunk_offset, chunk) in enumerate(chunks):
+        new_ents = _call_audit_api(chunk, known_values, chunk_offset, full_text)
+
+        for ent in new_ents:
+            val_lower = ent["value"].lower()
+            if val_lower not in known_values:
+                known_values.add(val_lower)
+                all_new.append(ent)
+                logger.info(
+                    f"AI_AUDIT_FOUND | chunk={chunk_idx} "
+                    f"| type={ent['type']} | value={ent['value'][:60]!r}"
+                )
+
+    logger.info(f"AI_AUDIT_MERGED | new_entities={len(all_new)}")
+    return all_new
