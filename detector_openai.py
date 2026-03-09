@@ -1056,6 +1056,9 @@ IMPORTANTE — REGLAS ABSOLUTAS:
 3. No incluyas entidades cuyo "value" (case-insensitive) ya esté en "ya_detectadas".
 4. Enfócate en lo que claramente debe anonimizarse y aún es visible.
 5. Si no encuentras nada nuevo, devuelve [].
+6. Asigna "priority": "critical" cuando el dato es inequívocamente sensible y visible
+   (DNI, correo, nombre completo de persona natural, casilla, dirección postal completa).
+   Usa "priority": "normal" para el resto.
 
 Datos sensibles a buscar residualmente:
 - Nombres completos de personas (imputados, agraviados, jueces, abogados, especialistas)
@@ -1063,13 +1066,14 @@ Datos sensibles a buscar residualmente:
 - Correos electrónicos
 - Casillas electrónicas (número)
 - Domicilios y direcciones postales
-- Juzgados y órganos jurisdiccionales específicos con nombre de juez
+- Juzgados y órganos jurisdiccionales específicos
 - Teléfonos y celulares
 - Números de colegiatura (CAL, CMP, CIP, etc.)
 
 Formato de respuesta (JSON array):
 [
-  {"type": "PERSONA", "value": "CRISILDA CORDERO ROMANI DE FUENTES", "reason": "nombre completo aún visible"}
+  {"type": "PERSONA",   "value": "CRISILDA CORDERO ROMANI DE FUENTES", "reason": "nombre completo aún visible",    "priority": "critical"},
+  {"type": "JUZGADO",   "value": "Tercer Juzgado Civil de Lima",        "reason": "órgano jurisdiccional visible", "priority": "normal"}
 ]"""
 
 
@@ -1126,6 +1130,10 @@ def _call_audit_api(chunk: str, already_known_values: set,
             if value.lower() in already_known_values:
                 continue
 
+            ai_priority = str(item.get("priority", "normal")).lower()
+            if ai_priority not in ("critical", "normal"):
+                ai_priority = "normal"
+
             search_start = 0
             found_any = False
             while True:
@@ -1134,13 +1142,14 @@ def _call_audit_api(chunk: str, already_known_values: set,
                     break
                 found_any = True
                 entities.append({
-                    "type":       ent_type,
-                    "value":      value,
-                    "start":      pos,
-                    "end":        pos + len(value),
-                    "confidence": 0.82,
-                    "source":     "ai_final_audit",
-                    "ai_reason":  str(item.get("reason", ""))[:120],
+                    "type":        ent_type,
+                    "value":       value,
+                    "start":       pos,
+                    "end":         pos + len(value),
+                    "confidence":  0.85 if ai_priority == "critical" else 0.82,
+                    "source":      "ai_final_audit",
+                    "ai_reason":   str(item.get("reason", ""))[:120],
+                    "ai_priority": ai_priority,
                 })
                 search_start = pos + len(value)
 

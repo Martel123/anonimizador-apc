@@ -1,0 +1,116 @@
+Quiero reorganizar el flujo de detección de mi anonimizador para darle más protagonismo a la IA y mejorar la precisión de detección de datos sensibles.
+
+Contexto actual:
+- El sistema tiene detector base en detector_capas.py con regex, contexto, heurística y spaCy.
+- También existe una capa opcional de IA (detect_missing_pii_with_ai y ai_final_audit).
+- Actualmente regex tiene demasiado peso y la IA solo actúa como rescate.
+- Regex está fallando mucho en nombres completos, direcciones, casillas electrónicas, juzgados y entidades.
+
+Nuevo objetivo:
+Reordenar el pipeline para que la IA sea el detector principal de entidades contextuales, mientras que regex queda como detector rápido de datos estructurados.
+
+Nuevo flujo que quiero implementar:
+
+FASE 1 — Detector estructurado (rápido)
+Usar regex y reglas actuales SOLO para:
+- DNI
+- RUC
+- EMAIL
+- TELEFONO
+- CUENTA
+- PLACA
+- POLIZA
+- COLEGIATURA
+- EXPEDIENTE
+
+FASE 2 — IA como detector principal contextual
+Después del detector estructurado, ejecutar detect_missing_pii_with_ai(full_text, existing_entities) con prioridad alta para detectar:
+
+- PERSONA
+- DIRECCION
+- CASILLA
+- JUZGADO
+- ENTIDAD
+- SALA
+- TRIBUNAL
+- roles jurídicos (juez, especialista, imputado, agraviado, procurador, abogado)
+
+La IA debe:
+- recibir el texto por chunks
+- recibir las entidades ya detectadas
+- devolver JSON estructurado
+- no inventar valores
+- devolver solo valores que existan textualmente en el documento
+
+Formato esperado:
+
+[
+  {
+    "type": "PERSONA",
+    "value": "CRISILDA CORDERO ROMANI DE FUENTES",
+    "reason": "nombre completo de la parte agraviada"
+  },
+  {
+    "type": "CASILLA",
+    "value": "55503",
+    "reason": "casilla electrónica del poder judicial"
+  }
+]
+
+FASE 3 — Merge y normalización
+Después de la IA:
+- fusionar entidades
+- normalize_entities
+- deduplicate_entities
+
+Reglas de prioridad:
+- Para tipos estructurados (DNI, EMAIL, etc) → priorizar regex
+- Para tipos contextuales (PERSONA, DIRECCION, JUZGADO, ENTIDAD) → priorizar IA
+
+FASE 4 — Reemplazo local
+Aplicar reemplazo usando spans locales, nunca pedir a la IA el documento anonimizado.
+
+FASE 5 — Auditoría IA final obligatoria
+Después del reemplazo parcial, ejecutar ai_final_audit(full_text, entities) para detectar PII residual.
+
+La IA debe revisar:
+- DNIs visibles
+- correos visibles
+- nombres completos
+- direcciones completas
+- casillas electrónicas
+- juzgados y salas
+- roles jurídicos
+
+Si detecta algo que no fue anonimizado:
+- devolver JSON con type/value
+- marcar prioridad "critical"
+
+Luego el backend debe:
+- mapear spans
+- agregar entidades
+- ejecutar reemplazo final.
+
+Reglas importantes:
+- mantener protección anti-alucinación
+- solo aceptar valores que existan textualmente en el documento
+- descartar valores que no puedan mapearse a spans
+- no romper la lógica actual de normalize_entities y deduplicate_entities
+- no pedir a la IA que devuelva el documento completo anonimizado
+
+Logs que quiero agregar:
+- STRUCTURED_DETECT_START
+- AI_PRIMARY_DETECT
+- AI_PRIMARY_FOUND
+- AI_PRIMARY_MERGED
+- AI_AUDIT_START
+- AI_RESIDUAL_FOUND
+- AI_CRITICAL_FORCE
+- AI_REPLACEMENT_FINAL
+
+Quiero que implementes este flujo con cambios mínimos y me expliques:
+
+1) qué funciones cambiaste
+2) qué funciones nuevas creaste
+3) dónde se integró la IA en el pipeline
+4) cómo probar que la detección mejora.

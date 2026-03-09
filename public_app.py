@@ -852,22 +852,79 @@ def anonymizer_process():
             safe_remove(temp_input)
             return render_error("No se pudo leer el contenido del documento")
 
-        from detector_capas import detect_all_pii
-        entities, detect_meta = detect_all_pii(full_text)
-        all_entities = normalize_entities(entities)
-        all_entities = deduplicate_entities(all_entities)
-
-        # ── Capa IA semántica (validador de candidatos ambiguos) ─────────────
-        # Solo activa si USE_AI_SEMANTIC_FILTER=1.
-        # NO envía el documento completo: recibe candidatos ya detectados,
-        # clasifica los ambiguos con UN llamado a la API y descarta falsos positivos.
-        # PII estructurada (DNI, RUC, EMAIL, etc.) no pasa por este filtro.
+        # ── Importar módulo IA una sola vez para todos los bloques ──────────────
         try:
             from detector_openai import (
-                USE_AI_SEMANTIC_FILTER, is_openai_available,
-                validate_ambiguous_candidates,
+                USE_AI_RECALL, USE_AI_SEMANTIC_FILTER, is_openai_available,
+                detect_missing_pii_with_ai, validate_ambiguous_candidates,
+                ai_final_audit,
             )
-            if USE_AI_SEMANTIC_FILTER and is_openai_available():
+            _ai_recall_on    = USE_AI_RECALL and is_openai_available()
+            _ai_semantic_on  = USE_AI_SEMANTIC_FILTER and is_openai_available()
+        except Exception as _ai_imp_err:
+            logger.warning(f"AI_IMPORT_FAIL | job={job_id} | {_ai_imp_err}")
+            _ai_recall_on   = False
+            _ai_semantic_on = False
+
+        # ════════════════════════════════════════════════════════════════════
+        # FASE 1 — Detector estructurado (regex + reglas)
+        # Mantiene DNI, RUC, EMAIL, TELEFONO, CUENTA/CCI, PLACA, POLIZA,
+        # COLEGIATURA, EXPEDIENTE, ACTA y variantes con alta precisión.
+        # Los tipos contextuales (PERSONA, DIRECCION, JUZGADO, ENTIDAD, etc.)
+        # se detectan primariamente por la IA en la FASE 2.
+        # ════════════════════════════════════════════════════════════════════
+        logger.info(f"STRUCTURED_DETECT_START | job={job_id}")
+        from detector_capas import detect_all_pii
+        entities, detect_meta = detect_all_pii(full_text)
+        all_entities_raw = normalize_entities(entities)
+        all_entities_raw = deduplicate_entities(all_entities_raw)
+
+        _STRUCTURAL_TYPES = frozenset({
+            'DNI', 'RUC', 'EMAIL', 'TELEFONO', 'CUENTA', 'CCI',
+            'PLACA', 'POLIZA', 'COLEGIATURA', 'EXPEDIENTE', 'ACTA',
+            'ACTA_REGISTRO', 'HISTORIA_CLINICA', 'CODIGO_CLIENTE',
+            'LICENCIA', 'RESOLUCION', 'PARTIDA', 'FECHA_NACIMIENTO',
+        })
+
+        if _ai_recall_on:
+            # Solo los estructurados pasan como base; IA cubre el resto
+            structural_entities = [
+                e for e in all_entities_raw
+                if e.get('type', '').upper() in _STRUCTURAL_TYPES
+            ]
+            all_entities = structural_entities
+        else:
+            # Sin IA: usar pipeline base completo (comportamiento anterior)
+            all_entities = all_entities_raw
+
+        # ════════════════════════════════════════════════════════════════════
+        # FASE 2 — IA como detector principal contextual
+        # Detecta: PERSONA, DIRECCION, CASILLA, JUZGADO, ENTIDAD, SALA,
+        # TRIBUNAL y roles jurídicos (juez, abogado, especialista, etc.)
+        # Recibe solo valores estructurados como "ya conocidos" para evitar
+        # duplicados y no contaminar el contexto de la IA.
+        # ════════════════════════════════════════════════════════════════════
+        if _ai_recall_on:
+            try:
+                logger.info(
+                    f"AI_PRIMARY_DETECT | job={job_id} "
+                    f"| structural_base={len(all_entities)}"
+                )
+                ai_contextual = detect_missing_pii_with_ai(full_text, all_entities)
+                logger.info(f"AI_PRIMARY_FOUND | job={job_id} | found={len(ai_contextual)}")
+                all_entities = normalize_entities(all_entities + ai_contextual)
+                all_entities = deduplicate_entities(all_entities)
+                logger.info(f"AI_PRIMARY_MERGED | job={job_id} | total={len(all_entities)}")
+            except Exception as e:
+                logger.warning(f"AI_PRIMARY_FAIL | job={job_id} | error={str(e)}")
+
+        # ════════════════════════════════════════════════════════════════════
+        # FASE 3 — Filtro semántico opcional
+        # Descarta falsos positivos PERSONA/ENTIDAD/DIRECCION ambiguos.
+        # Solo activo si USE_AI_SEMANTIC_FILTER=1.
+        # ════════════════════════════════════════════════════════════════════
+        if _ai_semantic_on:
+            try:
                 pre_filter_count = len(all_entities)
                 all_entities = validate_ambiguous_candidates(all_entities, full_text)
                 all_entities = deduplicate_entities(all_entities)
@@ -875,44 +932,42 @@ def anonymizer_process():
                     f"AI_SEMANTIC_FILTER | job={job_id} "
                     f"| before={pre_filter_count} | after={len(all_entities)}"
                 )
-        except Exception as e:
-            logger.warning(f"AI_SEMANTIC_FILTER_FAIL | job={job_id} | error={str(e)}")
+            except Exception as e:
+                logger.warning(f"AI_SEMANTIC_FILTER_FAIL | job={job_id} | error={str(e)}")
 
-        # ── Capa AI Recall: detecta PII omitida por el pipeline base ─────────
-        # Activa si USE_AI_RECALL=1 (default). Divide el texto en chunks,
-        # pide a la IA que encuentre PII faltante y fusiona las entidades nuevas.
-        try:
-            from detector_openai import (
-                USE_AI_RECALL, is_openai_available,
-                detect_missing_pii_with_ai,
-            )
-            if USE_AI_RECALL and is_openai_available():
-                ai_recall_entities = detect_missing_pii_with_ai(full_text, all_entities)
-                if ai_recall_entities:
-                    all_entities = normalize_entities(all_entities + ai_recall_entities)
-                    all_entities = deduplicate_entities(all_entities)
-                    logger.info(
-                        f"AI_RECALL_MERGED | job={job_id} "
-                        f"| added={len(ai_recall_entities)} | total={len(all_entities)}"
-                    )
-        except Exception as e:
-            logger.warning(f"AI_RECALL_FAIL | job={job_id} | error={str(e)}")
-
-        # ── Auditoría final de IA: revisa si queda PII residual visible ───────
-        # Se ejecuta DESPUÉS del recall. Solo busca lo que aún no está cubierto.
-        try:
-            from detector_openai import ai_final_audit
-            if USE_AI_RECALL and is_openai_available():
+        # ════════════════════════════════════════════════════════════════════
+        # FASE 5 — Auditoría final obligatoria
+        # Verifica si queda PII residual visible tras el pipeline completo.
+        # Entidades con priority="critical" se fuerzan como confirmed.
+        # ════════════════════════════════════════════════════════════════════
+        if _ai_recall_on:
+            try:
+                logger.info(
+                    f"AI_AUDIT_START | job={job_id} "
+                    f"| current_total={len(all_entities)}"
+                )
                 audit_entities = ai_final_audit(full_text, all_entities)
+                residual_count = len(audit_entities)
+                critical_count = sum(
+                    1 for e in audit_entities if e.get('ai_priority') == 'critical'
+                )
                 if audit_entities:
                     all_entities = normalize_entities(all_entities + audit_entities)
                     all_entities = deduplicate_entities(all_entities)
+                if residual_count:
                     logger.info(
-                        f"AI_AUDIT_MERGED | job={job_id} "
-                        f"| added={len(audit_entities)} | total={len(all_entities)}"
+                        f"AI_RESIDUAL_FOUND | job={job_id} | residual={residual_count}"
                     )
-        except Exception as e:
-            logger.warning(f"AI_AUDIT_FAIL | job={job_id} | error={str(e)}")
+                if critical_count:
+                    logger.warning(
+                        f"AI_CRITICAL_FORCE | job={job_id} | critical={critical_count}"
+                    )
+                logger.info(
+                    f"AI_REPLACEMENT_FINAL | job={job_id} "
+                    f"| final_total={len(all_entities)}"
+                )
+            except Exception as e:
+                logger.warning(f"AI_AUDIT_FAIL | job={job_id} | error={str(e)}")
 
         confirmed = []
         needs_review = []
