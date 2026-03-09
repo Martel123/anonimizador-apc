@@ -1608,7 +1608,89 @@ def detect_layer3_heuristic(text: str) -> List[Entity]:
                 source='strong_context_persona',
                 confidence=0.80
             ))
-            
+
+    # ── 13. Títulos profesionales + nombre ────────────────────────────────
+    # Captura: Dra. NOMBRE, Abg. NOMBRE, Lic. NOMBRE, Ing. NOMBRE, etc.
+    # Frecuente en firmas, listas de abogados y expedientes médicos/sociales.
+    profesional_pattern = re.compile(
+        r'(?i)\b(?:Dra?\.?|Abg\.?|Lic\.?|Psic\.?|Mg\.?|Ing\.?'
+        r'|C\.?\s*Ps\.?\s*P\.?|Trab\.?\s*Social|Bach\.?|CPC\.?)\s+'
+        + '(' + _NAME_STRICT + ')',
+    )
+    for match in profesional_pattern.finditer(text):
+        value = match.group(1).strip().rstrip(',.:;')
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.84
+            ))
+
+    # ── 14. Línea en MAYÚSCULAS completas (2-5 palabras) en contexto firma ─
+    # Captura nombres como: CRISILDA CORDERO ROMANI DE FUENTES en línea sola.
+    # Excluye secciones jurídicas estándar para evitar falsos positivos.
+    _LEGAL_CAPS = frozenset({
+        'PETITORIO', 'FUNDAMENTOS', 'PRUEBAS', 'ANEXOS', 'HECHOS',
+        'DEMANDA', 'SUMILLA', 'PRETENSION', 'PRETENSIÓN', 'OTROSÍ',
+        'MINISTERIO', 'PODER', 'JUDICIAL', 'TRIBUNAL', 'JUZGADO',
+        'SALA', 'FISCALÍA', 'FISCALIA', 'SOLICITA', 'INTERPONE',
+        'EXPEDIENTE', 'CASILLA', 'ARTÍCULO', 'CONSIDERANDO',
+        'RESOLUCIÓN', 'PRIMERO', 'SEGUNDO', 'TERCERO',
+    })
+    caps_line_pattern = re.compile(
+        r'(?m)^\s*([A-ZÁÉÍÓÚÑ]{2,}'
+        r'(?:\s+(?:DE|DEL|LA|LOS|LAS|Y))?'
+        r'(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\s*$'
+    )
+    for match in caps_line_pattern.finditer(text):
+        value = match.group(1).strip()
+        words = value.split()
+        if len(words) < 2:
+            continue
+        if any(w in _LEGAL_CAPS for w in words):
+            continue
+        if not is_excluded_word(value) and len(value) > 5:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.end(1),
+                source='context', confidence=0.72
+            ))
+
+    # ── 15. Nombre seguido de cargo en línea inmediata (bloque de firma) ──
+    # Captura: "JUAN PÉREZ SILVA\nAbogado" o "María López\nEspecialista Legal"
+    cargo_firma_pattern = re.compile(
+        r'(' + _NAME_STRICT + r')'
+        r'[ \t]*\n[ \t]*'
+        r'(?i:abogad[oa]|procurador[a]?|defensor[a]?|especialista|asistente|'
+        r'juez[a]?|fiscal|notari[oa]?|médic[oa]?|psicólog[oa]?|'
+        r'trabajador[a]?\s+social|asesor[a]?|coordinador[a]?|director[a]?|'
+        r'gerente|jefe\s+de|responsable|consultor[a]?|perito)\b',
+    )
+    for match in cargo_firma_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.86
+            ))
+
+    # ── 16. Nombre seguido de colegiatura en línea siguiente (listas) ─────
+    # Captura: "NOMBRE\nCAL N° 12345" o "NOMBRE, CAL 9876"
+    colegiatura_nombre_pattern = re.compile(
+        r'(' + _NAME_STRICT + r')'
+        r'(?:[ \t]*\n[ \t]*|[ \t]*,[ \t]*)'
+        r'(?i:CAL|CMP|CIP|CNA|CAC|CPP|CPPP|CAQ|COP)\s*(?:N[°º]?\s*)?\d{3,7}',
+    )
+    for match in colegiatura_nombre_pattern.finditer(text):
+        value = match.group(1).strip()
+        if not is_excluded_word(value) and len(value) > 4:
+            entities.append(Entity(
+                type='PERSONA', value=value,
+                start=match.start(1), end=match.start(1) + len(value),
+                source='strong_context_persona', confidence=0.88
+            ))
+
     return entities
 
 

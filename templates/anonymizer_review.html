@@ -413,6 +413,15 @@
         <span class="text-sm text-gray-400">(selecciona texto para tokenizar)</span>
       </div>
       <div class="document-preview" id="documentPreview">{{ preview_text }}</div>
+      <!-- Mensaje UX para intento de copia -->
+      <div id="_copyBlockMsg" style="
+          display:inline-block;opacity:0;transition:opacity 0.3s;
+          margin-top:6px;padding:5px 12px;border-radius:6px;
+          background:#FFF3CD;border:1px solid #FFEAA7;
+          color:#856404;font-size:0.8rem;pointer-events:none;">
+        <i class="fas fa-lock" style="margin-right:4px;"></i>
+        No disponible: usa la descarga o la anonimización manual.
+      </div>
     </div>
 
     <!-- Auto-detected Entities - Horizontal Slider -->
@@ -1098,6 +1107,27 @@
 
     // Load on start
     loadCustomLabels();
+
+    // ── PROTECCIÓN DEL VISOR ─────────────────────────────────────────────────
+    // Bloquea copy/cut/contextmenu/dragstart SOLO dentro de #documentPreview.
+    // No bloquea mouseup, selectionchange ni selectstart → la anonimización
+    // manual (selección de texto con mouse) sigue funcionando sin cambios.
+    const _preview = document.getElementById('documentPreview');
+    const _copyMsg  = document.getElementById('_copyBlockMsg');
+
+    function _showCopyBlock() {
+      if (!_copyMsg) return;
+      _copyMsg.style.opacity = '1';
+      clearTimeout(_copyMsg._t);
+      _copyMsg._t = setTimeout(function() { _copyMsg.style.opacity = '0'; }, 2800);
+    }
+
+    if (_preview) {
+      _preview.addEventListener('copy',      function(e) { e.preventDefault(); _showCopyBlock(); });
+      _preview.addEventListener('cut',       function(e) { e.preventDefault(); _showCopyBlock(); });
+      _preview.addEventListener('dragstart', function(e) { e.preventDefault(); });
+      _preview.addEventListener('contextmenu', function(e) { e.preventDefault(); _showCopyBlock(); });
+    }
 
   });
   </script>

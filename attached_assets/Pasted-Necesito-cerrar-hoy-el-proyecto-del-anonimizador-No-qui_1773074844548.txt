@@ -1,0 +1,187 @@
+Necesito cerrar hoy el proyecto del anonimizador. No quiero más cambios de arquitectura ni mejoras cosméticas. Quiero corregir exactamente 3 problemas críticos, sin romper lo demás.
+
+IMPORTANTE:
+- Haz cambios mínimos y quirúrgicos.
+- No refactorices toda la app.
+- No cambies el flujo principal salvo donde sea necesario.
+- Antes de modificar, identifica exactamente en qué archivo y función/template está cada problema.
+- Al final, explícame exactamente qué cambiaste, en qué archivo y cómo probarlo.
+- No des respuestas generales: corrige el código real.
+
+========================================
+PROBLEMA 1 — BLOQUEAR COPIAR/PEGAR EL TEXTO ANONIMIZADO
+========================================
+
+Problema:
+En la vista de revisión/análisis del documento, el usuario puede copiar el texto anonimizado y llevárselo sin pagar.
+
+Objetivo:
+Bloquear la copia/corte/menú contextual/drag del texto del visor, PERO mantener la selección de texto porque la selección manual para anonimizar YA EXISTE y NO debe romperse.
+
+Reglas exactas:
+1. El usuario SÍ debe poder:
+   - seleccionar texto con mouse
+   - resaltar texto
+   - usar la función actual de selección manual para anonimizar
+2. El usuario NO debe poder:
+   - copiar con Ctrl+C / Cmd+C
+   - copiar desde click derecho
+   - cortar texto
+   - arrastrar texto fuera del visor
+3. La protección debe aplicarse SOLO dentro del contenedor del visor del documento, no globalmente a toda la app.
+4. NO bloquear eventos de selección como:
+   - mouseup
+   - selectionchange
+   - selectstart
+   si eso rompe la anonimización manual.
+5. Bloquear dentro del contenedor del visor:
+   - copy
+   - cut
+   - contextmenu
+   - dragstart
+6. Si existe un id o clase del visor (por ejemplo #document-viewer o similar), aplicar la protección ahí.
+7. No romper la UX del visor.
+
+Implementación esperada:
+- Buscar el contenedor real del visor del documento
+- Agregar listeners JS solo a ese contenedor
+- Mantener intacta la lógica actual de selección manual
+
+Quiero además un pequeño mensaje UX no intrusivo si alguien intenta copiar, por ejemplo:
+“No disponible: usa la descarga o la anonimización manual.”
+
+========================================
+PROBLEMA 2 — BOTÓN “CAMBIAR CONTRASEÑA” REDIRIGE AL OTRO SISTEMA
+========================================
+
+Problema:
+En el dashboard del anonimizador, el botón “Cambiar contraseña” está mandando al otro sistema, lo cual está mal.
+
+Ya existe el template interno de cambiar contraseña y también el template de reset. El problema no parece estar en esos templates, sino en el enlace/botón que lleva hacia esa página.
+
+Objetivo:
+Hacer que el botón “Cambiar contraseña” del anonimizador apunte SOLO a la ruta interna del anonimizador.
+
+Pasos exactos:
+1. Buscar dónde se renderiza el bloque o botón “Cambiar contraseña” en el dashboard / seguridad / cuenta.
+2. Identificar el href o acción que está usando.
+3. Corregirlo para que use la ruta local del anonimizador:
+   url_for('cambiar_password')
+   o la ruta Flask equivalente real si el endpoint tiene otro nombre.
+4. Verificar que la ruta Flask exista realmente y que renderice cambiar_password.html.
+5. Verificar que el formulario POST de cambiar_password.html siga funcionando.
+6. Revisar si existen más enlaces cruzados al otro sistema en la misma zona (seguridad/cuenta/dashboard) y corregirlos si los hay.
+
+No quiero:
+- enlaces hardcodeados a otro dominio
+- uso de PUBLIC_APP_URL si apunta al otro sistema
+- redirecciones cruzadas entre proyectos
+
+Al final dime:
+- qué archivo tenía el enlace malo
+- qué ruta usaba antes
+- qué ruta usa ahora
+- si encontraste más enlaces cruzados
+
+========================================
+PROBLEMA 3 — MEJORAR DETECCIÓN DE NOMBRES EN FIRMAS / PROFESIONALES / LISTAS
+========================================
+
+Problema:
+En las pruebas del anonimizador se detectaron bien muchos DNIs, correos, teléfonos, direcciones, cuentas, etc., pero todavía se escapan nombres completos en contextos como:
+- firmas finales
+- listas de abogadas o procuradores
+- profesionales de salud
+- firmas con cargo
+- nombres completos en mayúsculas
+- líneas tipo “Lic. ...”, “Dra. ...”, “Abg. ...”, etc.
+
+Objetivo:
+Mejorar de forma quirúrgica la detección de PERSONA para esos casos, sin romper lo que ya funciona y sin rehacer todo el pipeline.
+
+Reglas exactas:
+1. No reestructurar todo el sistema.
+2. No tocar los tipos estructurados que ya funcionan bien salvo que sea imprescindible.
+3. Mejorar la detección de PERSONA en estos escenarios:
+   - bloque final de firma
+   - listas de profesionales o abogados
+   - nombres completos en mayúsculas
+   - nombres con títulos/cargos:
+     Dra.
+     Dr.
+     Abg.
+     Lic.
+     Psic.
+     Mg.
+     Ing.
+     C.Ps.P.
+     Trab. Social
+   - nombres que aparecen seguidos de colegiatura, DNI o cargo
+4. Si ya existe AI_AUDIT o una auditoría final, usarla a favor de estos casos.
+5. Si ya existe una función de detección de bloque de firma, fortalecerla. Si no existe, crear una mínima.
+6. Prioridad: si en bloque final se detecta PERSONA o DNI con alta confianza, forzar reemplazo.
+7. Agregar una regla conservadora pero útil:
+   - si una línea aislada al final del documento tiene 2 a 5 palabras consecutivas con formato de nombre propio o mayúsculas completas, tratarlo como candidato PERSONA
+   - especialmente si debajo o al lado aparece “DNI”, colegiatura, firma, sello o cargo
+8. No quiero aumentar mucho el tiempo de procesamiento.
+9. No quiero más de lo necesario con OpenAI en todo el documento. Si usas IA para esto, úsala preferentemente en:
+   - bloque final
+   - listas de firmas/profesionales
+   - líneas con cargos y colegiaturas
+
+Casos que deben mejorar:
+- nombres de abogadas en escritos
+- nombres de profesionales médicos/sociales
+- nombre completo en la firma final
+- nombre visible junto a DNI al cierre
+
+========================================
+RESTRICCIONES GENERALES
+========================================
+
+- No tocar diseño salvo lo mínimo necesario.
+- No rehacer arquitectura.
+- No romper selección manual.
+- No romper login/cambio de contraseña.
+- No empeorar el tiempo de procesamiento.
+- No eliminar funcionalidades existentes.
+
+========================================
+VALIDACIÓN FINAL OBLIGATORIA
+========================================
+
+Después de hacer los cambios, quiero que valides estas 3 cosas:
+
+1. COPIA BLOQUEADA
+- En el visor del documento:
+  - seleccionar texto sigue funcionando
+  - copiar no funciona
+  - cortar no funciona
+  - click derecho copiar no funciona
+  - drag de texto no funciona
+
+2. CAMBIAR CONTRASEÑA
+- Desde el dashboard del anonimizador, el botón lleva a la pantalla correcta del mismo sistema
+- La pantalla cargar correctamente
+- El POST del formulario apunta al endpoint correcto
+
+3. FIRMAS Y NOMBRES
+- Probar con un documento que tenga:
+  - firma final con nombre + DNI
+  - lista de abogadas
+  - profesional con cargo
+- Confirmar si ahora se detectan mejor
+
+========================================
+RESPUESTA FINAL QUE QUIERO
+========================================
+
+Cuando termines, respóndeme EXACTAMENTE con esta estructura:
+
+1. Archivos modificados
+2. Qué se cambió en cada archivo
+3. Cómo se bloqueó la copia sin romper la selección
+4. Qué enlace/ruta de cambiar contraseña estaba mal y cómo quedó
+5. Qué mejora exacta se hizo para detectar nombres en firmas/listas/profesionales
+6. Cómo probar manualmente los 3 arreglos
+7. Si queda algún riesgo residual
