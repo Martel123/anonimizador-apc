@@ -1,0 +1,74 @@
+Ya funciona Render y la app despliega bien. El problema actual es solo uno:
+
+NO se está enviando el correo de verificación de email al registrarse.
+He probado varias veces con distintos usuarios y no llega ningún correo.
+
+Quiero que revises el flujo real completo y lo corrijas de forma precisa, sin tocar otras partes innecesarias.
+
+Objetivo:
+Hacer que el correo de verificación de email se envíe correctamente al registrarse, usando la infraestructura actual de Resend.
+
+Qué quiero que revises EXACTAMENTE:
+
+1. Flujo de registro
+- localizar la ruta/función real donde se crea el usuario
+- confirmar si después de crear el usuario realmente se llama al envío de correo de verificación
+- si no se llama, agregarlo
+
+2. Email verification token
+- confirmar que el token de verificación realmente se genera
+- confirmar en qué tabla/modelo se guarda
+- confirmar expiración y tipo de token
+- revisar si el token se está creando pero no se usa
+
+3. Envío por Resend
+- confirmar qué función envía el email
+- confirmar si se usa RESEND_API_KEY correctamente
+- confirmar qué remitente usa (MAIL_FROM o variable equivalente)
+- confirmar si el dominio/remitente está bien armado
+- si falla Resend, quiero ver el error real en logs
+
+4. Errores silenciosos
+- buscar try/except que estén escondiendo el error del envío
+- quitar cualquier “except: pass”
+- loggear claramente:
+  - VERIFY_EMAIL_START
+  - VERIFY_EMAIL_TOKEN_CREATED
+  - VERIFY_EMAIL_SEND_ATTEMPT
+  - VERIFY_EMAIL_SEND_OK
+  - VERIFY_EMAIL_SEND_FAIL
+
+5. Validación del remitente
+- confirmar qué variable usa el sistema para el from
+- confirmar si está usando seguridad@apcjuridica.com o el valor configurado
+- si falta MAIL_FROM o variable equivalente, dímelo claramente
+- si el dominio no está verificado en Resend, dímelo claramente
+
+6. Confirmar si el email se manda en:
+- registro normal
+- reenvío de verificación
+Quiero que ambos funcionen.
+
+7. Reenvío
+- si ya existe botón o endpoint de “reenviar verificación”, revisarlo
+- si no existe, crear uno mínimo y funcional
+- no romper login
+
+8. Prueba final obligatoria
+- registrar un usuario nuevo
+- confirmar en logs que:
+  - se creó el usuario
+  - se creó token
+  - se intentó enviar email
+  - Resend respondió OK o dio error concreto
+- si falla, quiero el error exacto, no silencio
+
+IMPORTANTE:
+No quiero respuestas generales.
+Quiero que me digas:
+1. si el flujo de envío ni siquiera estaba conectado
+2. si el problema era de Resend
+3. si el problema era de MAIL_FROM
+4. si el problema era de token
+5. qué archivo exacto corregiste
+6. cómo probar manualmente que ya sí llega el correo

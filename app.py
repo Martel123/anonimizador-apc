@@ -716,35 +716,48 @@ def start_argumentation_worker():
 
 
 def get_resend_credentials():
-    """Get Resend API credentials from Replit connector."""
-    try:
-        hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
-        token = os.environ.get('REPL_IDENTITY')
-        if not token:
-            token = os.environ.get('WEB_REPL_RENEWAL')
-            if token:
-                token = 'depl ' + token
-        else:
-            token = 'repl ' + token
-        
-        if not hostname or not token:
-            logging.warning("Missing REPLIT_CONNECTORS_HOSTNAME or token for Resend")
-            return None, None
-            
-        response = requests.get(
-            f'https://{hostname}/api/v2/connection?include_secrets=true&connector_names=resend',
-            headers={'Accept': 'application/json', 'X_REPLIT_TOKEN': token}
-        )
-        data = response.json()
-        if data.get('items'):
-            settings = data['items'][0].get('settings', {})
-            api_key = settings.get('api_key')
-            # Use verified subdomain for sending emails (override via MAIL_FROM env var)
-            from_email = os.environ.get('MAIL_FROM', 'notificaciones@notificaciones.apcjuridica.com')
-            logging.info(f"Resend credentials loaded, from_email: {from_email}")
-            return api_key, from_email
-    except Exception as e:
-        logging.error(f"Error getting Resend credentials: {e}")
+    """Get Resend API credentials.
+
+    Priority:
+    1. Replit connector (dev environment) — uses REPLIT_CONNECTORS_HOSTNAME
+    2. Env vars RESEND_API_KEY + MAIL_FROM (Render / any external deployment)
+    """
+    from_email = os.environ.get('MAIL_FROM', 'notificaciones@notificaciones.apcjuridica.com')
+
+    # ── Path 1: Replit connector ─────────────────────────────────────────────
+    hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
+    token = os.environ.get('REPL_IDENTITY')
+    if not token:
+        token = os.environ.get('WEB_REPL_RENEWAL')
+        if token:
+            token = 'depl ' + token
+    else:
+        token = 'repl ' + token
+
+    if hostname and token:
+        try:
+            response = requests.get(
+                f'https://{hostname}/api/v2/connection?include_secrets=true&connector_names=resend',
+                headers={'Accept': 'application/json', 'X_REPLIT_TOKEN': token},
+                timeout=5,
+            )
+            data = response.json()
+            if data.get('items'):
+                settings = data['items'][0].get('settings', {})
+                api_key = settings.get('api_key')
+                if api_key:
+                    logging.info(f"Resend credentials loaded via Replit connector, from_email: {from_email}")
+                    return api_key, from_email
+        except Exception as e:
+            logging.warning(f"get_resend_credentials | Replit connector failed: {e} — trying env var fallback")
+
+    # ── Path 2: RESEND_API_KEY env var (Render / external) ──────────────────
+    api_key = os.environ.get('RESEND_API_KEY')
+    if api_key:
+        logging.info(f"Resend credentials loaded via RESEND_API_KEY env var, from_email: {from_email}")
+        return api_key, from_email
+
+    logging.error("get_resend_credentials | No Resend API key available (neither connector nor RESEND_API_KEY env var)")
     return None, None
 
 
@@ -2836,7 +2849,7 @@ def login():
 
 def _send_verification_email(user, verify_url):
     """Envía el correo de verificación de email al usuario del anonimizador."""
-    mail_from = os.environ.get('MAIL_FROM', 'seguridad@apcjuridica.com')
+    logging.info(f"VERIFY_EMAIL_SEND_ATTEMPT | user_id={user.id} email={user.email} url={verify_url}")
     html_content = f'''
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:32px 24px;border-radius:12px;">
       <div style="background:#0B0B0B;border-radius:10px 10px 0 0;padding:20px 24px;">
@@ -2859,7 +2872,11 @@ def _send_verification_email(user, verify_url):
       </div>
     </div>
     '''
-    send_notification_email(user.email, "Confirma tu correo \u2013 Anonimizador APC", html_content)
+    ok = send_notification_email(user.email, "Confirma tu correo \u2013 Anonimizador APC", html_content)
+    if ok:
+        logging.info(f"VERIFY_EMAIL_SEND_OK | user_id={user.id} email={user.email}")
+    else:
+        logging.error(f"VERIFY_EMAIL_SEND_FAIL | user_id={user.id} email={user.email} — send_notification_email returned False")
 
 
 @app.route("/verify-email/<token>")
@@ -2891,6 +2908,7 @@ def resend_verification():
         flash("Tu correo ya está verificado.", "info")
         return redirect(url_for('anonymizer.anonymizer_home'))
     try:
+        logging.info(f"VERIFY_EMAIL_START | resend | user_id={current_user.id} email={current_user.email}")
         existing = ActivationToken.query.filter_by(
             user_id=current_user.id, tipo='email_verify', used=False
         ).all()
@@ -2898,12 +2916,13 @@ def resend_verification():
             t.used = True
         db.session.commit()
         verify_token = ActivationToken.create_token(current_user.id, tipo='email_verify', hours=24)
+        logging.info(f"VERIFY_EMAIL_TOKEN_CREATED | resend | user_id={current_user.id} token_id={verify_token.id}")
         app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
         verify_url = f"{app_base_url}/verify-email/{verify_token.token}"
         _send_verification_email(current_user, verify_url)
         flash("Te enviamos un nuevo enlace de verificación. Revisa tu correo.", "success")
     except Exception as e:
-        logging.error(f"resend_verification error: {e}", exc_info=True)
+        logging.error(f"VERIFY_EMAIL_SEND_FAIL | resend_verification error: {e}", exc_info=True)
         flash("No se pudo enviar el correo. Intenta más tarde.", "error")
     return redirect(url_for('anonymizer.anonymizer_home'))
 
@@ -3120,12 +3139,14 @@ def registro_usuario():
 
         # Enviar email de verificación (no bloquea el registro si falla)
         try:
+            logging.info(f"VERIFY_EMAIL_START | user_id={user.id} email={user.email}")
             verify_token = ActivationToken.create_token(user.id, tipo='email_verify', hours=24)
+            logging.info(f"VERIFY_EMAIL_TOKEN_CREATED | user_id={user.id} token_id={verify_token.id} expires_at={verify_token.expires_at}")
             app_base_url = os.environ.get('APP_BASE_URL', request.host_url.rstrip('/'))
             verify_url = f"{app_base_url}/verify-email/{verify_token.token}"
             _send_verification_email(user, verify_url)
         except Exception as _ve:
-            logging.warning(f"registro_usuario | no se pudo enviar verificación: {_ve}")
+            logging.error(f"VERIFY_EMAIL_START | user_id={user.id} EXCEPTION: {_ve}", exc_info=True)
 
         login_user(user)
         flash("Cuenta creada exitosamente.", "success")
