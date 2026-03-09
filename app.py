@@ -2873,26 +2873,32 @@ def forgot_password():
                 
                 if resend is not None:
                     html_content = f'''
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h2 style="color: #333;">Recuperación de Contraseña</h2>
-                        <p>Hola {user.username},</p>
-                        <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
-                        <p style="margin: 20px 0;">
-                            <a href="{reset_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                                Restablecer Contraseña
-                            </a>
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px 24px; border-radius: 12px;">
+                      <div style="background:#0B0B0B; border-radius:10px 10px 0 0; padding:20px 24px;">
+                        <span style="color:#fff; font-size:18px; font-weight:700;">Anonimizador APC</span>
+                      </div>
+                      <div style="background:#fff; border-radius:0 0 10px 10px; padding:28px 24px; border:1px solid #eee; border-top:none;">
+                        <h2 style="color:#0B0B0B; margin-top:0;">Recupera tu contraseña</h2>
+                        <p style="color:#444;">Hola <strong>{user.username}</strong>,</p>
+                        <p style="color:#444;">Recibimos una solicitud para restablecer la contraseña de tu cuenta. Haz clic en el botón para crear una nueva:</p>
+                        <p style="margin: 28px 0; text-align:center;">
+                          <a href="{reset_url}"
+                             style="background-color:#B30000; color:#fff; padding:13px 28px; text-decoration:none; border-radius:8px; display:inline-block; font-weight:600; font-size:15px;">
+                            Restablecer contraseña
+                          </a>
                         </p>
-                        <p>Este enlace expirará en 24 horas.</p>
-                        <p>Si no solicitaste restablecer tu contraseña, puedes ignorar este correo.</p>
-                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                        <p style="color: #666; font-size: 12px;">Centro de Conciliación - Sistema de Gestión</p>
+                        <p style="color:#666; font-size:13px;">Este enlace expirará en <strong>24 horas</strong>.</p>
+                        <p style="color:#666; font-size:13px;">Si no solicitaste este cambio, puedes ignorar este correo con total seguridad.</p>
+                        <hr style="border:none; border-top:1px solid #eee; margin:24px 0;">
+                        <p style="color:#aaa; font-size:11px; margin:0;">Anonimizador APC &mdash; Protección de datos en documentos legales</p>
+                      </div>
                     </div>
                     '''
-                    
+
                     resend.Emails.send({
                         "from": f"Anonimizador APC <{mail_from}>",
                         "to": [user.email],
-                        "subject": "Recuperación de Contraseña",
+                        "subject": "Recupera tu contraseña \u2013 Anonimizador APC",
                         "html": html_content
                     })
                 

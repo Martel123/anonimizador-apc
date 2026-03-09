@@ -1,0 +1,174 @@
+Necesito cerrar hoy el módulo de acceso del anonimizador con una solución simple, propia y funcional.
+
+Objetivo:
+1. Crear una pantalla propia de “Cambiar contraseña” del anonimizador
+2. Implementar recuperación de contraseña por correo del anonimizador
+3. No usar layouts ni rutas del otro sistema
+4. No romper login ni sesiones actuales
+
+IMPORTANTE:
+- Haz cambios mínimos y quirúrgicos
+- No refactorices toda la app
+- No mezcles branding ni templates del otro sistema
+- Antes de tocar, identifica exactamente qué rutas, templates y funciones actuales existen
+- Al final explícame exactamente qué cambiaste y cómo probarlo
+
+========================================
+PARTE 1 — CAMBIAR CONTRASEÑA
+========================================
+
+Problema actual:
+- La ruta ya entra al anonimizador
+- Pero no existe una vista propia del anonimizador, o se está usando una plantilla/layout del otro sistema
+
+Qué quiero:
+1. Crear una plantilla nueva exclusiva del anonimizador para cambiar contraseña
+   Nombre sugerido:
+   templates/anonymizer_cambiar_password.html
+   o uno equivalente coherente con el proyecto
+
+2. Esta página debe ser standalone o usar SOLO un layout propio del anonimizador
+   No debe mostrar:
+   - "Estudio Administrador"
+   - sidebar del otro sistema
+   - branding ajeno
+   - menús de tareas/calendario/usuarios del otro proyecto
+
+3. Debe incluir:
+   - título “Cambiar contraseña”
+   - contraseña actual
+   - nueva contraseña
+   - confirmar nueva contraseña
+   - botón “Actualizar contraseña”
+   - enlace “Volver al panel” o “Volver”
+
+4. Mantener:
+   - validaciones backend actuales
+   - lógica POST actual
+   - toggle mostrar/ocultar contraseña si ya existe
+
+5. La ruta actual de cambiar_password debe renderizar esta nueva plantilla propia
+
+========================================
+PARTE 2 — RECUPERAR CONTRASEÑA POR CORREO
+========================================
+
+Quiero implementar un flujo propio del anonimizador para “Olvidé mi contraseña”.
+
+Objetivo:
+Que el usuario ingrese su correo, reciba un email con enlace seguro, y pueda definir una nueva contraseña.
+
+Qué quiero exactamente:
+
+1. Crear una pantalla propia para solicitar recuperación:
+   ejemplo:
+   templates/anonymizer_forgot_password.html
+
+   Debe tener:
+   - título “Recuperar contraseña”
+   - campo email
+   - botón “Enviar enlace”
+   - enlace “Volver a iniciar sesión”
+
+2. Crear o adaptar una pantalla propia para restablecer contraseña:
+   ejemplo:
+   templates/anonymizer_reset_password.html
+
+   Debe tener:
+   - nueva contraseña
+   - confirmar contraseña
+   - botón “Actualizar contraseña”
+
+3. Backend:
+   - crear o adaptar la ruta de forgot password
+   - crear o adaptar la ruta de reset password con token
+   - generar token seguro con expiración
+   - validar token al abrir el enlace
+   - invalidar token si expira o si ya fue usado
+   - actualizar password hash del usuario
+
+4. Correo:
+   - enviar email real de recuperación
+   - asunto claro, por ejemplo:
+     “Recupera tu contraseña – Anonimizador APC”
+   - cuerpo simple y profesional
+   - incluir enlace al reset password del anonimizador
+   - no usar branding del otro sistema
+
+5. Seguridad:
+   - no revelar si el correo existe o no
+   - mostrar mensaje neutral del tipo:
+     “Si el correo existe en el sistema, te enviaremos un enlace de recuperación.”
+   - usar expiración del token (por ejemplo 30 o 60 minutos)
+   - invalidar token si ya fue consumido
+   - guardar contraseñas con hash, nunca en texto plano
+
+6. Configuración:
+   - revisar cómo se envían correos actualmente
+   - si ya existe infraestructura de email, reutilizarla
+   - si hay variables de entorno necesarias, dime exactamente cuáles faltan
+
+Variables típicas posibles:
+- MAIL_SERVER
+- MAIL_PORT
+- MAIL_USERNAME
+- MAIL_PASSWORD
+- MAIL_DEFAULT_SENDER
+- APP_BASE_URL
+o las equivalentes reales del proyecto
+
+7. Integración UI:
+   - agregar enlace “¿Olvidaste tu contraseña?” en login
+   - asegurar que abra la pantalla propia del anonimizador
+   - asegurar que “Cambiar contraseña” y “Recuperar contraseña” sean consistentes visualmente
+
+========================================
+RESTRICCIONES
+========================================
+
+- No usar templates ni layouts del otro sistema
+- No redirigir a otro proyecto
+- No romper login actual
+- No cambiar toda la arquitectura de usuarios
+- No tocar más de lo necesario
+- Mantener compatibilidad con usuarios actuales
+
+========================================
+VALIDACIÓN FINAL OBLIGATORIA
+========================================
+
+Quiero que al final verifiques esto:
+
+1. Cambiar contraseña
+- entra a una vista propia del anonimizador
+- no muestra branding del otro sistema
+- formulario POST funciona
+
+2. Forgot password
+- el login muestra “¿Olvidaste tu contraseña?”
+- la pantalla de recuperación carga bien
+- al enviar correo muestra mensaje neutral
+- se genera enlace con token
+- el enlace abre la pantalla correcta del anonimizador
+
+3. Reset password
+- el token válido permite cambiar contraseña
+- el token expirado o inválido muestra error correcto
+- la nueva contraseña se guarda bien
+- luego el usuario puede iniciar sesión con la nueva contraseña
+
+========================================
+RESPUESTA FINAL QUE QUIERO
+========================================
+
+Cuando termines, respóndeme EXACTAMENTE con esta estructura:
+
+1. Archivos creados
+2. Archivos modificados
+3. Qué ruta renderiza cambiar contraseña
+4. Qué ruta renderiza forgot password
+5. Qué ruta renderiza reset password
+6. Cómo se envía el correo
+7. Qué variables de entorno necesito configurar
+8. Cómo probar manualmente el flujo completo
+9. Si queda algún riesgo residual
